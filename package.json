@@ -14,11 +14,14 @@
   "packageManager": "pnpm@10.13.1",
   "dependencies": {
     "@tailwindcss/vite": "^4.2.1",
+    "@tanstack/react-router": "^1.163.2",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "tailwindcss": "^4.2.1"
   },
   "devDependencies": {
+    "@tanstack/router-devtools": "^1.163.2",
+    "@tanstack/router-plugin": "^1.163.2",
     "@types/react": "^19.2.14",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react-swc": "^4.2.3",
