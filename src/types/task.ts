@@ -10,6 +10,7 @@ export interface Task {
   priority: TaskPriority
   storyPoints: number
   sprint: string
+  team?: string
   createdAt: string
   updatedAt: string
 }
