@@ -18,7 +18,7 @@ export interface TaskFilters {
  */
 export function useTaskFilters() {
   const navigate = useNavigate()
-  const searchParams = useSearch({ from: '/sprints/' })
+  const searchParams = useSearch() as Record<string, unknown>
 
   // Validate and extract filter values
   const status = isValidStatus(searchParams.status) ? searchParams.status : null
@@ -35,7 +35,6 @@ export function useTaskFilters() {
   const updateFilter = useCallback(
     (updates: Partial<TaskFilters>) => {
       navigate({
-        to: '/sprints/',
         search: {
           status: updates.status !== undefined ? updates.status : status,
           priority:
@@ -53,7 +52,6 @@ export function useTaskFilters() {
 
   const clearAllFilters = useCallback(() => {
     navigate({
-      to: '/sprints/',
       search: {},
     })
   }, [navigate])
