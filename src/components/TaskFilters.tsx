@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
 interface TaskFiltersProps {
@@ -30,9 +31,21 @@ export function TaskFilters({
   onPriorityChange,
   onSearchChange,
 }: TaskFiltersProps) {
-  const handleSearchChange = (value: string) => {
-    onSearchChange?.(value)
-  }
+  const [localSearch, setLocalSearch] = useState(search)
+
+  useEffect(() => {
+    setLocalSearch(search)
+  }, [search])
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (localSearch !== search) {
+        onSearchChange?.(localSearch)
+      }
+    }, 300)
+
+    return () => clearTimeout(timer)
+  }, [localSearch, search, onSearchChange])
 
   const allStatuses: TaskStatus[] = [
     'backlog',
@@ -92,8 +105,8 @@ export function TaskFilters({
         <h3 className="mb-2 text-sm font-semibold text-gray-700">Search</h3>
         <input
           type="text"
-          value={search}
-          onChange={(e) => handleSearchChange(e.target.value)}
+          value={localSearch}
+          onChange={(e) => setLocalSearch(e.target.value)}
           placeholder="Search by task title..."
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
         />
