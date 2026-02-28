@@ -60,6 +60,7 @@ function generateMockAgents(): Agent[] {
   return agents
 }
 
+<<<<<<< HEAD
 // Generate 1000+ mock tasks for testing virtual scrolling
 function generateMockTasks(): Task[] {
   const statuses: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
@@ -143,6 +144,83 @@ function getTaskIdCounter(): number {
   }, 0)
   return maxId + 1
 }
+=======
+// In-memory store for tasks with seed data
+const tasksStore: Task[] = [
+  {
+    id: 'task-1',
+    title: 'Implement authentication',
+    assignee: 'John Doe',
+    status: 'in-progress',
+    priority: 'high',
+    storyPoints: 8,
+    sprint: 'sprint-1',
+    team: 'backend-team',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-2',
+    title: 'Create API documentation',
+    assignee: 'Jane Smith',
+    status: 'backlog',
+    priority: 'medium',
+    storyPoints: 5,
+    sprint: 'sprint-1',
+    team: 'backend-team',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-3',
+    title: 'Fix login form validation',
+    assignee: 'Bob Johnson',
+    status: 'in-review',
+    priority: 'high',
+    storyPoints: 3,
+    sprint: 'sprint-1',
+    team: 'frontend-team',
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-4',
+    title: 'Setup database migrations',
+    assignee: 'Alice Williams',
+    status: 'done',
+    priority: 'medium',
+    storyPoints: 5,
+    sprint: 'sprint-1',
+    team: 'backend-team',
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-5',
+    title: 'Design dashboard components',
+    assignee: 'Charlie Brown',
+    status: 'backlog',
+    priority: 'low',
+    storyPoints: 8,
+    sprint: 'sprint-1',
+    team: 'frontend-team',
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-6',
+    title: 'Write unit tests for services',
+    assignee: 'Diana Prince',
+    status: 'in-progress',
+    priority: 'high',
+    storyPoints: 5,
+    sprint: 'sprint-1',
+    team: 'frontend-team',
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+]
+>>>>>>> 97686db (feat: extend MSW handlers to support team, sprint, assignee filters and add sample team data)
 
 // In-memory store for sprints
 const sprintsStore: Sprint[] = []
@@ -178,6 +256,9 @@ export const handlers = [
     const status = url.searchParams.get('status')
     const priority = url.searchParams.get('priority')
     const search = url.searchParams.get('search')
+    const team = url.searchParams.get('team')
+    const sprint = url.searchParams.get('sprint')
+    const assignee = url.searchParams.get('assignee')
     const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
     const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
     const sortBy = url.searchParams.get('sortBy') || 'title'
@@ -198,6 +279,18 @@ export const handlers = [
       filteredTasks = filteredTasks.filter((task) =>
         task.title.toLowerCase().includes(searchLower)
       )
+    }
+
+    if (team) {
+      filteredTasks = filteredTasks.filter((task) => task.team === team)
+    }
+
+    if (sprint) {
+      filteredTasks = filteredTasks.filter((task) => task.sprint === sprint)
+    }
+
+    if (assignee) {
+      filteredTasks = filteredTasks.filter((task) => task.assignee === assignee)
     }
 
     // Sorting - validate sortBy is a valid Task field
