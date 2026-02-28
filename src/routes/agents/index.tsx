@@ -1,84 +1,53 @@
-import { useVirtualizer } from '@tanstack/react-virtual'
-import { useRef } from 'react'
 import { useAgents } from '../../hooks/useAgents'
+import { AgentCard } from '../../components/AgentCard'
 
 export function AgentsDashboard() {
   const { data: response, isLoading, error } = useAgents()
   const agents = response?.data ?? []
-  const parentRef = useRef<HTMLDivElement>(null)
-
-  const virtualizer = useVirtualizer({
-    count: agents.length,
-    getScrollElement: () => parentRef.current,
-    estimateSize: () => 80,
-    gap: 8,
-  })
 
   if (isLoading) {
-    return <div className="p-4">Loading agents...</div>
+    return (
+      <div className="p-8">
+        <h1 className="text-3xl font-bold mb-8">Agent Dashboard</h1>
+        <div className="flex items-center justify-center py-16">
+          <p className="text-slate-500">Loading agents...</p>
+        </div>
+      </div>
+    )
   }
 
   if (error) {
-    return <div className="p-4 text-red-600">Error loading agents: {error.message}</div>
+    return (
+      <div className="p-8">
+        <h1 className="text-3xl font-bold mb-8">Agent Dashboard</h1>
+        <div className="p-6 bg-red-50 border border-red-200 rounded-lg text-red-700">
+          Error loading agents: {error.message}
+        </div>
+      </div>
+    )
   }
 
-  const virtualItems = virtualizer.getVirtualItems()
-  const totalSize = virtualizer.getTotalSize()
+  if (agents.length === 0) {
+    return (
+      <div className="p-8">
+        <h1 className="text-3xl font-bold mb-8">Agent Dashboard</h1>
+        <div className="flex items-center justify-center py-16">
+          <p className="text-slate-500">No agents available</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="p-4">
-      <h1 className="text-2xl font-bold mb-4">Agent Dashboard</h1>
-      <div
-        ref={parentRef}
-        className="border rounded-lg overflow-auto h-[600px] bg-white"
-      >
-        <div
-          style={{
-            height: `${totalSize}px`,
-            width: '100%',
-            position: 'relative',
-          }}
-        >
-          {virtualItems.map((virtualItem) => {
-            const agent = agents[virtualItem.index]
-            if (!agent) return null
+    <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <h1 className="text-3xl font-bold text-slate-900 mb-2">Agent Dashboard</h1>
+        <p className="text-slate-600 mb-8">Manage and monitor your team agents</p>
 
-            return (
-              <div
-                key={agent.id}
-                data-index={virtualItem.index}
-                style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  transform: `translateY(${virtualItem.start}px)`,
-                }}
-              >
-                <div className="p-4 border-b flex justify-between items-center hover:bg-gray-50">
-                  <div>
-                    <p className="font-semibold">{agent.name}</p>
-                    <p className="text-sm text-gray-600">{agent.role}</p>
-                  </div>
-                  <div className="text-right">
-                    <span
-                      className={`px-3 py-1 rounded text-sm font-medium ${
-                        agent.status === 'idle'
-                          ? 'bg-gray-100 text-gray-800'
-                          : agent.status === 'working'
-                            ? 'bg-blue-100 text-blue-800'
-                            : agent.status === 'blocked'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-green-100 text-green-800'
-                      }`}
-                    >
-                      {agent.status}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {agents.map((agent) => (
+            <AgentCard key={agent.id} agent={agent} />
+          ))}
         </div>
       </div>
     </div>

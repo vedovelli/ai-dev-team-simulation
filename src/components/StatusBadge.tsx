@@ -4,39 +4,39 @@ interface StatusBadgeProps {
   status: AgentStatus
 }
 
+function getStatusIcon(status: AgentStatus): string {
+  switch (status) {
+    case 'idle':
+      return '○'
+    case 'working':
+      return '⟳'
+    case 'blocked':
+      return '⚠'
+    case 'completed':
+      return '✓'
+  }
+}
+
 export function StatusBadge({ status }: StatusBadgeProps) {
   const getStatusColor = (status: AgentStatus) => {
     switch (status) {
       case 'idle':
-        return 'bg-gray-600 text-gray-100'
+        return 'bg-slate-100 text-slate-700'
       case 'working':
-        return 'bg-blue-600 text-blue-100'
+        return 'bg-blue-100 text-blue-700'
       case 'blocked':
-        return 'bg-red-600 text-red-100'
+        return 'bg-amber-100 text-amber-700'
       case 'completed':
-        return 'bg-green-600 text-green-100'
+        return 'bg-emerald-100 text-emerald-700'
     }
   }
 
   return (
     <span
-      className={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(status)}`}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${getStatusColor(status)}`}
     >
-      <span className={`w-2 h-2 rounded-full ${getStatusDotColor(status)}`} />
-      {status}
+      <span className="text-base">{getStatusIcon(status)}</span>
+      {status.charAt(0).toUpperCase() + status.slice(1)}
     </span>
   )
-}
-
-function getStatusDotColor(status: AgentStatus): string {
-  switch (status) {
-    case 'idle':
-      return 'bg-gray-400'
-    case 'working':
-      return 'bg-blue-300'
-    case 'blocked':
-      return 'bg-red-300'
-    case 'completed':
-      return 'bg-green-300'
-  }
 }
