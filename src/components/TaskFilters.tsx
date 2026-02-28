@@ -1,9 +1,8 @@
-import { useState } from 'react'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
 interface TaskFiltersProps {
-  statuses?: TaskStatus[]
-  priorities?: TaskPriority[]
+  status?: TaskStatus | null
+  priority?: TaskPriority | null
   search?: string
   onStatusChange?: (status: TaskStatus | null) => void
   onPriorityChange?: (priority: TaskPriority | null) => void
@@ -24,17 +23,14 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
 }
 
 export function TaskFilters({
-  statuses = [],
-  priorities = [],
+  status = null,
+  priority = null,
   search = '',
   onStatusChange,
   onPriorityChange,
   onSearchChange,
 }: TaskFiltersProps) {
-  const [localSearch, setLocalSearch] = useState(search)
-
   const handleSearchChange = (value: string) => {
-    setLocalSearch(value)
     onSearchChange?.(value)
   }
 
@@ -51,19 +47,19 @@ export function TaskFilters({
       <div>
         <h3 className="mb-2 text-sm font-semibold text-gray-700">Status</h3>
         <div className="flex flex-wrap gap-2">
-          {allStatuses.map((status) => (
+          {allStatuses.map((s) => (
             <button
-              key={status}
+              key={s}
               onClick={() =>
-                onStatusChange?.(statuses.includes(status) ? null : status)
+                onStatusChange?.(status === s ? null : s)
               }
               className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                statuses.includes(status)
+                status === s
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              {STATUS_LABELS[status]}
+              {STATUS_LABELS[s]}
             </button>
           ))}
         </div>
@@ -72,21 +68,21 @@ export function TaskFilters({
       <div>
         <h3 className="mb-2 text-sm font-semibold text-gray-700">Priority</h3>
         <div className="flex flex-wrap gap-2">
-          {allPriorities.map((priority) => (
+          {allPriorities.map((p) => (
             <button
-              key={priority}
+              key={p}
               onClick={() =>
                 onPriorityChange?.(
-                  priorities.includes(priority) ? null : priority
+                  priority === p ? null : p
                 )
               }
               className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
-                priorities.includes(priority)
+                priority === p
                   ? 'bg-blue-500 text-white'
                   : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
               }`}
             >
-              {PRIORITY_LABELS[priority]}
+              {PRIORITY_LABELS[p]}
             </button>
           ))}
         </div>
@@ -96,7 +92,7 @@ export function TaskFilters({
         <h3 className="mb-2 text-sm font-semibold text-gray-700">Search</h3>
         <input
           type="text"
-          value={localSearch}
+          value={search}
           onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search by task title..."
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
