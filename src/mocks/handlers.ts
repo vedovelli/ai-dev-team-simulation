@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { Agent, AgentStatus } from '../types/agent'
+import type { Agent, AgentRole, AgentStatus } from '../types/agent'
 
 interface Team {
   id: string
@@ -12,56 +12,43 @@ interface Team {
 // In-memory store for teams
 const teamsStore: Team[] = []
 
-// Seed data for agents
-const agentRoles = [
-  'Frontend Developer',
-  'Backend Developer',
-  'DevOps Engineer',
-  'QA Engineer',
-  'Product Manager',
-  'UI Designer',
-  'Database Administrator',
-  'Security Engineer',
-]
+// In-memory store for agents
+const agentsStore: Agent[] = generateMockAgents()
 
-const agentTasks = [
-  'Implementing user authentication',
-  'Fixing critical bug in payment system',
-  'Writing unit tests for API',
-  'Reviewing pull requests',
-  'Optimizing database queries',
-  'Deploying to production',
-  'Setting up CI/CD pipeline',
-  'Designing system architecture',
-  'Creating documentation',
-  'Debugging memory leak',
-]
+function generateMockAgents(): Agent[] {
+  const roles: AgentRole[] = ['sr-dev', 'junior', 'pm']
+  const statuses: AgentStatus[] = ['idle', 'working', 'blocked', 'completed']
+  const tasks = [
+    'Implementing feature X',
+    'Debugging API response',
+    'Code review',
+    'Writing tests',
+    'Refactoring component',
+    'Updating documentation',
+  ]
+  const outputs = [
+    'Successfully merged PR',
+    'Found potential memory leak',
+    'Tests passing',
+    'Waiting for feedback',
+    'Blocked on dependency',
+    'Task completed',
+  ]
 
-const agentStatuses: AgentStatus[] = [
-  'idle',
-  'working',
-  'blocked',
-  'completed',
-]
-
-function generateAgents(count: number): Agent[] {
   const agents: Agent[] = []
-  for (let i = 1; i <= count; i++) {
-    const status = agentStatuses[Math.floor(Math.random() * agentStatuses.length)]
+  for (let i = 0; i < 50; i++) {
     agents.push({
-      id: `agent-${i}`,
-      name: `Agent ${i}`,
-      role: agentRoles[Math.floor(Math.random() * agentRoles.length)],
-      status,
-      currentTask: status !== 'idle' && status !== 'completed' ? agentTasks[Math.floor(Math.random() * agentTasks.length)] : null,
-      output: status === 'completed' ? `Completed task at ${new Date().toISOString()}` : null,
+      id: `agent-${i + 1}`,
+      name: `Agent ${i + 1}`,
+      role: roles[i % roles.length],
+      status: statuses[Math.floor(Math.random() * statuses.length)],
+      currentTask: tasks[Math.floor(Math.random() * tasks.length)],
+      output: outputs[Math.floor(Math.random() * outputs.length)],
+      lastUpdated: new Date(Date.now() - Math.random() * 300000).toISOString(),
     })
   }
   return agents
 }
-
-const agentsStore: Agent[] = generateAgents(50)
-
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
@@ -84,24 +71,7 @@ export const handlers = [
     return HttpResponse.json(teamsStore)
   }),
 
-  http.get('/api/agents', ({ request }) => {
-    // Support pagination for scalability to production
-    const url = new URL(request.url)
-    const page = parseInt(url.searchParams.get('page') || '1', 10)
-    const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
-
-    const startIndex = (page - 1) * pageSize
-    const endIndex = startIndex + pageSize
-    const paginatedAgents = agentsStore.slice(startIndex, endIndex)
-
-    return HttpResponse.json({
-      data: paginatedAgents,
-      pagination: {
-        page,
-        pageSize,
-        total: agentsStore.length,
-        totalPages: Math.ceil(agentsStore.length / pageSize),
-      },
-    })
+  http.get('/api/agents', () => {
+    return HttpResponse.json(agentsStore)
   }),
 ]
