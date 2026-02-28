@@ -3,7 +3,8 @@ import { useRef } from 'react'
 import { useAgents } from '../../hooks/useAgents'
 
 export function AgentsDashboard() {
-  const { data: agents = [], isLoading, error } = useAgents()
+  const { data: response, isLoading, error } = useAgents()
+  const agents = response?.data ?? []
   const parentRef = useRef<HTMLDivElement>(null)
 
   const virtualizer = useVirtualizer({

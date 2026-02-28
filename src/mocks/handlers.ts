@@ -84,7 +84,24 @@ export const handlers = [
     return HttpResponse.json(teamsStore)
   }),
 
-  http.get('/api/agents', () => {
-    return HttpResponse.json(agentsStore)
+  http.get('/api/agents', ({ request }) => {
+    // Support pagination for scalability to production
+    const url = new URL(request.url)
+    const page = parseInt(url.searchParams.get('page') || '1', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
+
+    const startIndex = (page - 1) * pageSize
+    const endIndex = startIndex + pageSize
+    const paginatedAgents = agentsStore.slice(startIndex, endIndex)
+
+    return HttpResponse.json({
+      data: paginatedAgents,
+      pagination: {
+        page,
+        pageSize,
+        total: agentsStore.length,
+        totalPages: Math.ceil(agentsStore.length / pageSize),
+      },
+    })
   }),
 ]
