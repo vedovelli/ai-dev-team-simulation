@@ -2,12 +2,11 @@ import { useEffect, useState } from 'react'
 import {
   DndContext,
   DragEndEvent,
-  closestDroppableOfType,
+  closestCenter,
   PointerSensor,
   useSensor,
   useSensors,
 } from '@dnd-kit/core'
-import { arrayMove } from '@dnd-kit/utilities'
 import { Droppable } from './Droppable'
 import { DraggableTask } from './DraggableTask'
 import { useTasks } from '../../hooks/useTasks'
@@ -28,9 +27,7 @@ export function TaskBoard() {
   const [tasks, setTasks] = useState<Task[]>([])
 
   const sensors = useSensors(
-    useSensor(PointerSensor, {
-      distance: 8,
-    })
+    useSensor(PointerSensor)
   )
 
   useEffect(() => {
@@ -72,7 +69,7 @@ export function TaskBoard() {
       <DndContext
         sensors={sensors}
         onDragEnd={handleDragEnd}
-        collisionDetection={closestDroppableOfType}
+        collisionDetection={closestCenter}
       >
         <div className="grid grid-cols-4 gap-6">
           {STATUSES.map((status) => (

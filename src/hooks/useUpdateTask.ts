@@ -44,7 +44,7 @@ export function useUpdateTask() {
 
       return { previousTasks }
     },
-    onError: (error, variables, context) => {
+    onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousTasks) {
         context.previousTasks.forEach(([key, data]) => {
