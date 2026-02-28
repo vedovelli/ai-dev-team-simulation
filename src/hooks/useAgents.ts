@@ -18,5 +18,7 @@ export function useAgents(options?: UseAgentsOptions) {
       return response.json()
     },
     refetchInterval: pollingInterval,
+    // TanStack Query automatically clears the refetch interval when the component
+    // unmounts or when the hook is no longer active, preventing memory leaks
   })
 }
