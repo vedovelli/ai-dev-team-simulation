@@ -2,7 +2,7 @@ import type { TaskFormData } from '../../types/task'
 
 export const validations = {
   name: {
-    validate: async (value: string): Promise<string | undefined> => {
+    validate: (value: string): string | undefined => {
       if (!value) {
         return 'Task name is required'
       }
@@ -12,20 +12,6 @@ export const validations = {
       if (value.length > 100) {
         return 'Task name must not exceed 100 characters'
       }
-
-      // Async validation: check for unique name
-      try {
-        const response = await fetch(
-          `/api/tasks/validate-name?name=${encodeURIComponent(value)}`,
-        )
-        if (!response.ok) {
-          return 'Task name already exists'
-        }
-      } catch {
-        // Network error - allow submission to proceed
-        return undefined
-      }
-
       return undefined
     },
   },

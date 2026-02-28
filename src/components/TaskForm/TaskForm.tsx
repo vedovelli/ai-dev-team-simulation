@@ -1,8 +1,7 @@
-import { useForm, FieldInfo } from '@tanstack/react-form'
+import { useForm } from '@tanstack/react-form'
 import { useEffect, useMemo } from 'react'
 import type { Task, TaskFormData, TaskStatus, TaskPriority } from '../../types/task'
 import { useTaskForm } from '../../hooks/useTaskForm'
-import { validations } from './validations'
 import './TaskForm.css'
 
 const TASK_STATUSES: TaskStatus[] = ['todo', 'in-progress', 'done']
@@ -26,23 +25,22 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
   const { handleSubmit, isSubmitting, serverError, setServerError, isEditing } =
     useTaskForm({ initialTask: task, onSuccess, onError })
 
-  const form = useForm<TaskFormData>({
+  const form = useForm({
     defaultValues: {
-      name: task?.name || '',
-      description: task?.description || '',
-      status: task?.status || 'todo',
-      priority: task?.priority || 'medium',
-      dueDate: task?.dueDate || '',
-      tags: task?.tags || [],
+      name: task?.name ?? '',
+      description: task?.description ?? '',
+      status: task?.status ?? 'todo',
+      priority: task?.priority ?? 'medium',
+      dueDate: task?.dueDate ?? '',
+      tags: task?.tags ?? [],
     },
-    onSubmit: async ({ value }) => {
-      await handleSubmit(value)
+    onSubmit: async ({ value }: { value: any }) => {
+      await handleSubmit(value as TaskFormData)
     },
-  })
+  } as any)
 
-  const statusValue = form.getFieldValue('status')
-  const priorityValue = form.getFieldValue('priority')
-  const tagsValue = form.getFieldValue('tags')
+  const statusValue = (form.getFieldValue('status') ?? 'todo') as TaskStatus
+  const priorityValue = (form.getFieldValue('priority') ?? 'medium') as TaskPriority
 
   // Determine which fields should be visible
   const shouldShowDueDate = useMemo(
@@ -60,9 +58,9 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
   }, [form.state.values, serverError, setServerError])
 
   const handleTagToggle = (tag: string) => {
-    const currentTags = form.getFieldValue('tags')
+    const currentTags = (form.getFieldValue('tags') ?? []) as string[]
     const newTags = currentTags.includes(tag)
-      ? currentTags.filter((t) => t !== tag)
+      ? currentTags.filter((t: string) => t !== tag)
       : [...currentTags, tag]
     form.setFieldValue('tags', newTags)
   }
@@ -88,13 +86,28 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
         <form.Field
           name="name"
           validators={{
-            onChange: validations.name.validate,
+            onChange: ({ value }: { value: any }) => {
+              if (!value) {
+                return 'Task name is required'
+              }
+              if ((value as string).length < 3) {
+                return 'Task name must be at least 3 characters'
+              }
+              if ((value as string).length > 100) {
+                return 'Task name must not exceed 100 characters'
+              }
+              return undefined
+            },
           }}
-          children={(field) => (
-            <FieldWrapper field={field} label="Task Name">
+          children={(field: any) => (
+            <div className="form-field">
+              <label htmlFor="name" className="form-label">
+                Task Name
+              </label>
               <input
+                id="name"
                 type="text"
-                value={field.state.value}
+                value={field.state.value ?? ''}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 placeholder="Enter task name"
@@ -103,9 +116,16 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
                 disabled={isSubmitting}
               />
               <div className="char-count">
-                {field.state.value.length}/100
+                {((field.state.value ?? '') as string).length}/100
               </div>
-            </FieldWrapper>
+              {field.state.meta.errors &&
+                field.state.meta.isDirty &&
+                field.state.meta.isTouched && (
+                  <div className="form-error">
+                    {String(field.state.meta.errors[0])}
+                  </div>
+                )}
+            </div>
           )}
         />
 
@@ -113,12 +133,21 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
         <form.Field
           name="description"
           validators={{
-            onChange: validations.description.validate,
+            onChange: ({ value }: { value: any }) => {
+              if (value && (value as string).length > 500) {
+                return 'Description must not exceed 500 characters'
+              }
+              return undefined
+            },
           }}
-          children={(field) => (
-            <FieldWrapper field={field} label="Description (Optional)">
+          children={(field: any) => (
+            <div className="form-field">
+              <label htmlFor="description" className="form-label">
+                Description (Optional)
+              </label>
               <textarea
-                value={field.state.value || ''}
+                id="description"
+                value={(field.state.value ?? '') as string}
                 onBlur={field.handleBlur}
                 onChange={(e) => field.handleChange(e.target.value)}
                 placeholder="Enter task description"
@@ -128,9 +157,16 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
                 disabled={isSubmitting}
               />
               <div className="char-count">
-                {(field.state.value || '').length}/500
+                {((field.state.value ?? '') as string).length}/500
               </div>
-            </FieldWrapper>
+              {field.state.meta.errors &&
+                field.state.meta.isDirty &&
+                field.state.meta.isTouched && (
+                  <div className="form-error">
+                    {String(field.state.meta.errors[0])}
+                  </div>
+                )}
+            </div>
           )}
         />
 
@@ -138,14 +174,26 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
         <form.Field
           name="status"
           validators={{
-            onChange: validations.status.validate,
+            onChange: ({ value }: { value: any }) => {
+              if (!value) {
+                return 'Status is required'
+              }
+              if (!['todo', 'in-progress', 'done'].includes(value as string)) {
+                return 'Invalid status'
+              }
+              return undefined
+            },
           }}
-          children={(field) => (
-            <FieldWrapper field={field} label="Status">
+          children={(field: any) => (
+            <div className="form-field">
+              <label htmlFor="status" className="form-label">
+                Status
+              </label>
               <select
-                value={field.state.value}
+                id="status"
+                value={field.state.value ?? 'todo'}
                 onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value as TaskStatus)}
+                onChange={(e) => field.handleChange(e.target.value)}
                 className="task-form-select"
                 disabled={isSubmitting}
               >
@@ -155,7 +203,14 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
                   </option>
                 ))}
               </select>
-            </FieldWrapper>
+              {field.state.meta.errors &&
+                field.state.meta.isDirty &&
+                field.state.meta.isTouched && (
+                  <div className="form-error">
+                    {String(field.state.meta.errors[0])}
+                  </div>
+                )}
+            </div>
           )}
         />
 
@@ -163,14 +218,26 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
         <form.Field
           name="priority"
           validators={{
-            onChange: validations.priority.validate,
+            onChange: ({ value }: { value: any }) => {
+              if (!value) {
+                return 'Priority is required'
+              }
+              if (!['low', 'medium', 'high'].includes(value as string)) {
+                return 'Invalid priority'
+              }
+              return undefined
+            },
           }}
-          children={(field) => (
-            <FieldWrapper field={field} label="Priority">
+          children={(field: any) => (
+            <div className="form-field">
+              <label htmlFor="priority" className="form-label">
+                Priority
+              </label>
               <select
-                value={field.state.value}
+                id="priority"
+                value={field.state.value ?? 'medium'}
                 onBlur={field.handleBlur}
-                onChange={(e) => field.handleChange(e.target.value as TaskPriority)}
+                onChange={(e) => field.handleChange(e.target.value)}
                 className="task-form-select"
                 disabled={isSubmitting}
               >
@@ -180,7 +247,14 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
                   </option>
                 ))}
               </select>
-            </FieldWrapper>
+              {field.state.meta.errors &&
+                field.state.meta.isDirty &&
+                field.state.meta.isTouched && (
+                  <div className="form-error">
+                    {String(field.state.meta.errors[0])}
+                  </div>
+                )}
+            </div>
           )}
         />
 
@@ -189,20 +263,41 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
           <form.Field
             name="dueDate"
             validators={{
-              onChange: (value) =>
-                validations.dueDate.validate(value, priorityValue),
+              onChange: ({ value }: { value: any }) => {
+                if (priorityValue === 'high' && !value) {
+                  return 'Due date is required for high priority tasks'
+                }
+                if (value) {
+                  const date = new Date(value as string)
+                  if (isNaN(date.getTime())) {
+                    return 'Invalid date format'
+                  }
+                }
+                return undefined
+              },
             }}
-            children={(field) => (
-              <FieldWrapper field={field} label="Due Date">
+            children={(field: any) => (
+              <div className="form-field">
+                <label htmlFor="dueDate" className="form-label">
+                  Due Date
+                </label>
                 <input
+                  id="dueDate"
                   type="date"
-                  value={field.state.value || ''}
+                  value={field.state.value ?? ''}
                   onBlur={field.handleBlur}
                   onChange={(e) => field.handleChange(e.target.value)}
                   className="task-form-input"
                   disabled={isSubmitting}
                 />
-              </FieldWrapper>
+                {field.state.meta.errors &&
+                  field.state.meta.isDirty &&
+                  field.state.meta.isTouched && (
+                    <div className="form-error">
+                      {String(field.state.meta.errors[0])}
+                    </div>
+                  )}
+              </div>
             )}
           />
         )}
@@ -212,17 +307,25 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
           <form.Field
             name="tags"
             validators={{
-              onChange: (value) =>
-                validations.tags.validate(value, statusValue),
+              onChange: ({ value }: { value: any }) => {
+                const tagsArray = (value ?? []) as string[]
+                if (statusValue !== 'todo' && tagsArray.length === 0) {
+                  return 'At least one tag is required for non-todo tasks'
+                }
+                return undefined
+              },
             }}
-            children={(field) => (
-              <FieldWrapper field={field} label="Tags">
+            children={(field: any) => (
+              <div className="form-field">
+                <label className="form-label">Tags</label>
                 <div className="tags-container">
                   {AVAILABLE_TAGS.map((tag) => (
                     <label key={tag} className="tag-checkbox">
                       <input
                         type="checkbox"
-                        checked={field.state.value.includes(tag)}
+                        checked={
+                          ((field.state.value ?? []) as string[]).includes(tag)
+                        }
                         onChange={() => handleTagToggle(tag)}
                         disabled={isSubmitting}
                       />
@@ -230,7 +333,14 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
                     </label>
                   ))}
                 </div>
-              </FieldWrapper>
+                {field.state.meta.errors &&
+                  field.state.meta.isDirty &&
+                  field.state.meta.isTouched && (
+                    <div className="form-error">
+                      {String(field.state.meta.errors[0])}
+                    </div>
+                  )}
+              </div>
             )}
           />
         )}
@@ -250,30 +360,6 @@ export function TaskForm({ task, onSuccess, onError }: TaskFormProps) {
           </button>
         </div>
       </form>
-    </div>
-  )
-}
-
-interface FieldWrapperProps {
-  field: FieldInfo<any, any, any, any>
-  label: string
-  children: React.ReactNode
-}
-
-function FieldWrapper({ field, label, children }: FieldWrapperProps) {
-  const error = field.state.meta.errors[0]
-  const isDirty = field.state.meta.isDirty
-  const isTouched = field.state.meta.isTouched
-
-  return (
-    <div className="form-field">
-      <label htmlFor={field.name} className="form-label">
-        {label}
-      </label>
-      {children}
-      {error && isDirty && isTouched && (
-        <div className="form-error">{error}</div>
-      )}
     </div>
   )
 }

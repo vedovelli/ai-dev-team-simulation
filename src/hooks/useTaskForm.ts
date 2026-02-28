@@ -1,7 +1,6 @@
 import { useCallback, useState } from 'react'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { TaskFormData, Task } from '../types/task'
-import { validations } from '../components/TaskForm/validations'
 
 interface UseTaskFormOptions {
   initialTask?: Task | null
@@ -80,14 +79,6 @@ export function useTaskForm(options: UseTaskFormOptions = {}) {
       setServerError(null)
 
       try {
-        // Perform async validation for name field
-        const nameError = await validations.name.validate(data.name)
-        if (nameError) {
-          setServerError(nameError)
-          setIsSubmitting(false)
-          return
-        }
-
         if (initialTask) {
           await updateTaskMutation.mutateAsync(data)
         } else {
