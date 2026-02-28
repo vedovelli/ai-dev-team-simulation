@@ -22,6 +22,19 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   'in-review': 'In Review',
   done: 'Done',
 }
+const PRIORITY_LABELS: Record<TaskPriority, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+}
+
+const isValidStatus = (value: unknown): value is TaskStatus => {
+  return value !== null && value !== undefined && value in STATUS_LABELS
+}
+
+const isValidPriority = (value: unknown): value is TaskPriority => {
+  return value !== null && value !== undefined && value in PRIORITY_LABELS
+}
 
 export function TaskBoard() {
   const navigate = useNavigate()
@@ -32,8 +45,8 @@ export function TaskBoard() {
 
   const sensors = useSensors(useSensor(PointerSensor))
 
-  const statusFilter = searchParams.status || ''
-  const priorityFilter = searchParams.priority || ''
+  const statusFilter = isValidStatus(searchParams.status) ? searchParams.status : null
+  const priorityFilter = isValidPriority(searchParams.priority) ? searchParams.priority : null
   const searchFilter = searchParams.search || ''
 
   useEffect(() => {
@@ -42,8 +55,8 @@ export function TaskBoard() {
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      if (statusFilter && task.status !== statusFilter) return false
-      if (priorityFilter && task.priority !== priorityFilter) return false
+      if (statusFilter !== null && task.status !== statusFilter) return false
+      if (priorityFilter !== null && task.priority !== priorityFilter) return false
       if (
         searchFilter &&
         !task.title.toLowerCase().includes(searchFilter.toLowerCase())
@@ -119,8 +132,8 @@ export function TaskBoard() {
       <h1 className="mb-8 text-3xl font-bold text-gray-900">Task Board</h1>
 
       <TaskFilters
-        statuses={statusFilter ? [statusFilter as TaskStatus] : []}
-        priorities={priorityFilter ? [priorityFilter as TaskPriority] : []}
+        status={statusFilter}
+        priority={priorityFilter}
         search={searchFilter}
         onStatusChange={handleStatusChange}
         onPriorityChange={handlePriorityChange}
