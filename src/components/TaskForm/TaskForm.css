@@ -1,0 +1,178 @@
+.task-form-container {
+  max-width: 600px;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.task-form-title {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin-bottom: 1.5rem;
+  color: #1f2937;
+}
+
+.task-form-error-alert {
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  background-color: #fee2e2;
+  border: 1px solid #fca5a5;
+  border-radius: 4px;
+  color: #dc2626;
+  font-size: 0.875rem;
+}
+
+.task-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.form-label {
+  font-weight: 500;
+  color: #374151;
+  font-size: 0.875rem;
+}
+
+.task-form-input,
+.task-form-textarea,
+.task-form-select {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  font-family: inherit;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.task-form-input:focus,
+.task-form-textarea:focus,
+.task-form-select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.task-form-input:disabled,
+.task-form-textarea:disabled,
+.task-form-select:disabled {
+  background-color: #f3f4f6;
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.task-form-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.char-count {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  text-align: right;
+}
+
+.tags-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 0.75rem;
+}
+
+.tag-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.875rem;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.tag-checkbox:hover {
+  background-color: #f9fafb;
+  border-color: #3b82f6;
+}
+
+.tag-checkbox input[type='checkbox'] {
+  cursor: pointer;
+  width: 1rem;
+  height: 1rem;
+}
+
+.tag-checkbox input[type='checkbox']:checked {
+  accent-color: #3b82f6;
+}
+
+.tag-checkbox input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.form-error {
+  padding: 0.5rem;
+  background-color: #fef2f2;
+  border-left: 3px solid #dc2626;
+  color: #991b1b;
+  font-size: 0.75rem;
+  border-radius: 2px;
+}
+
+.task-form-actions {
+  display: flex;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.task-form-button {
+  padding: 0.75rem 1.5rem;
+  border: none;
+  border-radius: 4px;
+  font-weight: 500;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s, opacity 0.2s;
+}
+
+.task-form-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.task-form-button-primary {
+  background-color: #3b82f6;
+  color: #ffffff;
+}
+
+.task-form-button-primary:hover:not(:disabled) {
+  background-color: #2563eb;
+}
+
+.task-form-button-primary:active:not(:disabled) {
+  background-color: #1d4ed8;
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  .task-form-container {
+    padding: 1rem;
+  }
+
+  .task-form-title {
+    font-size: 1.25rem;
+    margin-bottom: 1rem;
+  }
+
+  .tags-container {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+}
