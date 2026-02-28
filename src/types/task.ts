@@ -10,6 +10,7 @@ export interface Task {
   priority: TaskPriority
   storyPoints: number
   sprint: string
+  order: number
   createdAt: string
   updatedAt: string
 }
@@ -21,4 +22,5 @@ export interface UpdateTaskInput {
   status?: TaskStatus
   priority?: TaskPriority
   storyPoints?: number
+  order?: number
 }
