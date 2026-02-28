@@ -10,6 +10,21 @@ interface Team {
   createdAt: string
 }
 
+interface Task {
+  title: string
+  assignee: string
+  storyPoints: number
+}
+
+interface Sprint {
+  id: string
+  name: string
+  goals: string
+  tasks: Task[]
+  estimatedPoints: number
+  createdAt: string
+}
+
 // In-memory store for teams
 const teamsStore: Team[] = []
 
@@ -114,6 +129,9 @@ const tasksStore: Task[] = [
     updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
   },
 ]
+
+// In-memory store for sprints
+const sprintsStore: Sprint[] = []
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
@@ -173,5 +191,22 @@ export const handlers = [
 
     tasksStore[taskIndex] = updatedTask
     return HttpResponse.json(updatedTask)
+  }),
+
+  http.post('/api/sprints', async ({ request }) => {
+    const body = await request.json() as Omit<Sprint, 'id' | 'createdAt'>
+
+    const newSprint: Sprint = {
+      id: `sprint-${Date.now()}`,
+      ...body,
+      createdAt: new Date().toISOString(),
+    }
+
+    sprintsStore.push(newSprint)
+    return HttpResponse.json(newSprint, { status: 201 })
+  }),
+
+  http.get('/api/sprints', () => {
+    return HttpResponse.json(sprintsStore)
   }),
 ]
