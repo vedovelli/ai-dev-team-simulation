@@ -13,6 +13,7 @@ import { DraggableTask } from './DraggableTask'
 import { TaskFilters } from '../../components/TaskFilters'
 import { useTasks } from '../../hooks/useTasks'
 import { useUpdateTask } from '../../hooks/useUpdateTask'
+import { useToast } from '../../components/Toast'
 import type { Task, TaskStatus, TaskPriority } from '../../types/task'
 
 const STATUSES: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
@@ -41,7 +42,9 @@ export function TaskBoard() {
   const searchParams = useSearch({ from: '/sprints/' })
   const { data: allTasks = [], isLoading } = useTasks()
   const updateTask = useUpdateTask()
+  const { showToast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
+  const [loadingTaskIds, setLoadingTaskIds] = useState<Set<string>>(new Set())
 
   const sensors = useSensors(useSensor(PointerSensor))
 
@@ -116,10 +119,37 @@ export function TaskBoard() {
         )
       )
 
-      updateTask.mutate({
-        id: task.id,
-        data: { status: newStatus },
-      })
+      setLoadingTaskIds((prev) => new Set(prev).add(task.id))
+
+      updateTask.mutate(
+        {
+          id: task.id,
+          data: { status: newStatus },
+        },
+        {
+          onSuccess: () => {
+            setLoadingTaskIds((prev) => {
+              const next = new Set(prev)
+              next.delete(task.id)
+              return next
+            })
+            showToast(`Task moved to ${STATUS_LABELS[newStatus]}`, 'success')
+          },
+          onError: () => {
+            setTasks((prevTasks) =>
+              prevTasks.map((t) =>
+                t.id === task.id ? { ...t, status: task.status } : t
+              )
+            )
+            setLoadingTaskIds((prev) => {
+              const next = new Set(prev)
+              next.delete(task.id)
+              return next
+            })
+            showToast('Failed to update task status', 'error')
+          },
+        }
+      )
     }
   }
 
@@ -156,7 +186,11 @@ export function TaskBoard() {
                   {filteredTasks
                     .filter((task) => task.status === status)
                     .map((task) => (
-                      <DraggableTask key={task.id} task={task} />
+                      <DraggableTask
+                        key={task.id}
+                        task={task}
+                        isLoading={loadingTaskIds.has(task.id)}
+                      />
                     ))}
                   {filteredTasks.filter((task) => task.status === status)
                     .length === 0 && (
