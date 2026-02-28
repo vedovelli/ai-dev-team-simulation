@@ -5,9 +5,16 @@ interface TaskFiltersProps {
   status?: TaskStatus | null
   priority?: TaskPriority | null
   search?: string
+  team?: string
+  sprint?: string
+  assignee?: string
   onStatusChange?: (status: TaskStatus | null) => void
   onPriorityChange?: (priority: TaskPriority | null) => void
   onSearchChange?: (search: string) => void
+  onTeamChange?: (team: string) => void
+  onSprintChange?: (sprint: string) => void
+  onAssigneeChange?: (assignee: string) => void
+  onClearFilters?: () => void
 }
 
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -27,15 +34,37 @@ export function TaskFilters({
   status = null,
   priority = null,
   search = '',
+  team = '',
+  sprint = '',
+  assignee = '',
   onStatusChange,
   onPriorityChange,
   onSearchChange,
+  onTeamChange,
+  onSprintChange,
+  onAssigneeChange,
+  onClearFilters,
 }: TaskFiltersProps) {
   const [localSearch, setLocalSearch] = useState(search)
+  const [localTeam, setLocalTeam] = useState(team)
+  const [localSprint, setLocalSprint] = useState(sprint)
+  const [localAssignee, setLocalAssignee] = useState(assignee)
 
   useEffect(() => {
     setLocalSearch(search)
   }, [search])
+
+  useEffect(() => {
+    setLocalTeam(team)
+  }, [team])
+
+  useEffect(() => {
+    setLocalSprint(sprint)
+  }, [sprint])
+
+  useEffect(() => {
+    setLocalAssignee(assignee)
+  }, [assignee])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -54,6 +83,9 @@ export function TaskFilters({
     'done',
   ]
   const allPriorities: TaskPriority[] = ['low', 'medium', 'high']
+
+  const hasActiveFilters =
+    status || priority || search || team || sprint || assignee
 
   return (
     <div className="mb-6 space-y-4 rounded-lg bg-white p-4 shadow-sm">
@@ -111,6 +143,59 @@ export function TaskFilters({
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
         />
       </div>
+
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">Team</h3>
+        <input
+          type="text"
+          value={localTeam}
+          onChange={(e) => {
+            setLocalTeam(e.target.value)
+            onTeamChange?.(e.target.value)
+          }}
+          placeholder="Filter by team..."
+          className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">Sprint</h3>
+        <input
+          type="text"
+          value={localSprint}
+          onChange={(e) => {
+            setLocalSprint(e.target.value)
+            onSprintChange?.(e.target.value)
+          }}
+          placeholder="Filter by sprint..."
+          className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+
+      <div>
+        <h3 className="mb-2 text-sm font-semibold text-gray-700">Assignee</h3>
+        <input
+          type="text"
+          value={localAssignee}
+          onChange={(e) => {
+            setLocalAssignee(e.target.value)
+            onAssigneeChange?.(e.target.value)
+          }}
+          placeholder="Filter by assignee..."
+          className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
+        />
+      </div>
+
+      {hasActiveFilters && (
+        <div>
+          <button
+            onClick={onClearFilters}
+            className="rounded bg-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-400"
+          >
+            Clear All Filters
+          </button>
+        </div>
+      )}
     </div>
   )
 }
