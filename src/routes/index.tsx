@@ -1,5 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
-import { createFileRoute } from '@tanstack/react-router'
+// The route component is passed to createFileRoute and exported as Route,
+// so react-refresh won't detect it as a component export directly
+import { createFileRoute, Link } from '@tanstack/react-router'
 
 export const Route = createFileRoute('/')({
   component: HomePage,
@@ -14,18 +16,18 @@ function HomePage() {
           Simulate and manage AI development teams
         </p>
         <div className="flex gap-4 justify-center flex-wrap">
-          <a
-            href="/teams"
+          <Link
+            to="/teams"
             className="px-6 py-3 bg-blue-600 hover:bg-blue-700 rounded-lg font-semibold transition-colors"
           >
             View Teams
-          </a>
-          <a
-            href="/create"
+          </Link>
+          <Link
+            to="/create"
             className="px-6 py-3 bg-slate-700 hover:bg-slate-600 rounded-lg font-semibold transition-colors"
           >
             Create New
-          </a>
+          </Link>
         </div>
       </div>
     </div>

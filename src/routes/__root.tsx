@@ -53,7 +53,7 @@ function RootLayout() {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
-  errorComponent: ({ error }) => {
+  errorComponent: ({ error }: { error: unknown }) => {
     if (isRouterError(error)) {
       if (error.isNotFound) {
         return (
