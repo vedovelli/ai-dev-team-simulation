@@ -73,6 +73,7 @@ const tasksStore: Task[] = [
     title: 'Implement authentication',
     assignee: 'John Doe',
     status: 'in-progress',
+    priority: 'high',
     storyPoints: 8,
     sprint: 'sprint-1',
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
@@ -83,6 +84,7 @@ const tasksStore: Task[] = [
     title: 'Create API documentation',
     assignee: 'Jane Smith',
     status: 'backlog',
+    priority: 'medium',
     storyPoints: 5,
     sprint: 'sprint-1',
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
@@ -93,6 +95,7 @@ const tasksStore: Task[] = [
     title: 'Fix login form validation',
     assignee: 'Bob Johnson',
     status: 'in-review',
+    priority: 'high',
     storyPoints: 3,
     sprint: 'sprint-1',
     createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
@@ -103,6 +106,7 @@ const tasksStore: Task[] = [
     title: 'Setup database migrations',
     assignee: 'Alice Williams',
     status: 'done',
+    priority: 'medium',
     storyPoints: 5,
     sprint: 'sprint-1',
     createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
@@ -113,6 +117,7 @@ const tasksStore: Task[] = [
     title: 'Design dashboard components',
     assignee: 'Charlie Brown',
     status: 'backlog',
+    priority: 'low',
     storyPoints: 8,
     sprint: 'sprint-1',
     createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
@@ -123,6 +128,7 @@ const tasksStore: Task[] = [
     title: 'Write unit tests for services',
     assignee: 'Diana Prince',
     status: 'in-progress',
+    priority: 'high',
     storyPoints: 5,
     sprint: 'sprint-1',
     createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
@@ -161,11 +167,24 @@ export const handlers = [
   http.get('/api/tasks', ({ request }) => {
     const url = new URL(request.url)
     const status = url.searchParams.get('status')
+    const priority = url.searchParams.get('priority')
+    const search = url.searchParams.get('search')
 
     let filteredTasks = tasksStore
 
     if (status) {
-      filteredTasks = tasksStore.filter((task) => task.status === status)
+      filteredTasks = filteredTasks.filter((task) => task.status === status)
+    }
+
+    if (priority) {
+      filteredTasks = filteredTasks.filter((task) => task.priority === priority)
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredTasks = filteredTasks.filter((task) =>
+        task.title.toLowerCase().includes(searchLower)
+      )
     }
 
     return HttpResponse.json(filteredTasks)
