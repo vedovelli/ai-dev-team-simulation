@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { Agent, AgentRole, AgentStatus } from '../types/agent'
+import type { Task, UpdateTaskInput } from '../types/task'
 
 interface Team {
   id: string
@@ -49,6 +50,70 @@ function generateMockAgents(): Agent[] {
   }
   return agents
 }
+
+// In-memory store for tasks with seed data
+const tasksStore: Task[] = [
+  {
+    id: 'task-1',
+    title: 'Implement authentication',
+    assignee: 'John Doe',
+    status: 'in-progress',
+    storyPoints: 8,
+    sprint: 'sprint-1',
+    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-2',
+    title: 'Create API documentation',
+    assignee: 'Jane Smith',
+    status: 'backlog',
+    storyPoints: 5,
+    sprint: 'sprint-1',
+    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-3',
+    title: 'Fix login form validation',
+    assignee: 'Bob Johnson',
+    status: 'in-review',
+    storyPoints: 3,
+    sprint: 'sprint-1',
+    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-4',
+    title: 'Setup database migrations',
+    assignee: 'Alice Williams',
+    status: 'done',
+    storyPoints: 5,
+    sprint: 'sprint-1',
+    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-5',
+    title: 'Design dashboard components',
+    assignee: 'Charlie Brown',
+    status: 'backlog',
+    storyPoints: 8,
+    sprint: 'sprint-1',
+    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+  {
+    id: 'task-6',
+    title: 'Write unit tests for services',
+    assignee: 'Diana Prince',
+    status: 'in-progress',
+    storyPoints: 5,
+    sprint: 'sprint-1',
+    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
+    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
+  },
+]
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
@@ -73,5 +138,40 @@ export const handlers = [
 
   http.get('/api/agents', () => {
     return HttpResponse.json(agentsStore)
+  }),
+
+  http.get('/api/tasks', ({ request }) => {
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+
+    let filteredTasks = tasksStore
+
+    if (status) {
+      filteredTasks = tasksStore.filter((task) => task.status === status)
+    }
+
+    return HttpResponse.json(filteredTasks)
+  }),
+
+  http.patch('/api/tasks/:id', async ({ request, params }) => {
+    const { id } = params
+    const body = (await request.json()) as UpdateTaskInput
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    const updatedTask: Task = {
+      ...tasksStore[taskIndex],
+      ...body,
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore[taskIndex] = updatedTask
+    return HttpResponse.json(updatedTask)
   }),
 ]
