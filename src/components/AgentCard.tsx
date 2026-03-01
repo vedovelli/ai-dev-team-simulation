@@ -1,3 +1,4 @@
+import { Link } from '@tanstack/react-router'
 import type { Agent } from '../types/agent'
 import { StatusBadge } from './StatusBadge'
 
@@ -29,9 +30,10 @@ function getRoleBgColor(role: string): string {
 
 export function AgentCard({ agent }: AgentCardProps) {
   return (
-    <article
-      className={`p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200 ${getRoleBgColor(agent.role)} group`}
-    >
+    <Link to={`/agents/${agent.id}`}>
+      <article
+        className={`p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200 cursor-pointer ${getRoleBgColor(agent.role)} group`}
+      >
       {/* Header with name and status */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-4">
         <div className="flex-1 min-w-0 mb-3 sm:mb-0">
@@ -73,6 +75,7 @@ export function AgentCard({ agent }: AgentCardProps) {
         <p className="truncate">ID: {agent.id.substring(0, 8)}...</p>
         <p className="flex-shrink-0">{new Date(agent.lastUpdated).toLocaleTimeString()}</p>
       </div>
-    </article>
+      </article>
+    </Link>
   )
 }
