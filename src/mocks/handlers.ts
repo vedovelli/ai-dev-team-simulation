@@ -111,6 +111,7 @@ function generateMockTasks(): Task[] {
       priority: priorities[i % priorities.length],
       storyPoints: (i % 13) + 1,
       sprint: sprints[i % sprints.length],
+      order: i % 10,
       createdAt: new Date(
         Date.now() - (i * 24 * 60 * 60 * 1000) % (30 * 24 * 60 * 60 * 1000)
       ).toISOString(),

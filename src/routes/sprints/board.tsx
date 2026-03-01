@@ -13,6 +13,7 @@ import { DraggableTask } from './DraggableTask'
 import { TaskFilters } from '../../components/TaskFilters'
 import { useTasks } from '../../hooks/useTasks'
 import { useUpdateTask } from '../../hooks/useUpdateTask'
+import { useTaskReorder } from '../../hooks/useTaskReorder'
 import { useToast } from '../../components/Toast'
 import type { Task, TaskStatus, TaskPriority } from '../../types/task'
 
@@ -42,6 +43,7 @@ export function TaskBoard() {
   const searchParams = useSearch({ from: '/sprints/' })
   const { data: allTasks = [], isLoading } = useTasks()
   const updateTask = useUpdateTask()
+  const reorderTasks = useTaskReorder()
   const { showToast } = useToast()
   const [tasks, setTasks] = useState<Task[]>([])
   const [loadingTaskIds, setLoadingTaskIds] = useState<Set<string>>(new Set())
@@ -107,49 +109,131 @@ export function TaskBoard() {
 
     if (!over) return
 
-    const task = filteredTasks.find((t) => t.id === active.id)
-    if (!task) return
+    const draggedTask = filteredTasks.find((t) => t.id === active.id)
+    if (!draggedTask) return
 
-    const newStatus = over.id as TaskStatus
+    const overStatus = over.id as TaskStatus
+    const isStatusChange = draggedTask.status !== overStatus
 
-    if (task.status !== newStatus) {
+    // Get all tasks in the target status (including filtered and unfiltered)
+    const targetStatusTasks = tasks.filter((t) => t.status === overStatus)
+
+    if (isStatusChange) {
+      // Moving to a different column
+      const newOrder = targetStatusTasks.length
       setTasks((prevTasks) =>
         prevTasks.map((t) =>
-          t.id === task.id ? { ...t, status: newStatus } : t
+          t.id === draggedTask.id
+            ? { ...t, status: overStatus, order: newOrder }
+            : t
         )
       )
 
-      setLoadingTaskIds((prev) => new Set(prev).add(task.id))
+      setLoadingTaskIds((prev) => new Set(prev).add(draggedTask.id))
 
       updateTask.mutate(
         {
-          id: task.id,
-          data: { status: newStatus },
+          id: draggedTask.id,
+          data: { status: overStatus, order: newOrder },
         },
         {
           onSuccess: () => {
             setLoadingTaskIds((prev) => {
               const next = new Set(prev)
-              next.delete(task.id)
+              next.delete(draggedTask.id)
               return next
             })
-            showToast(`Task moved to ${STATUS_LABELS[newStatus]}`, 'success')
+            showToast(`Task moved to ${STATUS_LABELS[overStatus]}`, 'success')
           },
           onError: () => {
             setTasks((prevTasks) =>
               prevTasks.map((t) =>
-                t.id === task.id ? { ...t, status: task.status } : t
+                t.id === draggedTask.id
+                  ? { ...t, status: draggedTask.status, order: draggedTask.order }
+                  : t
               )
             )
             setLoadingTaskIds((prev) => {
               const next = new Set(prev)
-              next.delete(task.id)
+              next.delete(draggedTask.id)
               return next
             })
             showToast('Failed to update task status', 'error')
           },
         }
       )
+    } else {
+      // Reordering within the same column
+      const overTask = filteredTasks.find((t) => t.id === over.id)
+      if (!overTask || overTask.status !== draggedTask.status) return
+
+      // Create a new ordered list for this status
+      const statusTasksInOrder = filteredTasks
+        .filter((t) => t.status === overStatus)
+        .sort((a, b) => a.order - b.order)
+
+      const oldIndex = statusTasksInOrder.findIndex(
+        (t) => t.id === draggedTask.id
+      )
+      const newIndex = statusTasksInOrder.findIndex((t) => t.id === overTask.id)
+
+      if (oldIndex === newIndex) return
+
+      // Reorder array
+      const reordered = [...statusTasksInOrder]
+      const [movedItem] = reordered.splice(oldIndex, 1)
+      reordered.splice(newIndex, 0, movedItem)
+
+      // Update orders and state
+      const updates = reordered.map((task, index) => ({
+        id: task.id,
+        data: { order: index },
+      }))
+
+      setTasks((prevTasks) =>
+        prevTasks.map((task) => {
+          const newOrder = updates.find((u) => u.id === task.id)?.data.order
+          return newOrder !== undefined
+            ? { ...task, order: newOrder }
+            : task
+        })
+      )
+
+      updates.forEach((update) => {
+        setLoadingTaskIds((prev) => new Set(prev).add(update.id))
+      })
+
+      reorderTasks.mutate(updates, {
+        onSuccess: () => {
+          updates.forEach((update) => {
+            setLoadingTaskIds((prev) => {
+              const next = new Set(prev)
+              next.delete(update.id)
+              return next
+            })
+          })
+          showToast('Tasks reordered', 'success')
+        },
+        onError: () => {
+          // Revert to original order
+          setTasks((prevTasks) =>
+            prevTasks.map((task) => {
+              const original = statusTasksInOrder.find((t) => t.id === task.id)
+              return original
+                ? { ...task, order: original.order }
+                : task
+            })
+          )
+          updates.forEach((update) => {
+            setLoadingTaskIds((prev) => {
+              const next = new Set(prev)
+              next.delete(update.id)
+              return next
+            })
+          })
+          showToast('Failed to reorder tasks', 'error')
+        },
+      })
     }
   }
 
@@ -176,32 +260,36 @@ export function TaskBoard() {
         collisionDetection={closestCenter}
       >
         <div className="grid grid-cols-4 gap-6">
-          {STATUSES.map((status) => (
-            <div key={status} className="flex flex-col">
-              <h2 className="mb-4 font-semibold text-gray-700">
-                {STATUS_LABELS[status]}
-              </h2>
-              <Droppable id={status}>
-                <div className="flex-1 space-y-3 rounded-lg bg-white p-4 shadow-sm">
-                  {filteredTasks
-                    .filter((task) => task.status === status)
-                    .map((task) => (
+          {STATUSES.map((status) => {
+            const statusTasks = filteredTasks
+              .filter((task) => task.status === status)
+              .sort((a, b) => a.order - b.order)
+            const taskIds = statusTasks.map((t) => t.id)
+
+            return (
+              <div key={status} className="flex flex-col">
+                <h2 className="mb-4 font-semibold text-gray-700">
+                  {STATUS_LABELS[status]}
+                </h2>
+                <Droppable id={status} items={taskIds}>
+                  <div className="flex-1 space-y-3 rounded-lg bg-white p-4 shadow-sm">
+                    {statusTasks.map((task) => (
                       <DraggableTask
                         key={task.id}
                         task={task}
                         isLoading={loadingTaskIds.has(task.id)}
                       />
                     ))}
-                  {filteredTasks.filter((task) => task.status === status)
-                    .length === 0 && (
-                    <div className="rounded bg-gray-100 p-4 text-center text-sm text-gray-500">
-                      No tasks
-                    </div>
-                  )}
-                </div>
-              </Droppable>
-            </div>
-          ))}
+                    {statusTasks.length === 0 && (
+                      <div className="rounded bg-gray-100 p-4 text-center text-sm text-gray-500">
+                        No tasks
+                      </div>
+                    )}
+                  </div>
+                </Droppable>
+              </div>
+            )
+          })}
         </div>
       </DndContext>
     </div>
