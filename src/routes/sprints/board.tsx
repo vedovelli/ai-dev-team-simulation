@@ -36,7 +36,14 @@ export function TaskBoard() {
     updateFilter,
     clearAllFilters,
   } = useTaskFilters()
-  const { data: allTasks = [], isLoading } = useTasks()
+  const { data: allTasks = [], isLoading } = useTasks({
+    status: status || undefined,
+    priority: priority || undefined,
+    search: search || undefined,
+    team: team || undefined,
+    sprint: sprint || undefined,
+    assignee: assignee || undefined,
+  })
   const updateTask = useUpdateTask()
   const reorderTasks = useTaskReorder()
   const { showToast } = useToast()
@@ -50,20 +57,8 @@ export function TaskBoard() {
   }, [allTasks])
 
   const filteredTasks = useMemo(() => {
-    return tasks.filter((task) => {
-      if (status !== null && task.status !== status) return false
-      if (priority !== null && task.priority !== priority) return false
-      if (
-        search &&
-        !task.title.toLowerCase().includes(search.toLowerCase())
-      )
-        return false
-      if (team && task.team !== team) return false
-      if (sprint && task.sprint !== sprint) return false
-      if (assignee && task.assignee !== assignee) return false
-      return true
-    })
-  }, [tasks, status, priority, search, team, sprint, assignee])
+    return tasks
+  }, [tasks])
 
   const handleStatusChange = (newStatus: TaskStatus | null) => {
     updateFilter({ status: newStatus })

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useSearch } from '../hooks/useSearch'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
 interface TaskFiltersProps {
@@ -45,14 +46,13 @@ export function TaskFilters({
   onAssigneeChange,
   onClearFilters,
 }: TaskFiltersProps) {
-  const [localSearch, setLocalSearch] = useState(search)
+  const { localValue: localSearch, handleChange: handleSearchChange } = useSearch(
+    search,
+    onSearchChange
+  )
   const [localTeam, setLocalTeam] = useState(team)
   const [localSprint, setLocalSprint] = useState(sprint)
   const [localAssignee, setLocalAssignee] = useState(assignee)
-
-  useEffect(() => {
-    setLocalSearch(search)
-  }, [search])
 
   useEffect(() => {
     setLocalTeam(team)
@@ -66,16 +66,6 @@ export function TaskFilters({
     setLocalAssignee(assignee)
   }, [assignee])
 
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localSearch !== search) {
-        onSearchChange?.(localSearch)
-      }
-    }, 300)
-
-    return () => clearTimeout(timer)
-  }, [localSearch, search, onSearchChange])
-
   const allStatuses: TaskStatus[] = [
     'backlog',
     'in-progress',
@@ -85,10 +75,27 @@ export function TaskFilters({
   const allPriorities: TaskPriority[] = ['low', 'medium', 'high']
 
   const hasActiveFilters =
-    status || priority || search || team || sprint || assignee
+    status || priority || localSearch || team || sprint || assignee
+
+  const activeFilterCount = [
+    status,
+    priority,
+    localSearch,
+    team,
+    sprint,
+    assignee,
+  ].filter(Boolean).length
 
   return (
     <div className="mb-6 space-y-4 rounded-lg bg-white p-4 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-semibold text-gray-900">Filters</h2>
+        {activeFilterCount > 0 && (
+          <span className="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-medium text-blue-800">
+            {activeFilterCount} active
+          </span>
+        )}
+      </div>
       <div>
         <h3 className="mb-2 text-sm font-semibold text-gray-700">Status</h3>
         <div className="flex flex-wrap gap-2">
@@ -138,7 +145,7 @@ export function TaskFilters({
         <input
           type="text"
           value={localSearch}
-          onChange={(e) => setLocalSearch(e.target.value)}
+          onChange={(e) => handleSearchChange(e.target.value)}
           placeholder="Search by task title..."
           className="w-full rounded border border-gray-300 px-3 py-2 text-sm text-gray-900 placeholder-gray-500 focus:border-blue-500 focus:outline-none"
         />
