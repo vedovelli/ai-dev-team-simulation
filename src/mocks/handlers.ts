@@ -1,6 +1,7 @@
 import { http, HttpResponse } from 'msw'
 import type { Agent, AgentRole, AgentStatus } from '../types/agent'
 import type { Task, UpdateTaskInput, TaskStatus, TaskPriority } from '../types/task'
+import type { Activity, ActivityEventType } from '../types/activity'
 
 interface Team {
   id: string
@@ -60,7 +61,6 @@ function generateMockAgents(): Agent[] {
   return agents
 }
 
-<<<<<<< HEAD
 // Generate 1000+ mock tasks for testing virtual scrolling
 function generateMockTasks(): Task[] {
   const statuses: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
@@ -124,8 +124,6 @@ function generateMockTasks(): Task[] {
   return tasks
 }
 
-type TaskStatus = 'backlog' | 'in-progress' | 'in-review' | 'done'
-type TaskPriority = 'low' | 'medium' | 'high'
 
 // In-memory store for tasks with 1000+ seed data
 const tasksStore: Task[] = generateMockTasks()
@@ -145,86 +143,85 @@ function getTaskIdCounter(): number {
   }, 0)
   return maxId + 1
 }
-=======
-// In-memory store for tasks with seed data
-const tasksStore: Task[] = [
-  {
-    id: 'task-1',
-    title: 'Implement authentication',
-    assignee: 'John Doe',
-    status: 'in-progress',
-    priority: 'high',
-    storyPoints: 8,
-    sprint: 'sprint-1',
-    team: 'backend-team',
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-2',
-    title: 'Create API documentation',
-    assignee: 'Jane Smith',
-    status: 'backlog',
-    priority: 'medium',
-    storyPoints: 5,
-    sprint: 'sprint-1',
-    team: 'backend-team',
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-3',
-    title: 'Fix login form validation',
-    assignee: 'Bob Johnson',
-    status: 'in-review',
-    priority: 'high',
-    storyPoints: 3,
-    sprint: 'sprint-1',
-    team: 'frontend-team',
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-4',
-    title: 'Setup database migrations',
-    assignee: 'Alice Williams',
-    status: 'done',
-    priority: 'medium',
-    storyPoints: 5,
-    sprint: 'sprint-1',
-    team: 'backend-team',
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-5',
-    title: 'Design dashboard components',
-    assignee: 'Charlie Brown',
-    status: 'backlog',
-    priority: 'low',
-    storyPoints: 8,
-    sprint: 'sprint-1',
-    team: 'frontend-team',
-    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-6',
-    title: 'Write unit tests for services',
-    assignee: 'Diana Prince',
-    status: 'in-progress',
-    priority: 'high',
-    storyPoints: 5,
-    sprint: 'sprint-1',
-    team: 'frontend-team',
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-]
->>>>>>> 97686db (feat: extend MSW handlers to support team, sprint, assignee filters and add sample team data)
 
 // In-memory store for sprints
 const sprintsStore: Sprint[] = []
+
+// Generate mock activities for activity feed
+function generateMockActivities(): Activity[] {
+  const eventTypes: ActivityEventType[] = [
+    'agent-state-change',
+    'task-status-change',
+    'message',
+    'decision',
+  ]
+
+  const stateChanges = ['idle', 'working', 'blocked', 'completed']
+  const taskStatuses = ['backlog', 'in-progress', 'in-review', 'done']
+  const messages = [
+    'Started working on new feature',
+    'Found a bug in the authentication flow',
+    'Completed code review',
+    'Created PR for review',
+    'Merged to main branch',
+    'Deployed to staging',
+    'Fixed type errors',
+    'Added unit tests',
+    'Resolved merge conflict',
+    'Updated documentation',
+  ]
+  const decisions = [
+    'Decided to use React Query for state management',
+    'Chose TypeScript for better type safety',
+    'Agreed on feature scope with team',
+    'Prioritized performance optimization',
+    'Approved architecture design',
+  ]
+
+  const activities: Activity[] = []
+  const baseTime = Date.now()
+
+  for (let i = 0; i < 100; i++) {
+    const eventType = eventTypes[i % eventTypes.length]
+    const agentId = `agent-${(i % 50) + 1}`
+    const agentNumber = ((i % 50) + 1).toString()
+
+    let message = ''
+    let details = {}
+
+    switch (eventType) {
+      case 'agent-state-change':
+        message = `Agent ${agentNumber} changed state to ${stateChanges[i % stateChanges.length]}`
+        details = { newState: stateChanges[i % stateChanges.length] }
+        break
+      case 'task-status-change':
+        message = `Task updated: Status changed to ${taskStatuses[i % taskStatuses.length]}`
+        details = { taskId: `task-${i}`, newStatus: taskStatuses[i % taskStatuses.length] }
+        break
+      case 'message':
+        message = messages[i % messages.length]
+        break
+      case 'decision':
+        message = decisions[i % decisions.length]
+        break
+    }
+
+    activities.push({
+      id: `activity-${i + 1}`,
+      type: eventType,
+      agentId,
+      agentName: `Agent ${agentNumber}`,
+      message,
+      timestamp: new Date(baseTime - i * 60000).toISOString(),
+      details,
+    })
+  }
+
+  return activities.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
+}
+
+// In-memory store for activities
+const activitiesStore: Activity[] = generateMockActivities()
 
 export const handlers = [
   http.get('/api/health', () => {
@@ -399,15 +396,35 @@ export const handlers = [
       id: `task-${getTaskIdCounter()}`,
       title: body.name,
       assignee: 'Unassigned',
+      team: body.team || 'general',
       status: (body.status as TaskStatus) || 'backlog',
       priority: (body.priority as TaskPriority) || 'medium',
       storyPoints: 0,
       sprint: body.sprint || 'sprint-1',
+      order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
 
     tasksStore.push(newTask)
     return HttpResponse.json(newTask, { status: 201 })
+  }),
+
+  http.get('/api/activities', ({ request }) => {
+    const url = new URL(request.url)
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10)
+
+    // Pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedActivities = activitiesStore.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedActivities,
+      total: activitiesStore.length,
+      pageIndex,
+      pageSize,
+    })
   }),
 ]
