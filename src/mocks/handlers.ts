@@ -10,12 +10,6 @@ interface Team {
   createdAt: string
 }
 
-interface Task {
-  title: string
-  assignee: string
-  storyPoints: number
-}
-
 interface Sprint {
   id: string
   name: string
@@ -66,78 +60,77 @@ function generateMockAgents(): Agent[] {
   return agents
 }
 
-// In-memory store for tasks with seed data
-const tasksStore: Task[] = [
-  {
-    id: 'task-1',
-    title: 'Implement authentication',
-    assignee: 'John Doe',
-    status: 'in-progress',
-    priority: 'high',
-    storyPoints: 8,
-    sprint: 'sprint-1',
-    createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-2',
-    title: 'Create API documentation',
-    assignee: 'Jane Smith',
-    status: 'backlog',
-    priority: 'medium',
-    storyPoints: 5,
-    sprint: 'sprint-1',
-    createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-3',
-    title: 'Fix login form validation',
-    assignee: 'Bob Johnson',
-    status: 'in-review',
-    priority: 'high',
-    storyPoints: 3,
-    sprint: 'sprint-1',
-    createdAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-4',
-    title: 'Setup database migrations',
-    assignee: 'Alice Williams',
-    status: 'done',
-    priority: 'medium',
-    storyPoints: 5,
-    sprint: 'sprint-1',
-    createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-5',
-    title: 'Design dashboard components',
-    assignee: 'Charlie Brown',
-    status: 'backlog',
-    priority: 'low',
-    storyPoints: 8,
-    sprint: 'sprint-1',
-    createdAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 6 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-  {
-    id: 'task-6',
-    title: 'Write unit tests for services',
-    assignee: 'Diana Prince',
-    status: 'in-progress',
-    priority: 'high',
-    storyPoints: 5,
-    sprint: 'sprint-1',
-    createdAt: new Date(Date.now() - 4 * 24 * 60 * 60 * 1000).toISOString(),
-    updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
-  },
-]
+// Generate 1000+ mock tasks for testing virtual scrolling
+function generateMockTasks(): Task[] {
+  const statuses: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
+  const priorities: TaskPriority[] = ['low', 'medium', 'high']
+  const teams = ['Frontend', 'Backend', 'DevOps', 'Design', 'QA']
+  const sprints = ['sprint-1', 'sprint-2', 'sprint-3']
+  const assignees = [
+    'John Doe',
+    'Jane Smith',
+    'Bob Johnson',
+    'Alice Williams',
+    'Charlie Brown',
+    'Diana Prince',
+    'Eve Davis',
+    'Frank Miller',
+  ]
+
+  const taskTitles = [
+    'Implement authentication',
+    'Create API documentation',
+    'Fix login form validation',
+    'Setup database migrations',
+    'Design dashboard components',
+    'Write unit tests for services',
+    'Optimize database queries',
+    'Implement caching layer',
+    'Setup CI/CD pipeline',
+    'Create user onboarding flow',
+    'Fix reported bugs',
+    'Update dependencies',
+    'Refactor legacy code',
+    'Implement dark mode',
+    'Add analytics tracking',
+    'Create mobile responsive design',
+    'Setup monitoring and alerts',
+    'Implement search functionality',
+    'Add multi-language support',
+    'Create admin dashboard',
+  ]
+
+  const tasks: Task[] = []
+  for (let i = 1; i <= 1200; i++) {
+    tasks.push({
+      id: `task-${i}`,
+      title: `${taskTitles[i % taskTitles.length]} #${i}`,
+      assignee: assignees[i % assignees.length],
+      team: teams[i % teams.length],
+      status: statuses[i % statuses.length],
+      priority: priorities[i % priorities.length],
+      storyPoints: (i % 13) + 1,
+      sprint: sprints[i % sprints.length],
+      createdAt: new Date(
+        Date.now() - (i * 24 * 60 * 60 * 1000) % (30 * 24 * 60 * 60 * 1000)
+      ).toISOString(),
+      updatedAt: new Date(
+        Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
+      ).toISOString(),
+    })
+  }
+  return tasks
+}
+
+type TaskStatus = 'backlog' | 'in-progress' | 'in-review' | 'done'
+type TaskPriority = 'low' | 'medium' | 'high'
+
+// In-memory store for tasks with 1000+ seed data
+const tasksStore: Task[] = generateMockTasks()
 
 // In-memory store for sprints
 const sprintsStore: Sprint[] = []
+
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
@@ -169,8 +162,12 @@ export const handlers = [
     const status = url.searchParams.get('status')
     const priority = url.searchParams.get('priority')
     const search = url.searchParams.get('search')
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
+    const sortBy = url.searchParams.get('sortBy') || 'title'
+    const sortOrder = url.searchParams.get('sortOrder') || 'asc'
 
-    let filteredTasks = tasksStore
+    let filteredTasks = [...tasksStore]
 
     if (status) {
       filteredTasks = filteredTasks.filter((task) => task.status === status)
@@ -187,7 +184,35 @@ export const handlers = [
       )
     }
 
-    return HttpResponse.json(filteredTasks)
+    // Sorting - validate sortBy is a valid Task field
+    const validSortFields = Object.keys({} as Task)
+    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'title'
+
+    filteredTasks.sort((a, b) => {
+      const aValue = a[validSortBy as keyof Task] ?? ''
+      const bValue = b[validSortBy as keyof Task] ?? ''
+
+      let comparison = 0
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue)
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        comparison = aValue - bValue
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    // Pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedTasks = filteredTasks.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedTasks,
+      total: filteredTasks.length,
+      pageIndex,
+      pageSize,
+    })
   }),
 
   http.patch('/api/tasks/:id', async ({ request, params }) => {
