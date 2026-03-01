@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useSearch } from '@tanstack/react-router'
 import {
   DndContext,
   DragEndEvent,
@@ -11,11 +10,12 @@ import {
 import { Droppable } from './Droppable'
 import { DraggableTask } from './DraggableTask'
 import { TaskFilters } from '../../components/TaskFilters'
+import { useTaskFilters } from '../../hooks/useTaskFilters'
 import { useTasks } from '../../hooks/useTasks'
 import { useUpdateTask } from '../../hooks/useUpdateTask'
 import { useTaskReorder } from '../../hooks/useTaskReorder'
 import { useToast } from '../../components/Toast'
-import type { Task, TaskStatus, TaskPriority } from '../../types/task'
+import type { Task, TaskStatus } from '../../types/task'
 
 const STATUSES: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
 const STATUS_LABELS: Record<TaskStatus, string> = {
@@ -24,23 +24,18 @@ const STATUS_LABELS: Record<TaskStatus, string> = {
   'in-review': 'In Review',
   done: 'Done',
 }
-const PRIORITY_LABELS: Record<TaskPriority, string> = {
-  low: 'Low',
-  medium: 'Medium',
-  high: 'High',
-}
-
-const isValidStatus = (value: unknown): value is TaskStatus => {
-  return value !== null && value !== undefined && value in STATUS_LABELS
-}
-
-const isValidPriority = (value: unknown): value is TaskPriority => {
-  return value !== null && value !== undefined && value in PRIORITY_LABELS
-}
 
 export function TaskBoard() {
-  const navigate = useNavigate()
-  const searchParams = useSearch({ from: '/sprints/' })
+  const {
+    status,
+    priority,
+    search,
+    team,
+    sprint,
+    assignee,
+    updateFilter,
+    clearAllFilters,
+  } = useTaskFilters()
   const { data: allTasks = [], isLoading } = useTasks()
   const updateTask = useUpdateTask()
   const reorderTasks = useTaskReorder()
@@ -50,58 +45,48 @@ export function TaskBoard() {
 
   const sensors = useSensors(useSensor(PointerSensor))
 
-  const statusFilter = isValidStatus(searchParams.status) ? searchParams.status : null
-  const priorityFilter = isValidPriority(searchParams.priority) ? searchParams.priority : null
-  const searchFilter = searchParams.search || ''
-
   useEffect(() => {
     setTasks(allTasks)
   }, [allTasks])
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
-      if (statusFilter !== null && task.status !== statusFilter) return false
-      if (priorityFilter !== null && task.priority !== priorityFilter) return false
+      if (status !== null && task.status !== status) return false
+      if (priority !== null && task.priority !== priority) return false
       if (
-        searchFilter &&
-        !task.title.toLowerCase().includes(searchFilter.toLowerCase())
+        search &&
+        !task.title.toLowerCase().includes(search.toLowerCase())
       )
         return false
+      if (team && task.team !== team) return false
+      if (sprint && task.sprint !== sprint) return false
+      if (assignee && task.assignee !== assignee) return false
       return true
     })
-  }, [tasks, statusFilter, priorityFilter, searchFilter])
+  }, [tasks, status, priority, search, team, sprint, assignee])
 
-  const handleStatusChange = (status: TaskStatus | null) => {
-    navigate({
-      to: '/sprints/',
-      search: {
-        status: status || undefined,
-        priority: priorityFilter || undefined,
-        search: searchFilter || undefined,
-      },
-    })
+  const handleStatusChange = (newStatus: TaskStatus | null) => {
+    updateFilter({ status: newStatus })
   }
 
-  const handlePriorityChange = (priority: TaskPriority | null) => {
-    navigate({
-      to: '/sprints/',
-      search: {
-        status: statusFilter || undefined,
-        priority: priority || undefined,
-        search: searchFilter || undefined,
-      },
-    })
+  const handlePriorityChange = (newPriority: any | null) => {
+    updateFilter({ priority: newPriority })
   }
 
-  const handleSearchChange = (search: string) => {
-    navigate({
-      to: '/sprints/',
-      search: {
-        status: statusFilter || undefined,
-        priority: priorityFilter || undefined,
-        search: search || undefined,
-      },
-    })
+  const handleSearchChange = (newSearch: string) => {
+    updateFilter({ search: newSearch })
+  }
+
+  const handleTeamChange = (newTeam: string) => {
+    updateFilter({ team: newTeam })
+  }
+
+  const handleSprintChange = (newSprint: string) => {
+    updateFilter({ sprint: newSprint })
+  }
+
+  const handleAssigneeChange = (newAssignee: string) => {
+    updateFilter({ assignee: newAssignee })
   }
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -246,12 +231,19 @@ export function TaskBoard() {
       <h1 className="mb-8 text-3xl font-bold text-gray-900">Task Board</h1>
 
       <TaskFilters
-        status={statusFilter}
-        priority={priorityFilter}
-        search={searchFilter}
+        status={status}
+        priority={priority}
+        search={search}
+        team={team}
+        sprint={sprint}
+        assignee={assignee}
         onStatusChange={handleStatusChange}
         onPriorityChange={handlePriorityChange}
         onSearchChange={handleSearchChange}
+        onTeamChange={handleTeamChange}
+        onSprintChange={handleSprintChange}
+        onAssigneeChange={handleAssigneeChange}
+        onClearFilters={clearAllFilters}
       />
 
       <DndContext
