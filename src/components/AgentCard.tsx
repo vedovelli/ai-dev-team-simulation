@@ -32,7 +32,7 @@ export function AgentCard({ agent }: AgentCardProps) {
   return (
     <Link to={`/agents/${agent.id}`}>
       <article
-        className={`p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200 cursor-pointer ${getRoleBgColor(agent.role)} group`}
+        className={`p-5 sm:p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-lg hover:border-slate-300 transition-all duration-200 ${getRoleBgColor(agent.role)} group cursor-pointer`}
       >
       {/* Header with name and status */}
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between sm:gap-4 mb-4">
