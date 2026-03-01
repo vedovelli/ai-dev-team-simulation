@@ -23,12 +23,39 @@ export function useActivityFeed(pageIndex: number = 0, pageSize: number = 20): U
       url.searchParams.set('pageIndex', pageIndex.toString())
       url.searchParams.set('pageSize', pageSize.toString())
 
-      const response = await fetch(url.toString())
+      let response: Response
+      try {
+        response = await fetch(url.toString())
+      } catch (error) {
+        throw new Error(
+          `Network error fetching activities: ${error instanceof Error ? error.message : 'Unknown error'}`
+        )
+      }
+
       if (!response.ok) {
         throw new Error(`Failed to fetch activities: ${response.status} ${response.statusText}`)
       }
-      const result = (await response.json()) as ActivitiesResponse
-      return result.data
+
+      let result: unknown
+      try {
+        result = await response.json()
+      } catch (error) {
+        throw new Error(
+          `Invalid response format: ${error instanceof Error ? error.message : 'JSON parse error'}`
+        )
+      }
+
+      // Validate response shape
+      if (!result || typeof result !== 'object' || !('data' in result)) {
+        throw new Error('Invalid activities response: missing data field')
+      }
+
+      const { data } = result as Record<string, unknown>
+      if (!Array.isArray(data)) {
+        throw new Error('Invalid activities response: data is not an array')
+      }
+
+      return data
     },
     staleTime: 5000,
   })
