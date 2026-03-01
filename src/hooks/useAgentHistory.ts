@@ -1,14 +1,16 @@
 import { useQuery } from '@tanstack/react-query'
-import type { AgentHistoryEntry } from '../types/agent'
+import type { AgentDetailResponse } from '../types/agentHistory'
 
 export function useAgentHistory(agentId: string) {
-  return useQuery({
+  return useQuery<AgentDetailResponse, Error>({
     queryKey: ['agentHistory', agentId],
     queryFn: async () => {
       const response = await fetch(`/api/agents/${agentId}/history`)
-      return response.json() as Promise<AgentHistoryEntry[]>
+      if (!response.ok) {
+        throw new Error('Failed to fetch agent history')
+      }
+      return response.json()
     },
-    refetchInterval: 5000,
-    refetchIntervalInBackground: true,
+    enabled: !!agentId,
   })
 }
