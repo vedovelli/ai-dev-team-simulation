@@ -4,12 +4,9 @@ import {
   getCoreRowModel,
   getSortedRowModel,
   getFilteredRowModel,
-  getPaginationRowModel,
-  flexRender,
   ColumnDef,
   SortingState,
   ColumnFiltersState,
-  PaginationState,
 } from '@tanstack/react-table'
 import type { Task } from '../types/task'
 
@@ -19,8 +16,6 @@ interface UseTaskTableProps {
   setSorting: (sorting: SortingState) => void
   columnFilters: ColumnFiltersState
   setColumnFilters: (filters: ColumnFiltersState) => void
-  pagination: PaginationState
-  setPagination: (pagination: PaginationState) => void
 }
 
 const columns: ColumnDef<Task>[] = [
@@ -84,8 +79,6 @@ export function useTaskTable({
   setSorting,
   columnFilters,
   setColumnFilters,
-  pagination,
-  setPagination,
 }: UseTaskTableProps) {
   const table = useReactTable({
     data,
@@ -93,15 +86,12 @@ export function useTaskTable({
     state: {
       sorting,
       columnFilters,
-      pagination,
     },
     onSortingChange: setSorting,
     onColumnFiltersChange: setColumnFilters,
-    onPaginationChange: setPagination,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getPaginationRowModel: getPaginationRowModel(),
   })
 
   return {
