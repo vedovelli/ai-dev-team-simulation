@@ -162,8 +162,6 @@ export const handlers = [
     const status = url.searchParams.get('status')
     const priority = url.searchParams.get('priority')
     const search = url.searchParams.get('search')
-    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
-    const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
     const sortBy = url.searchParams.get('sortBy') || 'title'
     const sortOrder = url.searchParams.get('sortOrder') || 'asc'
 
@@ -184,9 +182,9 @@ export const handlers = [
       )
     }
 
-    // Sorting - validate sortBy is a valid Task field
-    const validSortFields = Object.keys({} as Task)
-    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'title'
+    // Sorting - validate sortBy against known Task fields
+    const validSortFields = ['id', 'title', 'status', 'priority', 'assignee', 'storyPoints', 'team', 'sprint', 'createdAt', 'updatedAt'] as const
+    const validSortBy = validSortFields.includes(sortBy as any) ? sortBy : 'title'
 
     filteredTasks.sort((a, b) => {
       const aValue = a[validSortBy as keyof Task] ?? ''
@@ -202,17 +200,7 @@ export const handlers = [
       return sortOrder === 'desc' ? -comparison : comparison
     })
 
-    // Pagination
-    const start = pageIndex * pageSize
-    const end = start + pageSize
-    const paginatedTasks = filteredTasks.slice(start, end)
-
-    return HttpResponse.json({
-      data: paginatedTasks,
-      total: filteredTasks.length,
-      pageIndex,
-      pageSize,
-    })
+    return HttpResponse.json(filteredTasks)
   }),
 
   http.patch('/api/tasks/:id', async ({ request, params }) => {

@@ -3,17 +3,16 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import {
   SortingState,
   ColumnFiltersState,
-  PaginationState,
 } from '@tanstack/react-table'
 import { useTasks } from '../../../hooks/useTasks'
 import { useTaskTable } from '../../../hooks/useTaskTable'
 import type { Task } from '../../../types/task'
 
 export function TaskBoard() {
-  const { data: tasks = [], isLoading, error } = useTasks()
   const [parentRef, setParentRef] = useState<HTMLDivElement | null>(null)
   const [sorting, setSorting] = useState<SortingState>([])
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])
+  const { data: tasks = [], isLoading, error } = useTasks()
 
   const { table } = useTaskTable({
     data: tasks,
@@ -98,7 +97,7 @@ export function TaskBoard() {
                       key={cell.id}
                       className="px-6 py-4 text-sm text-gray-700"
                     >
-                      {cell.getValue()}
+                      {cell.renderValue()}
                     </td>
                   ))}
                 </tr>
