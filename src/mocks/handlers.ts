@@ -184,10 +184,13 @@ export const handlers = [
       )
     }
 
-    // Sorting
+    // Sorting - validate sortBy is a valid Task field
+    const validSortFields = Object.keys({} as Task)
+    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'title'
+
     filteredTasks.sort((a, b) => {
-      const aValue = a[sortBy as keyof Task] ?? ''
-      const bValue = b[sortBy as keyof Task] ?? ''
+      const aValue = a[validSortBy as keyof Task] ?? ''
+      const bValue = b[validSortBy as keyof Task] ?? ''
 
       let comparison = 0
       if (typeof aValue === 'string' && typeof bValue === 'string') {
