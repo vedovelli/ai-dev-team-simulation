@@ -2,6 +2,7 @@ import { http, HttpResponse } from 'msw'
 import type { Agent, AgentRole, AgentStatus } from '../types/agent'
 import type { Task, UpdateTaskInput, TaskStatus, TaskPriority } from '../types/task'
 import type { Activity, ActivityEventType } from '../types/activity'
+import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
 
 interface Team {
   id: string
@@ -18,6 +19,14 @@ interface Sprint {
   tasks: Task[]
   estimatedPoints: number
   createdAt: string
+}
+
+interface CreateTaskPayload {
+  name: string
+  status: string
+  team: string
+  sprint: string
+  priority: string
 }
 
 // In-memory store for teams
@@ -128,14 +137,6 @@ function generateMockTasks(): Task[] {
 // In-memory store for tasks with 1000+ seed data
 const tasksStore: Task[] = generateMockTasks()
 
-interface CreateTaskPayload {
-  name: string
-  status: string
-  team: string
-  sprint: string
-  priority: string
-}
-
 function getTaskIdCounter(): number {
   const maxId = tasksStore.reduce((max, task) => {
     const num = parseInt(task.id.replace('task-', ''), 10)
@@ -223,6 +224,43 @@ function generateMockActivities(): Activity[] {
 // In-memory store for activities
 const activitiesStore: Activity[] = generateMockActivities()
 
+// Generate agent history data
+function generateAgentHistory(agentId: string): HistoryEntry[] {
+  const types = ['task_completed', 'task_started', 'decision_made', 'error_encountered', 'review_requested', 'code_merged'] as const
+  const activities = [
+    { title: 'Completed feature implementation', description: 'Successfully finished implementing user authentication module' },
+    { title: 'Started code review', description: 'Reviewing PR #245 for API optimization' },
+    { title: 'Fixed critical bug', description: 'Resolved memory leak in data processing pipeline' },
+    { title: 'Merged pull request', description: 'Merged feature branch into main after 3 approvals' },
+    { title: 'Submitted for review', description: 'Code review requested for refactoring PR' },
+    { title: 'Encountered dependency issue', description: 'Blocked on external library version conflict' },
+    { title: 'Optimized database query', description: 'Improved query performance by 45%' },
+    { title: 'Written test suite', description: 'Added 50+ new unit tests for core modules' },
+    { title: 'Updated documentation', description: 'Documented new API endpoints and usage examples' },
+    { title: 'Deployed to production', description: 'Successfully deployed version 2.1.0' },
+  ]
+
+  const entries: HistoryEntry[] = []
+  const now = Date.now()
+
+  for (let i = 0; i < 12; i++) {
+    const activity = activities[i % activities.length]
+    entries.push({
+      id: `history-${agentId}-${i}`,
+      agentId,
+      type: types[i % types.length],
+      title: activity.title,
+      description: activity.description,
+      timestamp: new Date(now - (i + 1) * 24 * 60 * 60 * 1000).toISOString(),
+      metadata: {
+        duration: Math.floor(Math.random() * 480) + 60, // 1-8 hours
+        status: i % 3 === 0 ? 'success' : 'in-progress',
+      },
+    })
+  }
+
+  return entries
+}
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
@@ -249,35 +287,27 @@ export const handlers = [
     return HttpResponse.json(agentsStore)
   }),
 
-  http.get('/api/agents/:agentId/history', ({ params }) => {
-    const { agentId } = params
-    // Generate mock history data for the agent
-    const historyCount = 15
-    const taskSamples = [
-      'Implement feature X',
-      'Debugging API response',
-      'Code review',
-      'Writing tests',
-      'Refactoring component',
-      'Updating documentation',
-      'Fixing bug #123',
-      'Reviewing PR #456',
-      'Setting up CI/CD',
-      'Optimizing performance',
-    ]
-    const statuses: Array<'completed' | 'failed' | 'cancelled'> = ['completed', 'failed', 'cancelled']
+  http.get('/api/agents/:id/history', ({ params }) => {
+    const { id } = params
+    const agent = agentsStore.find((a) => a.id === id)
 
-    const history = Array.from({ length: historyCount }, (_, i) => ({
-      id: `${agentId}-history-${i}`,
-      timestamp: new Date(
-        Date.now() - (i * 2 * 60 * 60 * 1000)
-      ).toISOString(),
-      task: taskSamples[i % taskSamples.length],
-      status: statuses[i % statuses.length],
-      duration: Math.floor(Math.random() * 3600000) + 60000, // 1 min to 1 hour
-    }))
+    if (!agent) {
+      return HttpResponse.json(
+        { error: 'Agent not found' },
+        { status: 404 }
+      )
+    }
 
-    return HttpResponse.json(history)
+    const history = generateAgentHistory(id as string)
+    const response: AgentDetailResponse = {
+      id: agent.id,
+      name: agent.name,
+      role: agent.role,
+      status: agent.status,
+      history,
+    }
+
+    return HttpResponse.json(response)
   }),
 
   http.get('/api/tasks', ({ request }) => {
