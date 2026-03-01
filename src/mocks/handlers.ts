@@ -1,6 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { Agent, AgentRole, AgentStatus } from '../types/agent'
-import type { Task, UpdateTaskInput } from '../types/task'
+import type { Task, UpdateTaskInput, TaskStatus, TaskPriority } from '../types/task'
 
 interface Team {
   id: string
@@ -128,6 +128,22 @@ type TaskPriority = 'low' | 'medium' | 'high'
 // In-memory store for tasks with 1000+ seed data
 const tasksStore: Task[] = generateMockTasks()
 
+interface CreateTaskPayload {
+  name: string
+  status: string
+  team: string
+  sprint: string
+  priority: string
+}
+
+function getTaskIdCounter(): number {
+  const maxId = tasksStore.reduce((max, task) => {
+    const num = parseInt(task.id.replace('task-', ''), 10)
+    return num > max ? num : max
+  }, 0)
+  return maxId + 1
+}
+
 // In-memory store for sprints
 const sprintsStore: Sprint[] = []
 
@@ -252,5 +268,52 @@ export const handlers = [
 
   http.get('/api/sprints', () => {
     return HttpResponse.json(sprintsStore)
+  }),
+
+  http.post('/api/tasks/validate-name', async ({ request }) => {
+    const body = (await request.json()) as { name: string }
+
+    // Check if any existing task has the same title (case-insensitive)
+    const isDuplicate = tasksStore.some(
+      (task) => task.title.toLowerCase() === body.name.toLowerCase()
+    )
+
+    return HttpResponse.json({
+      isUnique: !isDuplicate,
+      message: isDuplicate
+        ? `Task with name "${body.name}" already exists`
+        : undefined,
+    })
+  }),
+
+  http.post('/api/tasks', async ({ request }) => {
+    const body = (await request.json()) as CreateTaskPayload
+
+    // Validate task name uniqueness
+    const isDuplicate = tasksStore.some(
+      (task) => task.title.toLowerCase() === body.name.toLowerCase()
+    )
+
+    if (isDuplicate) {
+      return HttpResponse.json(
+        { error: `Task with name "${body.name}" already exists` },
+        { status: 400 }
+      )
+    }
+
+    const newTask: Task = {
+      id: `task-${getTaskIdCounter()}`,
+      title: body.name,
+      assignee: 'Unassigned',
+      status: (body.status as TaskStatus) || 'backlog',
+      priority: (body.priority as TaskPriority) || 'medium',
+      storyPoints: 0,
+      sprint: body.sprint || 'sprint-1',
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore.push(newTask)
+    return HttpResponse.json(newTask, { status: 201 })
   }),
 ]
