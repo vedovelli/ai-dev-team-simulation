@@ -488,4 +488,80 @@ export const handlers = [
       pageSize,
     })
   }),
+
+  http.get('/api/agents/:id/analytics', ({ params }) => {
+    const { id } = params
+    const agent = agentsStore.find((a) => a.id === id)
+
+    if (!agent) {
+      return HttpResponse.json(
+        { error: 'Agent not found' },
+        { status: 404 }
+      )
+    }
+
+    // Generate analytics metrics for the agent
+    const totalTasks = Math.floor(Math.random() * 100) + 50
+    const completedTasks = Math.floor(totalTasks * (0.6 + Math.random() * 0.4))
+    const failedTasks = Math.floor((totalTasks - completedTasks) * (0.3 + Math.random() * 0.4))
+
+    return HttpResponse.json({
+      agentId: agent.id,
+      agentName: agent.name,
+      agentRole: agent.role,
+      metrics: {
+        totalTasks,
+        completedTasks,
+        failedTasks,
+        inProgressTasks: totalTasks - completedTasks - failedTasks,
+        completionRate: ((completedTasks / totalTasks) * 100).toFixed(1),
+        averageTimeToComplete: Math.floor(Math.random() * 480) + 120, // 2-8 hours in minutes
+        errorRate: ((failedTasks / totalTasks) * 100).toFixed(1),
+      },
+    })
+  }),
+
+  http.get('/api/agents/:id/tasks', ({ params, request }) => {
+    const { id } = params
+    const url = new URL(request.url)
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10)
+    const sprint = url.searchParams.get('sprint')
+    const status = url.searchParams.get('status')
+
+    const agent = agentsStore.find((a) => a.id === id)
+    if (!agent) {
+      return HttpResponse.json(
+        { error: 'Agent not found' },
+        { status: 404 }
+      )
+    }
+
+    // Filter tasks for this agent - generate mock tasks with ~50-200 per agent
+    let filteredTasks = tasksStore.filter((task) => {
+      const taskAgentIndex = parseInt(task.id.replace('task-', ''), 10)
+      const agentIndex = parseInt(id as string).replace('agent-', '')
+      return taskAgentIndex % 50 === parseInt(agentIndex) % 50
+    })
+
+    if (sprint) {
+      filteredTasks = filteredTasks.filter((task) => task.sprint === sprint)
+    }
+
+    if (status) {
+      filteredTasks = filteredTasks.filter((task) => task.status === status)
+    }
+
+    // Pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedTasks = filteredTasks.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedTasks,
+      total: filteredTasks.length,
+      pageIndex,
+      pageSize,
+    })
+  }),
 ]
