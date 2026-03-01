@@ -5,6 +5,7 @@ export interface Task {
   id: string
   title: string
   assignee: string
+  team: string
   status: TaskStatus
   priority: TaskPriority
   storyPoints: number
@@ -16,6 +17,7 @@ export interface Task {
 export interface UpdateTaskInput {
   title?: string
   assignee?: string
+  team?: string
   status?: TaskStatus
   priority?: TaskPriority
   storyPoints?: number
