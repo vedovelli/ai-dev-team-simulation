@@ -6,15 +6,20 @@ interface AnalyticsFiltersProps {
   onStatusChange: (status: string | null) => void
 }
 
+type AnalyticsSearch = {
+  sprint?: string
+  status?: string
+}
+
 export function AnalyticsFilters({
   sprints,
   onSprintChange,
   onStatusChange,
 }: AnalyticsFiltersProps) {
-  const searchParams = useSearch({ from: '__root__' })
+  const searchParams = useSearch({ from: '__root__' }) as AnalyticsSearch
 
-  const currentSprint = (searchParams as any)?.sprint || ''
-  const currentStatus = (searchParams as any)?.status || ''
+  const currentSprint = searchParams.sprint || ''
+  const currentStatus = searchParams.status || ''
 
   const statuses = ['backlog', 'in-progress', 'in-review', 'done']
 

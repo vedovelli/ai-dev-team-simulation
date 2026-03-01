@@ -18,13 +18,18 @@ interface PaginatedTasksResponse {
   pageSize: number
 }
 
+type AnalyticsSearch = {
+  sprint?: string
+  status?: string
+}
+
 export function AgentAnalytics({ agentId }: AgentAnalyticsProps) {
   const navigate = useNavigate()
-  const searchParams = useSearch({ from: '__root__' })
+  const searchParams = useSearch({ from: '__root__' }) as AnalyticsSearch
   const [pageIndex, setPageIndex] = useState(0)
 
-  const currentSprint = (searchParams as any)?.sprint || ''
-  const currentStatus = (searchParams as any)?.status || ''
+  const currentSprint = searchParams.sprint || ''
+  const currentStatus = searchParams.status || ''
   const pageSize = 20
 
   // Fetch analytics metrics

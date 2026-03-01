@@ -503,7 +503,7 @@ export const handlers = [
     // Generate analytics metrics for the agent
     const totalTasks = Math.floor(Math.random() * 100) + 50
     const completedTasks = Math.floor(totalTasks * (0.6 + Math.random() * 0.4))
-    const failedTasks = Math.floor((totalTasks - completedTasks) * (0.3 + Math.random() * 0.4))
+    const failedTasks = Math.floor(totalTasks * 0.15)
 
     return HttpResponse.json({
       agentId: agent.id,
@@ -539,9 +539,9 @@ export const handlers = [
 
     // Filter tasks for this agent - generate mock tasks with ~50-200 per agent
     let filteredTasks = tasksStore.filter((task) => {
-      const taskAgentIndex = parseInt(task.id.replace('task-', ''), 10)
-      const agentIndex = parseInt(id as string).replace('agent-', '')
-      return taskAgentIndex % 50 === parseInt(agentIndex) % 50
+      const taskAgentIndex = parseInt(task.id.match(/\d+/)?.[0] || '0', 10)
+      const agentIndex = parseInt(id.match(/\d+/)?.[0] || '0', 10)
+      return taskAgentIndex % 50 === agentIndex % 50
     })
 
     if (sprint) {
