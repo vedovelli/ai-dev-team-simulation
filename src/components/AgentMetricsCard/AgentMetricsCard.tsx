@@ -34,16 +34,14 @@ function formatDuration(minutes: number): string {
   return `${hours}h ${mins}m`
 }
 
-function MetricBadge({
-  label,
-  value,
-  color,
-}: {
+interface MetricBadgeProps {
   label: string
   value: ReactNode
   color: 'emerald' | 'red' | 'slate'
-}): JSX.Element {
-  const bgMap = {
+}
+
+function MetricBadge({ label, value, color }: MetricBadgeProps): JSX.Element {
+  const bgMap: Record<MetricBadgeProps['color'], string> = {
     emerald: 'bg-emerald-100 text-emerald-700',
     red: 'bg-red-100 text-red-700',
     slate: 'bg-slate-100 text-slate-700',
@@ -123,7 +121,14 @@ export function AgentMetricsCard({
             {Math.round(completionRate)}%
           </span>
         </div>
-        <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
+        <div
+          className="w-full h-2 bg-slate-200 rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={completionRate}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${agentName} completion rate`}
+        >
           <div
             className={`h-full ${getCompletionRateColor(completionRate)} transition-all duration-300`}
             style={{ width: `${completionRate}%` }}
