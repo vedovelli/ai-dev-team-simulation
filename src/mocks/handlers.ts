@@ -249,6 +249,37 @@ export const handlers = [
     return HttpResponse.json(agentsStore)
   }),
 
+  http.get('/api/agents/:agentId/history', ({ params }) => {
+    const { agentId } = params
+    // Generate mock history data for the agent
+    const historyCount = 15
+    const taskSamples = [
+      'Implement feature X',
+      'Debugging API response',
+      'Code review',
+      'Writing tests',
+      'Refactoring component',
+      'Updating documentation',
+      'Fixing bug #123',
+      'Reviewing PR #456',
+      'Setting up CI/CD',
+      'Optimizing performance',
+    ]
+    const statuses: Array<'completed' | 'failed' | 'cancelled'> = ['completed', 'failed', 'cancelled']
+
+    const history = Array.from({ length: historyCount }, (_, i) => ({
+      id: `${agentId}-history-${i}`,
+      timestamp: new Date(
+        Date.now() - (i * 2 * 60 * 60 * 1000)
+      ).toISOString(),
+      task: taskSamples[i % taskSamples.length],
+      status: statuses[i % statuses.length],
+      duration: Math.floor(Math.random() * 3600000) + 60000, // 1 min to 1 hour
+    }))
+
+    return HttpResponse.json(history)
+  }),
+
   http.get('/api/tasks', ({ request }) => {
     const url = new URL(request.url)
     const status = url.searchParams.get('status')
