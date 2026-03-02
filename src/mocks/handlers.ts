@@ -846,4 +846,82 @@ export const handlers = [
 
     return HttpResponse.json(deletedTask)
   }),
+
+  // Agent Profile Form submission
+  http.post('/api/agents/profile', async ({ request }) => {
+    const body = await request.json()
+
+    // Simulate validation
+    if (!body.name || !body.email || !body.role) {
+      return HttpResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Simulate email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(body.email)) {
+      return HttpResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Simulate successful submission
+    return HttpResponse.json(
+      {
+        success: true,
+        message: 'Agent profile updated successfully',
+        data: {
+          id: `agent-${Date.now()}`,
+          ...body,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      { status: 200 }
+    )
+  }),
+
+  // Sprint Configuration Form submission
+  http.post('/api/sprints/configure', async ({ request }) => {
+    const body = await request.json()
+
+    // Simulate validation
+    if (!body.name || !body.startDate || !body.endDate || !body.duration) {
+      return HttpResponse.json(
+        { error: 'Missing required fields' },
+        { status: 400 }
+      )
+    }
+
+    // Validate date range
+    const start = new Date(body.startDate)
+    const end = new Date(body.endDate)
+    const diffTime = Math.abs(end.getTime() - start.getTime())
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+    if (diffDays + 1 !== body.duration) {
+      return HttpResponse.json(
+        {
+          error: `End date must be ${body.duration - 1} days after start date`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Simulate successful submission
+    return HttpResponse.json(
+      {
+        success: true,
+        message: 'Sprint configured successfully',
+        data: {
+          id: `sprint-${Date.now()}`,
+          ...body,
+          createdAt: new Date().toISOString(),
+        },
+      },
+      { status: 200 }
+    )
+  }),
 ]
