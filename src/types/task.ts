@@ -11,6 +11,7 @@ export interface Task {
   storyPoints: number
   sprint: string
   order: number
+  estimatedHours?: number
   createdAt: string
   updatedAt: string
 }
@@ -22,5 +23,6 @@ export interface UpdateTaskInput {
   status?: TaskStatus
   priority?: TaskPriority
   storyPoints?: number
+  estimatedHours?: number
   order?: number
 }

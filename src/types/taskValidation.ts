@@ -6,6 +6,7 @@ export interface CreateTaskInput {
   team: string
   sprint: string
   priority: TaskPriority
+  estimatedHours?: number
 }
 
 export interface TaskNameValidationResponse {
