@@ -265,6 +265,7 @@ export function TaskBoard() {
                         key={task.id}
                         task={task}
                         isLoading={loadingTaskIds.has(task.id)}
+                        allTasks={allTasks}
                       />
                     ))}
                     {statusTasks.length === 0 && (

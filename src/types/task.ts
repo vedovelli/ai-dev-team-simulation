@@ -13,6 +13,7 @@ export interface Task {
   order: number
   createdAt: string
   updatedAt: string
+  dependsOn?: string[]
 }
 
 export interface UpdateTaskInput {
@@ -23,4 +24,5 @@ export interface UpdateTaskInput {
   priority?: TaskPriority
   storyPoints?: number
   order?: number
+  dependsOn?: string[]
 }

@@ -128,6 +128,7 @@ function generateMockTasks(): Task[] {
       updatedAt: new Date(
         Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000
       ).toISOString(),
+      dependsOn: [],
     })
   }
   return tasks
@@ -465,6 +466,7 @@ export const handlers = [
       order: 0,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
+      dependsOn: [],
     }
 
     tasksStore.push(newTask)
@@ -563,5 +565,51 @@ export const handlers = [
       pageIndex,
       pageSize,
     })
+  }),
+
+  http.put('/api/tasks/:id/dependencies', async ({ request, params }) => {
+    const { id } = params
+    const body = (await request.json()) as { dependsOn: string[] }
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    // Validate that all dependency task IDs exist
+    const invalidIds = body.dependsOn.filter(
+      (depId) => !tasksStore.some((task) => task.id === depId)
+    )
+    if (invalidIds.length > 0) {
+      return HttpResponse.json(
+        { error: `Invalid task ID(s): ${invalidIds.join(', ')}` },
+        { status: 400 }
+      )
+    }
+
+    // Check for direct circular dependencies
+    for (const depId of body.dependsOn) {
+      const depTask = tasksStore.find((t) => t.id === depId)
+      if (depTask?.dependsOn && depTask.dependsOn.includes(id as string)) {
+        return HttpResponse.json(
+          {
+            error: `Circular dependency detected: ${id} depends on ${depId}, but ${depId} depends on ${id}`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+
+    const updatedTask: Task = {
+      ...tasksStore[taskIndex],
+      dependsOn: body.dependsOn,
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore[taskIndex] = updatedTask
+    return HttpResponse.json(updatedTask)
   }),
 ]
