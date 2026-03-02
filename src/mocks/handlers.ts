@@ -30,6 +30,44 @@ interface CreateTaskPayload {
   estimatedHours?: number
 }
 
+// Mock agents data with tasks (for workload dashboard)
+const mockAgents = [
+  {
+    id: 'agent-1',
+    name: 'Alice',
+    role: 'Frontend',
+    status: 'active',
+    activeTasksCount: 3,
+    totalEstimatedHours: 20,
+  },
+  {
+    id: 'agent-2',
+    name: 'Bob',
+    role: 'Backend',
+    status: 'active',
+    activeTasksCount: 2,
+    totalEstimatedHours: 15,
+  },
+  {
+    id: 'agent-3',
+    name: 'Charlie',
+    role: 'DevOps',
+    status: 'active',
+    activeTasksCount: 4,
+    totalEstimatedHours: 35,
+  },
+  {
+    id: 'agent-4',
+    name: 'Diana',
+    role: 'Frontend',
+    status: 'active',
+    activeTasksCount: 1,
+    totalEstimatedHours: 8,
+  },
+]
+
+const SPRINT_CAPACITY = 40
+
 // In-memory store for teams
 const teamsStore: Team[] = []
 
@@ -135,7 +173,6 @@ function generateMockTasks(): Task[] {
   }
   return tasks
 }
-
 
 // In-memory store for tasks with 1000+ seed data
 const tasksStore: Task[] = generateMockTasks()
@@ -697,5 +734,25 @@ export const handlers = [
 
     tasksStore[taskIndex] = updatedTask
     return HttpResponse.json(updatedTask)
+  }),
+
+  http.get('/api/agents/:id/workload', ({ params }) => {
+    const agent = mockAgents.find((a) => a.id === params.id)
+    if (!agent) {
+      return HttpResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const utilizationPercent = (agent.totalEstimatedHours / SPRINT_CAPACITY) * 100
+
+    return HttpResponse.json({
+      agentId: agent.id,
+      name: agent.name,
+      role: agent.role,
+      status: agent.status,
+      activeTasksCount: agent.activeTasksCount,
+      totalEstimatedHours: agent.totalEstimatedHours,
+      sprintCapacity: SPRINT_CAPACITY,
+      utilizationPercent: Math.round(utilizationPercent * 10) / 10,
+    })
   }),
 ]
