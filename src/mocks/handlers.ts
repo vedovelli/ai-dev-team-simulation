@@ -540,7 +540,8 @@ export const handlers = [
     // Filter tasks for this agent - generate mock tasks with ~50-200 per agent
     let filteredTasks = tasksStore.filter((task) => {
       const taskAgentIndex = parseInt(task.id.match(/\d+/)?.[0] || '0', 10)
-      const agentIndex = parseInt(id.match(/\d+/)?.[0] || '0', 10)
+      const agentIdStr = typeof id === 'string' ? id : '0'
+      const agentIndex = parseInt(agentIdStr.match(/\d+/)?.[0] || '0', 10)
       return taskAgentIndex % 50 === agentIndex % 50
     })
 
