@@ -3,6 +3,8 @@ import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
 import { useCreateTask } from '../hooks/useCreateTask'
 import { useToast } from './Toast'
+import { MutationErrorAlert } from './MutationErrorAlert'
+import { MutationStatus } from './MutationStatus'
 import type { CreateTaskInput } from '../types/taskValidation'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
@@ -18,7 +20,7 @@ interface FormFields {
 export const CreateTaskForm = () => {
   const router = useRouter()
   const { showToast } = useToast()
-  const { mutate, isPending } = useCreateTask()
+  const { mutate, isPending, isError, error, isSuccess, canRetry, retry } = useCreateTask()
   const [validatingName, setValidatingName] = useState(false)
 
   const form = useForm<FormFields>({
@@ -92,6 +94,19 @@ export const CreateTaskForm = () => {
     <div className="min-h-screen bg-slate-900 text-white p-8">
       <div className="max-w-2xl mx-auto">
         <h1 className="text-3xl font-bold mb-8">Create New Task</h1>
+
+        <MutationErrorAlert
+          error={isError ? error : null}
+          isLoading={isPending}
+          canRetry={canRetry}
+          onRetry={retry}
+        />
+
+        <MutationStatus
+          isLoading={isPending}
+          isSuccess={isSuccess}
+          successMessage="Task created successfully!"
+        />
 
         <form
           onSubmit={(e) => {
@@ -348,7 +363,7 @@ export const CreateTaskForm = () => {
           <div className="flex gap-4">
             <button
               type="submit"
-              disabled={isPending || validatingName}
+              disabled={isPending || validatingName || isError}
               className="flex-1 px-6 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-600 rounded-lg font-medium transition-colors"
             >
               {isPending ? 'Creating...' : 'Create Task'}
