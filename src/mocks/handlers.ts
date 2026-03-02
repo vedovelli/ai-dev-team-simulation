@@ -422,6 +422,88 @@ export const handlers = [
     return HttpResponse.json(sprintsStore)
   }),
 
+  http.get('/api/sprints/:id/metrics', ({ params }) => {
+    const { id } = params
+    const sprint = sprintsStore.find((s) => s.id === id)
+
+    if (!sprint) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get tasks for this sprint
+    const sprintTasks = tasksStore.filter((task) => task.sprint === id)
+
+    // Calculate metrics
+    const totalPoints = sprint.estimatedPoints
+    const completedPoints = sprintTasks
+      .filter((task) => task.status === 'done')
+      .reduce((sum, task) => sum + task.storyPoints, 0)
+    const remainingPoints = totalPoints - completedPoints
+
+    // Calculate days remaining (assume 14-day sprints, can be adjusted with startDate/endDate)
+    const sprintDuration = 14
+    const daysElapsed = Math.ceil(
+      (Date.now() - new Date(sprint.createdAt).getTime()) / (24 * 60 * 60 * 1000)
+    )
+    const daysRemaining = Math.max(0, sprintDuration - daysElapsed)
+
+    // Velocity is completed points
+    const velocity = completedPoints
+
+    // On-track: actual >= 90% of ideal
+    const idealPoints = totalPoints * Math.max(0, 1 - daysElapsed / sprintDuration)
+    const onTrack = completedPoints >= idealPoints * 0.9
+
+    // Build burndown data
+    const burndownData = []
+    const startDate = new Date(sprint.createdAt)
+
+    for (let day = 0; day <= sprintDuration; day++) {
+      const currentDate = new Date(startDate)
+      currentDate.setDate(currentDate.getDate() + day)
+      const dateStr = currentDate.toISOString().split('T')[0]
+
+      // Calculate actual progress up to this day
+      let actualPoints = 0
+      sprintTasks
+        .filter((task) => task.status === 'done')
+        .filter((task) => new Date(task.updatedAt).toISOString().split('T')[0] <= dateStr)
+        .forEach((task) => {
+          actualPoints += task.storyPoints
+        })
+
+      // Ideal line: linear from totalPoints to 0
+      const ideal = Math.max(0, totalPoints - (totalPoints / sprintDuration) * day)
+
+      burndownData.push({
+        day,
+        ideal: Math.round(ideal * 100) / 100,
+        actual: actualPoints,
+        date: dateStr,
+      })
+    }
+
+    return HttpResponse.json({
+      sprint,
+      metrics: {
+        sprintId: id,
+        totalPoints,
+        completedPoints,
+        remainingPoints,
+        daysRemaining,
+        daysElapsed,
+        sprintDuration,
+        velocity,
+        onTrack,
+        completionPercentage: Math.round((completedPoints / totalPoints) * 100),
+      },
+      burndownData,
+    })
+  }),
+
   http.post('/api/tasks/validate-name', async ({ request }) => {
     const body = (await request.json()) as { name: string }
 
