@@ -1,26 +1,25 @@
 import { useQueryClient } from '@tanstack/react-query'
-import type { Task, UpdateTaskInput } from '../types/task'
+import type { Task } from '../types/task'
 import { useMutationWithRetry } from './useMutationWithRetry'
 
-export function useUpdateTask() {
+export function useDeleteTask() {
   const queryClient = useQueryClient()
 
   return useMutationWithRetry({
-    mutationFn: async ({ id, data }: { id: string; data: UpdateTaskInput }) => {
+    mutationFn: async (id: string) => {
       const response = await fetch(`/api/tasks/${id}`, {
-        method: 'PATCH',
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
       })
 
       if (!response.ok) {
         const error = await response.json()
-        throw new Error(error.error || 'Failed to update task')
+        throw new Error(error.error || 'Failed to delete task')
       }
 
       return response.json() as Promise<Task>
     },
-    onMutate: async ({ id, data }) => {
+    onMutate: async (id) => {
       // Cancel any pending requests for tasks
       await queryClient.cancelQueries({ queryKey: ['tasks'] })
 
@@ -29,25 +28,17 @@ export function useUpdateTask() {
         queryKey: ['tasks'],
       })
 
-      // Optimistically update all task queries
+      // Optimistically remove the task from all task queries
       previousTasks.forEach(([key]) => {
         queryClient.setQueryData(key, (oldTasks: Task[] = []) =>
-          oldTasks.map((task) =>
-            task.id === id
-              ? {
-                  ...task,
-                  ...data,
-                  updatedAt: new Date().toISOString(),
-                }
-              : task
-          )
+          oldTasks.filter((task) => task.id !== id)
         )
       })
 
       return { previousTasks }
     },
     onError: (_, __, context) => {
-      // Revert optimistic updates on error
+      // Revert optimistic deletion on error
       if (context?.previousTasks) {
         context.previousTasks.forEach(([key, data]) => {
           queryClient.setQueryData(key, data)

@@ -264,6 +264,31 @@ function generateMockActivities(): Activity[] {
 // In-memory store for activities
 const activitiesStore: Activity[] = generateMockActivities()
 
+// Simulation configuration for mutations
+const mutationSimulation = {
+  delayMs: 800, // Simulate network delay
+  failureRate: 0.3, // 30% chance of failure on first attempt
+  failureCountByEndpoint: new Map<string, number>(), // Track failures per endpoint
+}
+
+function shouldFailMutation(endpoint: string): boolean {
+  const failCount = mutationSimulation.failureCountByEndpoint.get(endpoint) || 0
+  // Fail on first attempt, succeed on retry
+  if (failCount === 0 && Math.random() < mutationSimulation.failureRate) {
+    mutationSimulation.failureCountByEndpoint.set(endpoint, failCount + 1)
+    return true
+  }
+  // Reset on success
+  mutationSimulation.failureCountByEndpoint.set(endpoint, 0)
+  return false
+}
+
+async function simulateDelay() {
+  return new Promise((resolve) => {
+    setTimeout(resolve, mutationSimulation.delayMs)
+  })
+}
+
 // Generate agent history data
 function generateAgentHistory(agentId: string): HistoryEntry[] {
   const types = ['task_completed', 'task_started', 'decision_made', 'error_encountered', 'review_requested', 'code_merged'] as const
@@ -424,8 +449,18 @@ export const handlers = [
   }),
 
   http.patch('/api/tasks/:id', async ({ request, params }) => {
+    await simulateDelay()
+
     const { id } = params
     const body = (await request.json()) as UpdateTaskInput
+
+    // Simulate occasional failures for testing retry mechanism
+    if (shouldFailMutation(`PATCH /api/tasks/${id}`)) {
+      return HttpResponse.json(
+        { error: 'Failed to update task. Please try again.' },
+        { status: 500 }
+      )
+    }
 
     const taskIndex = tasksStore.findIndex((task) => task.id === id)
     if (taskIndex === -1) {
@@ -561,7 +596,17 @@ export const handlers = [
   }),
 
   http.post('/api/tasks', async ({ request }) => {
+    await simulateDelay()
+
     const body = (await request.json()) as CreateTaskPayload
+
+    // Simulate occasional failures for testing retry mechanism
+    if (shouldFailMutation('POST /api/tasks')) {
+      return HttpResponse.json(
+        { error: 'Failed to create task. Please try again.' },
+        { status: 500 }
+      )
+    }
 
     // Validate task name uniqueness
     const isDuplicate = tasksStore.some(
@@ -754,5 +799,33 @@ export const handlers = [
       sprintCapacity: SPRINT_CAPACITY,
       utilizationPercent: Math.round(utilizationPercent * 10) / 10,
     })
+  }),
+
+  http.delete('/api/tasks/:id', async ({ params }) => {
+    await simulateDelay()
+
+    const { id } = params
+
+    // Simulate occasional failures for testing retry mechanism
+    if (shouldFailMutation(`DELETE /api/tasks/${id}`)) {
+      return HttpResponse.json(
+        { error: 'Failed to delete task. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    const deletedTask = tasksStore[taskIndex]
+    tasksStore.splice(taskIndex, 1)
+
+    return HttpResponse.json(deletedTask)
   }),
 ]
