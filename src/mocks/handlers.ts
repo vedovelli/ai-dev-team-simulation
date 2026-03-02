@@ -27,6 +27,7 @@ interface CreateTaskPayload {
   team: string
   sprint: string
   priority: string
+  estimatedHours?: number
 }
 
 // In-memory store for teams
@@ -122,6 +123,7 @@ function generateMockTasks(): Task[] {
       storyPoints: (i % 13) + 1,
       sprint: sprints[i % sprints.length],
       order: i % 10,
+      estimatedHours: (i % 40) + 1,
       createdAt: new Date(
         Date.now() - (i * 24 * 60 * 60 * 1000) % (30 * 24 * 60 * 60 * 1000)
       ).toISOString(),
@@ -463,6 +465,7 @@ export const handlers = [
       storyPoints: 0,
       sprint: body.sprint || 'sprint-1',
       order: 0,
+      estimatedHours: body.estimatedHours,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     }
