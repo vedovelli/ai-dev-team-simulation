@@ -358,6 +358,8 @@ export const handlers = [
     const team = url.searchParams.get('team')
     const sprint = url.searchParams.get('sprint')
     const assignee = url.searchParams.get('assignee')
+    const dateFrom = url.searchParams.get('dateFrom')
+    const dateTo = url.searchParams.get('dateTo')
     const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
     const pageSize = parseInt(url.searchParams.get('pageSize') || '50', 10)
     const sortBy = url.searchParams.get('sortBy') || 'title'
@@ -390,6 +392,22 @@ export const handlers = [
 
     if (assignee) {
       filteredTasks = filteredTasks.filter((task) => task.assignee === assignee)
+    }
+
+    // Date range filtering
+    if (dateFrom) {
+      const fromDate = new Date(dateFrom)
+      filteredTasks = filteredTasks.filter(
+        (task) => new Date(task.createdAt) >= fromDate
+      )
+    }
+
+    if (dateTo) {
+      const toDate = new Date(dateTo)
+      toDate.setHours(23, 59, 59, 999)
+      filteredTasks = filteredTasks.filter(
+        (task) => new Date(task.createdAt) <= toDate
+      )
     }
 
     // Sorting - validate sortBy is a valid Task field
