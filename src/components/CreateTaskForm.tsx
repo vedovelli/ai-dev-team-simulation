@@ -1,10 +1,12 @@
 import { useForm } from '@tanstack/react-form'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
+import { createTaskRequestSchema } from '../lib/validation'
 import { useCreateTask } from '../hooks/useCreateTask'
 import { useToast } from './Toast'
 import { MutationErrorAlert } from './MutationErrorAlert'
 import { MutationStatus } from './MutationStatus'
+import { FormField } from './FormField'
 import type { CreateTaskInput } from '../types/taskValidation'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
@@ -15,6 +17,7 @@ interface FormFields {
   sprint: string
   priority: TaskPriority
   estimatedHours?: number
+  assignedAgent?: string | null
 }
 
 export const CreateTaskForm = () => {
@@ -31,17 +34,27 @@ export const CreateTaskForm = () => {
       sprint: 'sprint-1',
       priority: 'medium',
       estimatedHours: undefined,
+      assignedAgent: null,
     },
     onSubmit: async ({ value }) => {
       try {
-        const data: CreateTaskInput = {
+        // Validate using Zod schema
+        const validationResult = createTaskRequestSchema.safeParse({
           name: value.name,
           status: value.status,
           team: value.team,
           sprint: value.sprint,
           priority: value.priority,
           estimatedHours: value.estimatedHours,
+          assignedAgent: value.assignedAgent,
+        })
+
+        if (!validationResult.success) {
+          showToast('Validation failed: ' + validationResult.error.errors[0].message, 'error')
+          return
         }
+
+        const data: CreateTaskInput = validationResult.data as unknown as CreateTaskInput
 
         mutate(data, {
           onSuccess: () => {
@@ -49,10 +62,7 @@ export const CreateTaskForm = () => {
             router.navigate({ to: '/' })
           },
           onError: (error) => {
-            showToast(
-              error.message || 'Failed to create task',
-              'error'
-            )
+            showToast(error.message || 'Failed to create task', 'error')
           },
         })
       } catch (error) {
@@ -122,13 +132,7 @@ export const CreateTaskForm = () => {
             }}
           >
             {(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Task Name
-                </label>
+              <FormField label="Task Name" error={field.state.meta.errors?.[0]}>
                 <div className="relative">
                   <input
                     id={field.name}
@@ -146,12 +150,7 @@ export const CreateTaskForm = () => {
                     </div>
                   )}
                 </div>
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+              </FormField>
             )}
           </form.Field>
 
@@ -167,13 +166,7 @@ export const CreateTaskForm = () => {
             }}
           >
             {(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Status
-                </label>
+              <FormField label="Status" error={field.state.meta.errors?.[0]}>
                 <select
                   id={field.name}
                   name={field.name}
@@ -188,12 +181,7 @@ export const CreateTaskForm = () => {
                   <option value="in-review">In Review</option>
                   <option value="done">Done</option>
                 </select>
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+              </FormField>
             )}
           </form.Field>
 
@@ -209,13 +197,7 @@ export const CreateTaskForm = () => {
             }}
           >
             {(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Team
-                </label>
+              <FormField label="Team" error={field.state.meta.errors?.[0]}>
                 <input
                   id={field.name}
                   name={field.name}
@@ -226,12 +208,7 @@ export const CreateTaskForm = () => {
                   placeholder="Enter team name"
                   disabled={isPending}
                 />
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+              </FormField>
             )}
           </form.Field>
 
@@ -247,13 +224,7 @@ export const CreateTaskForm = () => {
             }}
           >
             {(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Sprint
-                </label>
+              <FormField label="Sprint" error={field.state.meta.errors?.[0]}>
                 <input
                   id={field.name}
                   name={field.name}
@@ -264,12 +235,7 @@ export const CreateTaskForm = () => {
                   placeholder="Enter sprint name"
                   disabled={isPending}
                 />
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+              </FormField>
             )}
           </form.Field>
 
@@ -285,13 +251,7 @@ export const CreateTaskForm = () => {
             }}
           >
             {(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Priority
-                </label>
+              <FormField label="Priority" error={field.state.meta.errors?.[0]}>
                 <select
                   id={field.name}
                   name={field.name}
@@ -305,12 +265,7 @@ export const CreateTaskForm = () => {
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+              </FormField>
             )}
           </form.Field>
 
@@ -328,13 +283,7 @@ export const CreateTaskForm = () => {
             }}
           >
             {(field) => (
-              <div>
-                <label
-                  htmlFor={field.name}
-                  className="block text-sm font-medium mb-2"
-                >
-                  Estimated Hours (Optional)
-                </label>
+              <FormField label="Estimated Hours (Optional)" error={field.state.meta.errors?.[0]}>
                 <input
                   id={field.name}
                   name={field.name}
@@ -351,12 +300,33 @@ export const CreateTaskForm = () => {
                   placeholder="Enter estimated hours"
                   disabled={isPending}
                 />
-                {field.state.meta.errors && field.state.meta.errors.length > 0 && (
-                  <p className="text-red-400 text-sm mt-1">
-                    {field.state.meta.errors[0]}
-                  </p>
-                )}
-              </div>
+              </FormField>
+            )}
+          </form.Field>
+
+          <form.Field
+            name="assignedAgent"
+            validators={{
+              onBlur: ({ value }) => {
+                // assignedAgent is optional
+                return undefined
+              },
+            }}
+          >
+            {(field) => (
+              <FormField label="Assign to Agent (Optional)" error={field.state.meta.errors?.[0]}>
+                <input
+                  id={field.name}
+                  name={field.name}
+                  type="text"
+                  value={field.state.value ?? ''}
+                  onBlur={field.handleBlur}
+                  onChange={(e) => field.setValue(e.target.value || null)}
+                  className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-blue-500 text-white"
+                  placeholder="Enter agent name or ID"
+                  disabled={isPending}
+                />
+              </FormField>
             )}
           </form.Field>
 
