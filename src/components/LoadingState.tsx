@@ -1,14 +1,16 @@
 interface LoadingStateProps {
+  title?: string
   message?: string
 }
 
-export function LoadingState({ message = 'Loading...' }: LoadingStateProps) {
+export function LoadingState({ title = 'Loading', message = 'Please wait...' }: LoadingStateProps) {
   return (
-    <div className="flex items-center justify-center rounded-lg bg-white p-8 shadow-sm">
-      <div className="text-center">
-        <div className="mb-4 inline-flex h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500" />
-        <p className="text-gray-600">{message}</p>
+    <div className="flex flex-col items-center justify-center py-12">
+      <div className="mb-4 animate-spin">
+        <div className="h-8 w-8 border-4 border-slate-400 border-t-slate-100 rounded-full"></div>
       </div>
+      <h3 className="text-lg font-semibold text-slate-100 mb-2">{title}</h3>
+      <p className="text-slate-400">{message}</p>
     </div>
   )
 }
