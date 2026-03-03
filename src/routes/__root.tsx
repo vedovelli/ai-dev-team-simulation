@@ -32,6 +32,15 @@ function RootLayout() {
                     Teams
                   </Link>
                   <Link
+                    to="/kanban"
+                    className="text-sm hover:text-slate-300 transition-colors"
+                    activeProps={{
+                      className: 'text-blue-400 font-semibold',
+                    }}
+                  >
+                    Kanban Board
+                  </Link>
+                  <Link
                     to="/feed"
                     className="text-sm hover:text-slate-300 transition-colors"
                     activeProps={{
