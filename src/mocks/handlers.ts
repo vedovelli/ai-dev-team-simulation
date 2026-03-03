@@ -3,6 +3,8 @@ import type { Agent, AgentRole, AgentStatus } from '../types/agent'
 import type { Task, UpdateTaskInput, TaskStatus, TaskPriority } from '../types/task'
 import type { Activity, ActivityEventType } from '../types/activity'
 import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
+import type { User } from '../types/user'
+import type { Project } from '../types/project'
 
 interface Team {
   id: string
@@ -265,6 +267,90 @@ function generateMockActivities(): Activity[] {
 // In-memory store for activities
 const activitiesStore: Activity[] = generateMockActivities()
 
+// Generate mock users data
+function generateMockUsers(): User[] {
+  return [
+    {
+      id: 'user-1',
+      name: 'John Doe',
+      email: 'john@example.com',
+      role: 'Frontend Developer',
+      status: 'active',
+      createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'user-2',
+      name: 'Jane Smith',
+      email: 'jane@example.com',
+      role: 'Backend Developer',
+      status: 'active',
+      createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'user-3',
+      name: 'Bob Johnson',
+      email: 'bob@example.com',
+      role: 'DevOps Engineer',
+      status: 'active',
+      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'user-4',
+      name: 'Alice Williams',
+      email: 'alice@example.com',
+      role: 'Product Manager',
+      status: 'active',
+      createdAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+  ]
+}
+
+// Generate mock projects data
+function generateMockProjects(): Project[] {
+  return [
+    {
+      id: 'project-1',
+      name: 'AI Dev Team Simulation',
+      description: 'Simulation platform for AI-driven development teams',
+      status: 'active',
+      createdAt: new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'project-2',
+      name: 'Sprint Planning Dashboard',
+      description: 'Dashboard for sprint planning and management',
+      status: 'active',
+      createdAt: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'project-3',
+      name: 'Legacy System Modernization',
+      description: 'Modernization of legacy backend systems',
+      status: 'active',
+      createdAt: new Date(Date.now() - 120 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date().toISOString(),
+    },
+    {
+      id: 'project-4',
+      name: 'Mobile App Release',
+      description: 'Mobile application for team collaboration',
+      status: 'completed',
+      createdAt: new Date(Date.now() - 180 * 24 * 60 * 60 * 1000).toISOString(),
+      updatedAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+    },
+  ]
+}
+
+// In-memory stores for users and projects
+const usersStore: User[] = generateMockUsers()
+const projectsStore: Project[] = generateMockProjects()
+
 // Simulation configuration for mutations
 const mutationSimulation = {
   delayMs: 800, // Simulate network delay
@@ -330,6 +416,44 @@ function generateAgentHistory(agentId: string): HistoryEntry[] {
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
+  }),
+
+  // Users endpoints
+  http.get('/api/users', () => {
+    return HttpResponse.json(usersStore)
+  }),
+
+  http.get('/api/users/:id', ({ params }) => {
+    const { id } = params
+    const user = usersStore.find((u) => u.id === id)
+
+    if (!user) {
+      return HttpResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    return HttpResponse.json(user)
+  }),
+
+  // Projects endpoints
+  http.get('/api/projects', () => {
+    return HttpResponse.json(projectsStore)
+  }),
+
+  http.get('/api/projects/:id', ({ params }) => {
+    const { id } = params
+    const project = projectsStore.find((p) => p.id === id)
+
+    if (!project) {
+      return HttpResponse.json(
+        { error: 'Project not found' },
+        { status: 404 }
+      )
+    }
+
+    return HttpResponse.json(project)
   }),
 
   http.post('/api/teams', async ({ request }) => {
