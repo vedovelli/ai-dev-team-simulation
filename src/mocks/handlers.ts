@@ -28,6 +28,7 @@ interface CreateTaskPayload {
   sprint: string
   priority: string
   estimatedHours?: number
+  assignedAgent?: string | null
 }
 
 // Mock agents data with tasks (for workload dashboard)
@@ -641,7 +642,7 @@ export const handlers = [
     const newTask: Task = {
       id: `task-${getTaskIdCounter()}`,
       title: body.name,
-      assignee: 'Unassigned',
+      assignee: body.assignedAgent || 'Unassigned',
       team: body.team || 'general',
       status: (body.status as TaskStatus) || 'backlog',
       priority: (body.priority as TaskPriority) || 'medium',
