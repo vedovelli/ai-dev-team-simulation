@@ -3,7 +3,7 @@ import type { Agent, AgentRole, AgentStatus } from '../types/agent'
 import type { Task, UpdateTaskInput, TaskStatus, TaskPriority } from '../types/task'
 import type { Activity, ActivityEventType } from '../types/activity'
 import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
-import type { User } from '../types/user'
+import type { User, UserRole } from '../types/user'
 import type { Project } from '../types/project'
 
 interface Team {
@@ -84,6 +84,33 @@ const teamsStore: Team[] = []
 
 // In-memory store for agents
 const agentsStore: Agent[] = generateMockAgents()
+
+// In-memory store for users
+const usersStore: User[] = generateMockUsers()
+
+function generateMockUsers(): User[] {
+  const names = [
+    'Alice Johnson',
+    'Bob Smith',
+    'Charlie Davis',
+    'Diana Wilson',
+    'Eve Martinez',
+    'Frank Brown',
+    'Grace Lee',
+    'Henry Taylor',
+    'Ivy Anderson',
+    'Jack Thompson',
+  ]
+  const roles: UserRole[] = ['admin', 'developer', 'manager']
+
+  return names.map((name, i) => ({
+    id: `user-${i + 1}`,
+    name,
+    email: `${name.toLowerCase().replace(' ', '.')}@example.com`,
+    role: roles[i % roles.length],
+    createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
+  }))
+}
 
 function generateMockAgents(): Agent[] {
   const roles: AgentRole[] = ['sr-dev', 'junior', 'pm']
@@ -198,9 +225,6 @@ function getTaskIdCounter(): number {
 
 // In-memory store for sprints
 const sprintsStore: Sprint[] = []
-
-// In-memory store for users
-const usersStore: User[] = []
 
 // Generate mock activities for activity feed
 function generateMockActivities(): Activity[] {
@@ -486,6 +510,10 @@ export const handlers = [
 
   http.get('/api/agents', () => {
     return HttpResponse.json(agentsStore)
+  }),
+
+  http.get('/api/users', () => {
+    return HttpResponse.json(usersStore)
   }),
 
   http.get('/api/agents/:id/history', ({ params }) => {
