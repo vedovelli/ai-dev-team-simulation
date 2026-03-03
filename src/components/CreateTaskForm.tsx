@@ -1,13 +1,12 @@
 import { useForm } from '@tanstack/react-form'
 import { useRouter } from '@tanstack/react-router'
 import { useState } from 'react'
-import { createTaskRequestSchema } from '../lib/validation'
+import { createTaskRequestSchema, type CreateTaskInput } from '../lib/validation'
 import { useCreateTask } from '../hooks/useCreateTask'
 import { useToast } from './Toast'
 import { MutationErrorAlert } from './MutationErrorAlert'
 import { MutationStatus } from './MutationStatus'
 import { FormField } from './FormField'
-import type { CreateTaskInput } from '../types/taskValidation'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
 interface FormFields {
@@ -17,7 +16,7 @@ interface FormFields {
   sprint: string
   priority: TaskPriority
   estimatedHours?: number
-  assignedAgent?: string | null
+  assignedAgent: string
 }
 
 export const CreateTaskForm = () => {
@@ -34,7 +33,7 @@ export const CreateTaskForm = () => {
       sprint: 'sprint-1',
       priority: 'medium',
       estimatedHours: undefined,
-      assignedAgent: null,
+      assignedAgent: '',
     },
     onSubmit: async ({ value }) => {
       try {
@@ -50,11 +49,15 @@ export const CreateTaskForm = () => {
         })
 
         if (!validationResult.success) {
-          showToast('Validation failed: ' + validationResult.error.errors[0].message, 'error')
+          // Collect all validation errors
+          const errorMessages = validationResult.error.errors
+            .map((err) => `${err.path.join('.')}: ${err.message}`)
+            .join('; ')
+          showToast('Validation failed: ' + errorMessages, 'error')
           return
         }
 
-        const data: CreateTaskInput = validationResult.data as unknown as CreateTaskInput
+        const data: CreateTaskInput = validationResult.data
 
         mutate(data, {
           onSuccess: () => {
@@ -319,9 +322,9 @@ export const CreateTaskForm = () => {
                   id={field.name}
                   name={field.name}
                   type="text"
-                  value={field.state.value ?? ''}
+                  value={field.state.value}
                   onBlur={field.handleBlur}
-                  onChange={(e) => field.setValue(e.target.value || null)}
+                  onChange={(e) => field.setValue(e.target.value)}
                   className="w-full px-4 py-2 bg-slate-700 border border-slate-600 rounded-lg focus:outline-none focus:border-blue-500 text-white"
                   placeholder="Enter agent name or ID"
                   disabled={isPending}

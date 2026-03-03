@@ -11,7 +11,7 @@ export const createTaskRequestSchema = z.object({
   sprint: z.string().min(1, 'Sprint is required'),
   priority: z.enum(['low', 'medium', 'high']),
   estimatedHours: z.number().nonnegative('Estimated hours must be positive').optional(),
-  assignedAgent: z.string().optional().nullable(),
+  assignedAgent: z.string().default(''),
 })
 
 export const createTaskResponseSchema = z.object({
@@ -32,3 +32,6 @@ export const createTaskResponseSchema = z.object({
 
 export type CreateTaskRequest = z.infer<typeof createTaskRequestSchema>
 export type CreateTaskResponse = z.infer<typeof createTaskResponseSchema>
+
+// Export as CreateTaskInput for consistency with form usage
+export type CreateTaskInput = CreateTaskRequest
