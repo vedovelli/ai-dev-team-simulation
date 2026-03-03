@@ -72,6 +72,27 @@ src/
 └── types/           # Shared TypeScript types
 ```
 
+## Documentation
+
+### Data Layer Architecture
+
+- **[TanStack Data Layer Architecture](./docs/architecture/data-layer.md)** — Overview of Query → Table → Form flow, design decisions, and common patterns
+- **[TanStack Query Guide](./docs/guides/tanstack-query.md)** — Server state management, query hooks, cache invalidation strategies
+- **[TanStack Table Guide](./docs/guides/tanstack-table.md)** — Building tables with sorting, filtering, selection, and customization
+- **[TanStack Form Guide](./docs/guides/tanstack-form.md)** — Form state management, validation patterns, field types
+- **[MSW Documentation](./docs/guides/msw-documentation.md)** — Mock handler structure, patterns, and testing strategies
+
+### Code Examples
+
+See `src/examples/` for working examples:
+- `QueryExample.tsx` — Basic and filtered data fetching
+- `TableExample.tsx` — Table creation and filtering
+- `FormExample.tsx` — Form validation and submission
+
+### TanStack Form Patterns
+
+See [docs/TANSTACK_FORM_PATTERNS.md](./docs/TANSTACK_FORM_PATTERNS.md) for detailed patterns from existing forms.
+
 ## Contributing
 
 See [CLAUDE.md](./CLAUDE.md) for code conventions.
