@@ -18,6 +18,14 @@ interface UseTaskTableProps {
   setColumnFilters: (filters: ColumnFiltersState) => void
 }
 
+/**
+ * Column definitions for the tasks table
+ *
+ * Defines how data maps to columns, including formatting and sorting behavior.
+ * Each column specifies an accessor key or accessor function to read data from Task objects.
+ *
+ * @see docs/guides/tanstack-table.md for column definition patterns
+ */
 const columns: ColumnDef<Task>[] = [
   {
     accessorKey: 'title',
@@ -73,6 +81,49 @@ const columns: ColumnDef<Task>[] = [
   },
 ]
 
+/**
+ * Create a table instance for tasks with sorting and filtering
+ *
+ * Uses TanStack Table (React Table) to manage table state including sorting and column filters.
+ * The hook accepts table state from the parent component, allowing the parent to control
+ * and persist the state.
+ *
+ * @param props - Table configuration including data and state handlers
+ * @returns Object containing the table instance and column definitions
+ *
+ * @example
+ * // In parent component
+ * const [sorting, setSorting] = useState<SortingState>([])
+ * const [filters, setFilters] = useState<ColumnFiltersState>([])
+ * const { data: tasks } = useTasks()
+ *
+ * const { table, columns } = useTaskTable({
+ *   data: tasks || [],
+ *   sorting,
+ *   setSorting,
+ *   columnFilters: filters,
+ *   setColumnFilters: setFilters,
+ * })
+ *
+ * // Render the table
+ * return (
+ *   <table>
+ *     <tbody>
+ *       {table.getRowModel().rows.map(row => (
+ *         <tr key={row.id}>
+ *           {row.getVisibleCells().map(cell => (
+ *             <td key={cell.id}>
+ *               {flexRender(cell.column.columnDef.cell, cell.getContext())}
+ *             </td>
+ *           ))}
+ *         </tr>
+ *       ))}
+ *     </tbody>
+ *   </table>
+ * )
+ *
+ * @see docs/guides/tanstack-table.md for rendering patterns
+ */
 export function useTaskTable({
   data,
   sorting,
