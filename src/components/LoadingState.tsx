@@ -1,18 +1,14 @@
-import React from "react";
-
 interface LoadingStateProps {
-  message?: string;
+  message?: string
 }
 
-export const LoadingState: React.FC<LoadingStateProps> = ({ message = "Loading..." }) => {
+export function LoadingState({ message = 'Loading...' }: LoadingStateProps) {
   return (
-    <div className="flex items-center justify-center p-8">
+    <div className="flex items-center justify-center rounded-lg bg-white p-8 shadow-sm">
       <div className="text-center">
-        <div className="mb-4 flex justify-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-gray-300 border-t-blue-600" />
-        </div>
+        <div className="mb-4 inline-flex h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-blue-500" />
         <p className="text-gray-600">{message}</p>
       </div>
     </div>
-  );
-};
+  )
+}
