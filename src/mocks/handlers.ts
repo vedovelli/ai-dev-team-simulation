@@ -1215,3 +1215,73 @@ export const handlers = [
   // Optimistic update and paginated query handlers
   ...optimisticUpdateHandlers,
 ]
+
+export const allHandlers = [...handlers, ...paginatedHandlers]
+
+// Paginated endpoints for infinite scroll
+const paginatedItemsStore: Array<{ id: string; title: string; description: string; createdAt: string }> = Array.from(
+  { length: 47 },
+  (_, i) => ({
+    id: `item-${i + 1}`,
+    title: `Item ${i + 1}`,
+    description: `Description for item ${i + 1}`,
+    createdAt: new Date(Date.now() - (47 - i) * 1000 * 60).toISOString(),
+  })
+).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+
+export const paginatedHandlers = [
+  // Paginated items endpoint with cursor-based pagination
+  http.get('/api/items/paginated', ({ request }) => {
+    const url = new URL(request.url)
+    const cursor = url.searchParams.get('cursor')
+    const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '10'), 50)
+
+    // Find the starting index
+    let startIndex = 0
+    if (cursor) {
+      const cursorIndex = paginatedItemsStore.findIndex((item) => item.id === cursor)
+      if (cursorIndex === -1) {
+        return HttpResponse.json(
+          { message: 'Invalid cursor' },
+          { status: 400 }
+        )
+      }
+      startIndex = cursorIndex + 1
+    }
+
+    const items = paginatedItemsStore.slice(startIndex, startIndex + pageSize)
+    const hasNextPage = startIndex + pageSize < paginatedItemsStore.length
+    const endCursor = items.length > 0 ? items[items.length - 1].id : null
+
+    return HttpResponse.json({
+      data: items,
+      pageInfo: {
+        hasNextPage,
+        endCursor: hasNextPage ? endCursor : null,
+        startCursor: items.length > 0 ? items[0].id : null,
+      },
+    })
+  }),
+
+  // Offset-based paginated endpoint
+  http.get('/api/items/offset', ({ request }) => {
+    const url = new URL(request.url)
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1'))
+    const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '10'), 50)
+
+    const startIndex = (page - 1) * pageSize
+    const items = paginatedItemsStore.slice(startIndex, startIndex + pageSize)
+    const total = paginatedItemsStore.length
+    const totalPages = Math.ceil(total / pageSize)
+
+    return HttpResponse.json({
+      data: items,
+      pageInfo: {
+        hasNextPage: page < totalPages,
+        currentPage: page,
+        totalPages,
+        total,
+      },
+    })
+  }),
+]
