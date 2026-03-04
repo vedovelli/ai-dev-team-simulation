@@ -1212,6 +1212,80 @@ export const handlers = [
     })
   }),
 
+  // Virtualized Table endpoint - optimized for large datasets
+  // Supports filtering, sorting, and pagination for 1000+ rows
+  http.get('/api/virtualized-tasks', ({ request }) => {
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+    const priority = url.searchParams.get('priority')
+    const search = url.searchParams.get('search')
+    const team = url.searchParams.get('team')
+    const assignee = url.searchParams.get('assignee')
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '100', 10)
+    const sortBy = url.searchParams.get('sortBy') || 'id'
+    const sortOrder = url.searchParams.get('sortOrder') || 'asc'
+
+    let filteredTasks = [...tasksStore]
+
+    // Apply filters
+    if (status) {
+      filteredTasks = filteredTasks.filter((task) => task.status === status)
+    }
+
+    if (priority) {
+      filteredTasks = filteredTasks.filter((task) => task.priority === priority)
+    }
+
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredTasks = filteredTasks.filter(
+        (task) =>
+          task.title.toLowerCase().includes(searchLower) ||
+          task.id.toLowerCase().includes(searchLower)
+      )
+    }
+
+    if (team) {
+      filteredTasks = filteredTasks.filter((task) => task.team === team)
+    }
+
+    if (assignee) {
+      filteredTasks = filteredTasks.filter((task) => task.assignee === assignee)
+    }
+
+    // Apply sorting
+    const validSortFields = Object.keys({} as Task)
+    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'id'
+
+    filteredTasks.sort((a, b) => {
+      const aValue = a[validSortBy as keyof Task] ?? ''
+      const bValue = b[validSortBy as keyof Task] ?? ''
+
+      let comparison = 0
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue)
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        comparison = aValue - bValue
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    // Apply pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedTasks = filteredTasks.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedTasks,
+      total: filteredTasks.length,
+      pageIndex,
+      pageSize,
+      hasNextPage: end < filteredTasks.length,
+    })
+  }),
+
   // Optimistic update and paginated query handlers
   ...optimisticUpdateHandlers,
 ]
