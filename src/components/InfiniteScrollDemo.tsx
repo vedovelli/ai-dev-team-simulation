@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react'
+import { useEffect, useRef, useCallback, useMemo } from 'react'
 import { useInfiniteScroll, type PaginatedCursorResponse } from '../hooks/useInfiniteScroll'
 
 interface Item {
@@ -17,7 +17,8 @@ async function fetchItems(cursor: string | null): Promise<PaginatedCursorRespons
 
   const response = await fetch(`/api/items/paginated?${params}`)
   if (!response.ok) {
-    throw new Error('Failed to fetch items')
+    const statusText = response.statusText || `HTTP ${response.status}`
+    throw new Error(`Failed to fetch items: ${statusText}`)
   }
   return response.json()
 }
@@ -39,12 +40,19 @@ export function InfiniteScrollDemo() {
 
   const observerTarget = useRef<HTMLDivElement>(null)
 
+  // Use a stable callback to avoid race conditions from changing fetchNextPage
+  const handleIntersection = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      fetchNextPage()
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+
   // Intersection Observer for infinite scroll
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
-          fetchNextPage()
+        if (entries[0].isIntersecting) {
+          handleIntersection()
         }
       },
       { threshold: 0.1 }
@@ -55,7 +63,7 @@ export function InfiniteScrollDemo() {
     }
 
     return () => observer.disconnect()
-  }, [hasNextPage, isFetchingNextPage, fetchNextPage])
+  }, [handleIntersection])
 
   if (isPending) {
     return <div className="p-4 text-center">Loading items...</div>
