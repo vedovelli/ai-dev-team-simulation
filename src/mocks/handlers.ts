@@ -1261,6 +1261,80 @@ export const handlers = [
     })
   }),
 
+  // Form submission handlers (React Hook Form)
+  http.post('/api/forms/user-profile', async ({ request }) => {
+    const body = await request.json() as {
+      name: string
+      email: string
+      bio?: string
+    }
+
+    // Simulate validation
+    if (!body.name || !body.email) {
+      return HttpResponse.json(
+        { error: 'Name and email are required' },
+        { status: 400 }
+      )
+    }
+
+    // Simulate email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(body.email)) {
+      return HttpResponse.json(
+        { error: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Simulate successful submission
+    return HttpResponse.json(
+      {
+        success: true,
+        message: 'User profile updated successfully',
+        data: {
+          id: `user-${Date.now()}`,
+          ...body,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      { status: 200 }
+    )
+  }),
+
+  http.patch('/api/forms/user-profile/:id', async ({ request, params }) => {
+    const { id } = params
+    const body = await request.json() as Partial<{
+      name: string
+      email: string
+      bio: string
+    }>
+
+    // Validate email if provided
+    if (body.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(body.email)) {
+        return HttpResponse.json(
+          { error: 'Invalid email format' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Simulate successful update
+    return HttpResponse.json(
+      {
+        success: true,
+        message: 'User profile updated successfully',
+        data: {
+          id,
+          ...body,
+          updatedAt: new Date().toISOString(),
+        },
+      },
+      { status: 200 }
+    )
+  }),
+
   // Optimistic update and paginated query handlers
   ...optimisticUpdateHandlers,
 ]
