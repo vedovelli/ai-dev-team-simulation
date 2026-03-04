@@ -56,7 +56,7 @@ function TeamsPage() {
         <div className="flex items-center justify-between mb-8">
           <h1 className="text-3xl font-bold">Teams</h1>
           <button
-            onClick={() => router.navigate({ to: '/teams.new' })}
+            onClick={() => router.navigate({ to: '/teams/new' })}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
           >
             Create Team
@@ -67,7 +67,7 @@ function TeamsPage() {
           <div className="text-center py-12">
             <p className="text-slate-400 text-lg mb-4">No teams yet</p>
             <button
-              onClick={() => router.navigate({ to: '/teams.new' })}
+              onClick={() => router.navigate({ to: '/teams/new' })}
               className="px-4 py-2 bg-blue-600 hover:bg-blue-700 rounded-lg font-medium transition-colors"
             >
               Create your first team
