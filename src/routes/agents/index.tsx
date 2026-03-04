@@ -1,7 +1,9 @@
+import { createFileRoute } from '@tanstack/react-router'
 import { useAgents } from '../../hooks/useAgents'
 import { AgentCard } from '../../components/AgentCard'
 
-export function AgentsDashboard() {
+/* eslint-disable react-refresh/only-export-components */
+function AgentsDashboard() {
   const { data: response, isLoading, error } = useAgents()
   const agents = response?.data ?? []
 
@@ -56,4 +58,6 @@ export function AgentsDashboard() {
   )
 }
 
-export default AgentsDashboard
+export const Route = createFileRoute('/agents/')({
+  component: AgentsDashboard,
+})

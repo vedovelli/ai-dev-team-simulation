@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { TaskTable } from '../components/TaskTable'
 import { AdvancedTableFilters } from '../components/AdvancedTableFilters'
@@ -45,7 +46,8 @@ async function fetchTasks(filters: {
   return tasks
 }
 
-export function TasksRoute() {
+/* eslint-disable react-refresh/only-export-components */
+function TasksRoute() {
   const {
     status,
     priority,
@@ -250,3 +252,7 @@ export function TasksRoute() {
     </div>
   )
 }
+
+export const Route = createFileRoute('/tasks')({
+  component: TasksRoute,
+})

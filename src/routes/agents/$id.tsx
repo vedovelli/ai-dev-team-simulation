@@ -1,9 +1,32 @@
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
+import { Suspense } from 'react'
 import { useAgentHistory } from '../../hooks/useAgentHistory'
+import { AgentIdParamSchema } from '../../lib/router-types'
 
 export const Route = createFileRoute('/agents/$id')({
-  component: AgentDetail,
+  validateSearch: (search) => AgentIdParamSchema.parse(search),
+  component: AgentDetailWrapper,
 })
+
+function AgentDetailWrapper() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <AgentDetail />
+    </Suspense>
+  )
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-slate-900 text-white p-8">
+      <div className="max-w-6xl mx-auto">
+        <div className="flex items-center justify-center py-16">
+          <p className="text-slate-400">Loading agent details...</p>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 function AgentDetail() {
   const { id } = Route.useParams()
