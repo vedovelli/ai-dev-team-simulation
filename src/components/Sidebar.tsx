@@ -57,11 +57,11 @@ export function Sidebar() {
 
       {/* Sidebar */}
       <aside
-        className={`fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-800 z-40 transition-transform duration-300 ease-in-out lg:translate-x-0 ${
+        className={`fixed left-0 top-0 h-screen w-64 bg-slate-900 border-r border-slate-800 z-40 transition-transform duration-300 ease-in-out lg:translate-x-0 lg:relative lg:w-64 ${
           isOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:relative lg:h-auto`}
+        }`}
       >
-        <div className="flex flex-col h-full">
+        <div className="flex flex-col h-full overflow-y-auto">
           {/* Logo area */}
           <div className="px-6 py-8 border-b border-slate-800">
             <h1 className="text-xl font-bold text-white">AI Dev Team</h1>
@@ -77,9 +77,9 @@ export function Sidebar() {
                     <Link
                       to={item.href}
                       onClick={() => setIsOpen(false)}
-                      className={`block px-4 py-2 rounded-lg transition-all duration-200 ${
+                      className={`block px-4 py-3 rounded-lg transition-all duration-200 ${
                         active
-                          ? 'bg-blue-600 text-white font-semibold'
+                          ? 'bg-blue-600 text-white font-semibold shadow-lg'
                           : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                       }`}
                     >
@@ -97,9 +97,6 @@ export function Sidebar() {
           </div>
         </div>
       </aside>
-
-      {/* Main content wrapper - adjusts for sidebar on desktop */}
-      <div className="lg:ml-64 min-h-screen" />
     </>
   )
 }
