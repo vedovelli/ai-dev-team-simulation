@@ -430,8 +430,43 @@ export const handlers = [
   }),
 
   // Users endpoints
-  http.get('/api/users', () => {
-    return HttpResponse.json(usersStore)
+  http.get('/api/users', ({ request }) => {
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search') || ''
+    const sortBy = url.searchParams.get('sortBy') || 'name'
+    const sortOrder = url.searchParams.get('sortOrder') || 'asc'
+
+    let filteredUsers = [...usersStore]
+
+    // Filter by name or email
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredUsers = filteredUsers.filter(
+        (user) =>
+          user.name.toLowerCase().includes(searchLower) ||
+          user.email.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Sorting
+    const validSortFields = ['id', 'name', 'email', 'role', 'status', 'createdAt']
+    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'name'
+
+    filteredUsers.sort((a, b) => {
+      const aValue = a[validSortBy as keyof typeof a] ?? ''
+      const bValue = b[validSortBy as keyof typeof b] ?? ''
+
+      let comparison = 0
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue)
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        comparison = aValue - bValue
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    return HttpResponse.json(filteredUsers)
   }),
 
   http.get('/api/users/:id', ({ params }) => {
