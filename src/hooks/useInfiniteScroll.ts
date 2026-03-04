@@ -1,5 +1,4 @@
-import { useInfiniteQuery, type UseInfiniteQueryOptions } from '@tanstack/react-query'
-import type { ReactNode } from 'react'
+import { useInfiniteQuery } from '@tanstack/react-query'
 
 export interface PaginatedCursorResponse<T> {
   data: T[]
@@ -10,14 +9,13 @@ export interface PaginatedCursorResponse<T> {
   }
 }
 
-export interface UseInfiniteScrollOptions<TData, TError = Error>
-  extends Omit<
-    UseInfiniteQueryOptions<PaginatedCursorResponse<TData>, TError, PaginatedCursorResponse<TData>, PaginatedCursorResponse<TData>, (string | number)[], string | null>,
-    'queryKey' | 'queryFn' | 'initialPageParam'
-  > {
+export interface UseInfiniteScrollOptions<TData, TError = Error> {
   queryKey: (string | number)[]
   queryFn: (cursor: string | null) => Promise<PaginatedCursorResponse<TData>>
   pageSize?: number
+  enabled?: boolean
+  placeholderData?: unknown
+  staleTime?: number
 }
 
 export interface UseInfiniteScrollResult<TData> {
@@ -53,7 +51,7 @@ export interface UseInfiniteScrollResult<TData> {
 export function useInfiniteScroll<TData, TError = Error>(
   options: UseInfiniteScrollOptions<TData, TError>,
 ): UseInfiniteScrollResult<TData> {
-  const { queryKey, queryFn, pageSize = 20, ...queryOptions } = options
+  const { queryKey, queryFn, pageSize = 20, enabled, placeholderData, staleTime } = options
 
   const query = useInfiniteQuery<
     PaginatedCursorResponse<TData>,
@@ -62,13 +60,15 @@ export function useInfiniteScroll<TData, TError = Error>(
     (string | number)[],
     string | null
   >({
-    ...queryOptions,
     queryKey,
     queryFn: ({ pageParam }) => queryFn(pageParam),
     initialPageParam: null,
     getNextPageParam: (lastPage) => {
       return lastPage.pageInfo.hasNextPage ? lastPage.pageInfo.endCursor ?? null : undefined
     },
+    enabled,
+    placeholderData,
+    staleTime,
   })
 
   const { data, isPending, isError, error, hasNextPage, isFetchingNextPage, fetchNextPage, isRefetching, refetch } = query
