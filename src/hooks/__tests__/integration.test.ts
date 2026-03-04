@@ -21,19 +21,20 @@ describe('Integration: Optimistic Updates + Pagination', () => {
     React.createElement(QueryClientProvider, { client: queryClient }, children)
 
   it('should update item in paginated list with optimistic update', async () => {
-    const mockItems = [
+    type Item = { id: string; title: string; completed: boolean }
+
+    const mockItems: Item[] = [
       { id: '1', title: 'Item 1', completed: false },
       { id: '2', title: 'Item 2', completed: false },
     ]
 
-    const paginatedResponse: PaginatedResponse<{ id: string; title: string; completed: boolean }> =
-      {
-        data: mockItems,
-        total: 2,
-        page: 1,
-        pageSize: 10,
-        totalPages: 1,
-      }
+    const paginatedResponse: PaginatedResponse<Item> = {
+      data: mockItems,
+      total: 2,
+      page: 1,
+      pageSize: 10,
+      totalPages: 1,
+    }
 
     const queryKey = ['items', 1, 10]
     queryClient.setQueryData(queryKey, paginatedResponse)
@@ -54,23 +55,22 @@ describe('Integration: Optimistic Updates + Pagination', () => {
     // Now use optimistic update to modify an item
     const { result: updateResult } = renderHook(
       () =>
-        useOptimisticUpdate({
+        useOptimisticUpdate<PaginatedResponse<Item>, Partial<Item>>({
           mutationFn: async (variables) => {
             // Simulate server update
             await new Promise((resolve) => setTimeout(resolve, 50))
-            return variables
+            return paginatedResponse
           },
           optimisticData: (variables, currentData) => {
             // Update the list optimistically
-            if (!currentData || !('data' in currentData)) return variables
+            if (!currentData || !('data' in currentData)) return currentData ?? paginatedResponse
 
-            const updatedData = {
+            return {
               ...currentData,
-              data: currentData.data.map((item: any) =>
+              data: currentData.data.map((item: Item) =>
                 item.id === variables.id ? { ...item, ...variables } : item
               ),
             }
-            return updatedData
           },
           queryKey,
         }),
@@ -84,7 +84,7 @@ describe('Integration: Optimistic Updates + Pagination', () => {
 
     // Check optimistic update is applied
     await waitFor(() => {
-      const cachedList = queryClient.getQueryData<PaginatedResponse<any>>(queryKey)
+      const cachedList = queryClient.getQueryData<PaginatedResponse<Item>>(queryKey)
       expect(cachedList?.data[0]).toMatchObject({
         id: '1',
         title: 'Item 1 Updated',
@@ -94,7 +94,9 @@ describe('Integration: Optimistic Updates + Pagination', () => {
   })
 
   it('should handle concurrent updates to paginated data', async () => {
-    const baseResponse: PaginatedResponse<{ id: string; value: number }> = {
+    type Counter = { id: string; value: number }
+
+    const baseResponse: PaginatedResponse<Counter> = {
       data: [
         { id: '1', value: 10 },
         { id: '2', value: 20 },
@@ -110,18 +112,18 @@ describe('Integration: Optimistic Updates + Pagination', () => {
 
     const { result } = renderHook(
       () =>
-        useOptimisticUpdate({
+        useOptimisticUpdate<PaginatedResponse<Counter>, Partial<Counter>>({
           mutationFn: async (variables) => {
             await new Promise((resolve) => setTimeout(resolve, 30))
-            return variables
+            return baseResponse
           },
           optimisticData: (variables, currentData) => {
-            if (!currentData || !('data' in currentData)) return variables
+            if (!currentData || !('data' in currentData)) return currentData ?? baseResponse
 
             return {
               ...currentData,
-              data: currentData.data.map((item: any) =>
-                item.id === variables.id ? { ...item, value: variables.value } : item
+              data: currentData.data.map((item: Counter) =>
+                item.id === variables.id ? { ...item, ...variables } : item
               ),
             }
           },
@@ -137,14 +139,16 @@ describe('Integration: Optimistic Updates + Pagination', () => {
     })
 
     await waitFor(() => {
-      const cachedData = queryClient.getQueryData<PaginatedResponse<any>>(queryKey)
+      const cachedData = queryClient.getQueryData<PaginatedResponse<Counter>>(queryKey)
       expect(cachedData?.data).toContainEqual({ id: '1', value: 15 })
       expect(cachedData?.data).toContainEqual({ id: '2', value: 25 })
     })
   })
 
   it('should rollback failed update in paginated context', async () => {
-    const originalData: PaginatedResponse<{ id: string; name: string }> = {
+    type NamedItem = { id: string; name: string }
+
+    const originalData: PaginatedResponse<NamedItem> = {
       data: [{ id: '1', name: 'Original' }],
       total: 1,
       page: 1,
@@ -157,17 +161,17 @@ describe('Integration: Optimistic Updates + Pagination', () => {
 
     const { result } = renderHook(
       () =>
-        useOptimisticUpdate({
+        useOptimisticUpdate<PaginatedResponse<NamedItem>, Partial<NamedItem>>({
           mutationFn: async () => {
             await new Promise((resolve) => setTimeout(resolve, 30))
             throw new Error('Server error')
           },
           optimisticData: (variables, currentData) => {
-            if (!currentData || !('data' in currentData)) return variables
+            if (!currentData || !('data' in currentData)) return currentData ?? originalData
 
             return {
               ...currentData,
-              data: currentData.data.map((item: any) =>
+              data: currentData.data.map((item: NamedItem) =>
                 item.id === variables.id ? { ...item, ...variables } : item
               ),
             }
@@ -185,7 +189,7 @@ describe('Integration: Optimistic Updates + Pagination', () => {
     await new Promise((resolve) => setTimeout(resolve, 10))
 
     // Verify optimistic update was applied
-    let cachedData = queryClient.getQueryData<PaginatedResponse<any>>(queryKey)
+    let cachedData = queryClient.getQueryData<PaginatedResponse<NamedItem>>(queryKey)
     expect(cachedData?.data[0].name).toBe('Updated')
 
     // Wait for error and rollback
@@ -194,7 +198,7 @@ describe('Integration: Optimistic Updates + Pagination', () => {
     })
 
     // Verify rollback
-    cachedData = queryClient.getQueryData<PaginatedResponse<any>>(queryKey)
+    cachedData = queryClient.getQueryData<PaginatedResponse<NamedItem>>(queryKey)
     expect(cachedData?.data[0].name).toBe('Original')
   })
 })
