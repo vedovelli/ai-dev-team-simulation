@@ -1,4 +1,4 @@
-import { useQueryClient, type QueryKey } from '@tanstack/react-query'
+import { useQueryClient, type QueryKey, type QueryFunction } from '@tanstack/react-query'
 import { useCallback } from 'react'
 
 export interface InvalidationStrategy {
@@ -69,10 +69,10 @@ export function useQueryCache() {
   )
 
   const prefetchQuery = useCallback(
-    (queryKey: QueryKey, queryFn: () => Promise<unknown>) => {
+    <TData,>(queryKey: QueryKey, queryFn: QueryFunction<TData>) => {
       return queryClient.prefetchQuery({
         queryKey,
-        queryFn,
+        queryFn: queryFn as QueryFunction,
       })
     },
     [queryClient]
