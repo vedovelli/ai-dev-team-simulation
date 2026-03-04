@@ -47,6 +47,23 @@ export const AgentsSearchParamSchema = z.object({
 })
 export type AgentsSearchParams = z.infer<typeof AgentsSearchParamSchema>
 
+export const SprintsSearchParamSchema = z.object({
+  status: z.string().optional(),
+  priority: z.string().optional(),
+  search: z.string().optional(),
+  team: z.string().optional(),
+  sprint: z.string().optional(),
+  assignee: z.string().optional(),
+})
+export type SprintsSearchParams = z.infer<typeof SprintsSearchParamSchema>
+
+export const AnalyticsSearchParamSchema = z.object({
+  sprint: z.string().optional(),
+  status: z.string().optional(),
+  timeRange: z.enum(['7d', '30d', '90d', 'all']).optional().default('30d'),
+})
+export type AnalyticsSearchParams = z.infer<typeof AnalyticsSearchParamSchema>
+
 /**
  * Serialization functions for search parameters
  * Convert between Zod validated types and URL strings

@@ -1,16 +1,15 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
 import { AgentAnalytics } from '../../../components/AgentAnalytics/AgentAnalytics'
+import { AnalyticsSearchParamSchema } from '../../../lib/router-types'
 
 export const Route = createFileRoute('/agents/$id/analytics')({
   component: AgentAnalyticsPage,
-  validateSearch: (search: Record<string, unknown>) => ({
-    sprint: search.sprint as string | undefined,
-    status: search.status as string | undefined,
-  }),
+  validateSearch: (search) => AnalyticsSearchParamSchema.parse(search),
 })
 
 function AgentAnalyticsPage() {
   const { id } = Route.useParams()
+  const { timeRange, sprint, status } = Route.useSearch()
   const navigate = useNavigate()
 
   return (
