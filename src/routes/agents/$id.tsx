@@ -3,6 +3,12 @@ import { Suspense } from 'react'
 import { useAgentHistory } from '../../hooks/useAgentHistory'
 import { AgentIdParamSchema } from '../../lib/router-types'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
+import { validateRouteParams } from '../../lib/routeGuards'
+
+// Route params validation
+interface AgentIdParams {
+  id: string
+}
 
 // Route loader - data pre-fetching could be implemented here
 async function loadAgentDetail() {
