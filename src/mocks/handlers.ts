@@ -5,6 +5,7 @@ import type { Activity, ActivityEventType } from '../types/activity'
 import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
 import type { User, UserRole } from '../types/user'
 import type { Project } from '../types/project'
+import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
 
 interface Team {
   id: string
@@ -1210,4 +1211,7 @@ export const handlers = [
       message: isTaken ? 'Username already taken' : undefined,
     })
   }),
+
+  // Optimistic update and paginated query handlers
+  ...optimisticUpdateHandlers,
 ]
