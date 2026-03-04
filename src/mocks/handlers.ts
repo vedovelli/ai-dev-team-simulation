@@ -1370,6 +1370,137 @@ export const handlers = [
     )
   }),
 
+  // User profile GET endpoint
+  http.get('/api/user-profiles/:id', ({ params }) => {
+    const { id } = params
+    const user = usersStore.find((u) => u.id === id)
+
+    if (!user) {
+      return HttpResponse.json(
+        { error: 'User profile not found' },
+        { status: 404 }
+      )
+    }
+
+    return HttpResponse.json({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      bio: '',
+      avatarUrl: undefined,
+      createdAt: user.createdAt,
+      updatedAt: new Date().toISOString(),
+    })
+  }),
+
+  // User profile UPDATE endpoint
+  http.put('/api/user-profiles/:id', async ({ request, params }) => {
+    const { id } = params
+    const body = await request.json() as {
+      name?: string
+      email?: string
+      bio?: string
+      avatarUrl?: string
+      role?: string
+    }
+
+    const userIndex = usersStore.findIndex((u) => u.id === id)
+    if (userIndex === -1) {
+      return HttpResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      )
+    }
+
+    // Validate name if provided
+    if (body.name) {
+      if (body.name.length < 2) {
+        return HttpResponse.json(
+          { error: 'Name must be at least 2 characters' },
+          { status: 400 }
+        )
+      }
+      if (body.name.length > 100) {
+        return HttpResponse.json(
+          { error: 'Name must not exceed 100 characters' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate email if provided
+    if (body.email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(body.email)) {
+        return HttpResponse.json(
+          { error: 'Invalid email format' },
+          { status: 400 }
+        )
+      }
+
+      // Check for duplicate email (excluding current user)
+      if (usersStore.some((u) => u.email === body.email && u.id !== id)) {
+        return HttpResponse.json(
+          { error: 'User with this email already exists' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate bio if provided
+    if (body.bio && body.bio.length > 500) {
+      return HttpResponse.json(
+        { error: 'Bio must not exceed 500 characters' },
+        { status: 400 }
+      )
+    }
+
+    // Validate avatar URL if provided
+    if (body.avatarUrl) {
+      try {
+        new URL(body.avatarUrl)
+      } catch {
+        return HttpResponse.json(
+          { error: 'Avatar URL must be a valid URL' },
+          { status: 400 }
+        )
+      }
+    }
+
+    // Validate role if provided
+    if (body.role && !['admin', 'user', 'viewer'].includes(body.role)) {
+      return HttpResponse.json(
+        { error: 'Invalid role selected' },
+        { status: 400 }
+      )
+    }
+
+    // Update user
+    const updatedUser = {
+      ...usersStore[userIndex],
+      ...(body.name && { name: body.name }),
+      ...(body.email && { email: body.email }),
+      ...(body.role && { role: body.role }),
+    }
+
+    usersStore[userIndex] = updatedUser
+
+    return HttpResponse.json(
+      {
+        id: updatedUser.id,
+        name: updatedUser.name,
+        email: updatedUser.email,
+        role: updatedUser.role,
+        bio: body.bio || '',
+        avatarUrl: body.avatarUrl || undefined,
+        createdAt: updatedUser.createdAt,
+        updatedAt: new Date().toISOString(),
+      },
+      { status: 200 }
+    )
+  }),
+
   // Optimistic update and paginated query handlers
   ...optimisticUpdateHandlers,
 ]
