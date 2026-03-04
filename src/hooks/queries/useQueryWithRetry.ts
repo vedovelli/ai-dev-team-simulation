@@ -1,16 +1,17 @@
 import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
 import { useCallback, useState } from 'react'
 
-export interface RetryConfig {
+export interface RetryConfig<TError = Error> {
   maxRetries?: number
   initialDelayMs?: number
   maxDelayMs?: number
   backoffMultiplier?: number
+  shouldRetry?: (error: TError, failureCount: number) => boolean
 }
 
 export interface UseQueryWithRetryOptions<TData, TError = Error>
   extends Omit<UseQueryOptions<TData, TError>, 'retry' | 'retryDelay'> {
-  retryConfig?: RetryConfig
+  retryConfig?: RetryConfig<TError>
 }
 
 /**
@@ -42,6 +43,7 @@ export function useQueryWithRetry<TData, TError = Error>(
     initialDelayMs = 1000,
     maxDelayMs = 30000,
     backoffMultiplier = 2,
+    shouldRetry: customShouldRetry,
   } = retryConfig
 
   const [retryCount, setRetryCount] = useState(0)
@@ -57,9 +59,12 @@ export function useQueryWithRetry<TData, TError = Error>(
   const shouldRetry = (failureCount: number, error: TError) => {
     if (failureCount >= maxRetries) return false
 
-    // Check if error is retriable (network errors, 5xx status codes, etc.)
-    const isRetriable = isRetriableError(error)
-    return isRetriable
+    // Use custom retry logic if provided, otherwise use default
+    if (customShouldRetry) {
+      return customShouldRetry(error, failureCount)
+    }
+
+    return isRetriableError(error)
   }
 
   const manualRetry = useCallback(() => {
@@ -82,23 +87,25 @@ export function useQueryWithRetry<TData, TError = Error>(
 
 /**
  * Determines if an error is retriable based on common patterns.
+ * Checks for network errors, timeouts, and server errors.
  */
 function isRetriableError(error: unknown): boolean {
+  // Handle structured error objects (e.g., fetch API errors)
+  if (error && typeof error === 'object') {
+    const err = error as Record<string, unknown>
+
+    // Check for HTTP status code property (5xx are retriable)
+    if (typeof err.status === 'number' && err.status >= 500) {
+      return true
+    }
+  }
+
   if (error instanceof Error) {
     const message = error.message.toLowerCase()
 
-    // Network errors are retriable
-    if (
-      message.includes('network') ||
-      message.includes('timeout') ||
-      message.includes('econnrefused') ||
-      message.includes('econnreset')
-    ) {
-      return true
-    }
-
-    // Check for HTTP status codes in error message
-    if (message.includes('5')) {
+    // Network-related errors are retriable
+    const networkPatterns = ['network', 'timeout', 'econnrefused', 'econnreset', 'econnaborted', 'etimedout']
+    if (networkPatterns.some(pattern => message.includes(pattern))) {
       return true
     }
   }
