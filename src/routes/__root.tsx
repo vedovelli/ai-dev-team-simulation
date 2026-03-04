@@ -3,6 +3,7 @@ import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import { ToastProvider } from '../components/Toast'
 import { Sidebar } from '../components/Sidebar'
+import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -78,32 +79,14 @@ function RootLayout() {
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   component: RootLayout,
-  errorComponent: ({ error }: { error: unknown }) => {
+  errorComponent: ({ error }) => {
+    // Handle router errors with specific error boundaries
     if (isRouterError(error)) {
       if (error.isNotFound) {
-        return (
-          <div className="flex items-center justify-center min-h-screen">
-            <div className="text-center">
-              <h1 className="text-4xl font-bold text-red-500 mb-2">404</h1>
-              <p className="text-slate-400 mb-4">Page not found</p>
-              <Link to="/" className="text-blue-400 hover:text-blue-300">
-                Go home
-              </Link>
-            </div>
-          </div>
-        )
+        return <NotFoundError />
       }
     }
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-4xl font-bold text-red-500 mb-2">Error</h1>
-          <p className="text-slate-400 mb-4">Something went wrong</p>
-          <Link to="/" className="text-blue-400 hover:text-blue-300">
-            Go home
-          </Link>
-        </div>
-      </div>
-    )
+    // Generic error boundary for other errors
+    return <RouteErrorBoundary error={error} />
   },
 })

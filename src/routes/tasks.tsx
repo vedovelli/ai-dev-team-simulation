@@ -1,9 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, Suspense } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
 import { TaskTable } from '../components/TaskTable'
 import { AdvancedTableFilters } from '../components/AdvancedTableFilters'
 import { useTableFilters } from '../hooks/useTableFilters'
+import { RouteErrorBoundary } from '../components/RouteErrorBoundary'
 import type { Task } from '../types/task'
 
 async function fetchTasks(filters: {
@@ -64,7 +65,7 @@ function TasksRoute() {
     hasActiveFilters,
   } = useTableFilters()
 
-  const { data: tasks = [], isLoading } = useQuery({
+  const { data: tasks = [], isLoading, error } = useQuery({
     queryKey: [
       'tasks',
       status,
@@ -90,6 +91,15 @@ function TasksRoute() {
         sortOrder: sorting[0]?.desc ? 'desc' : 'asc',
       }),
   })
+
+  if (error) {
+    return (
+      <RouteErrorBoundary
+        error={error}
+        resetError={() => window.location.reload()}
+      />
+    )
+  }
 
   // Extract unique values for dropdown filters
   const uniqueTeams = useMemo(
@@ -253,6 +263,35 @@ function TasksRoute() {
   )
 }
 
+// Route loader for pre-fetching tasks
+async function loadTasks() {
+  // Data will be fetched via the query hook
+  return null
+}
+
+function TasksRouteWrapper() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-950 text-white p-8">
+          <div className="max-w-7xl mx-auto">
+            <h1 className="text-3xl font-bold mb-8">Tasks</h1>
+            <div className="flex items-center justify-center py-16">
+              <p className="text-slate-400">Loading tasks...</p>
+            </div>
+          </div>
+        </div>
+      }
+    >
+      <TasksRoute />
+    </Suspense>
+  )
+}
+
 export const Route = createFileRoute('/tasks')({
-  component: TasksRoute,
+  component: TasksRouteWrapper,
+  loader: loadTasks,
+  errorComponent: ({ error }) => (
+    <RouteErrorBoundary error={error} />
+  ),
 })

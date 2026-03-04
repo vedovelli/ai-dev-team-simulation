@@ -1,0 +1,71 @@
+[
+  {
+    "id": "FAB-11",
+    "identifier": "FAB-11",
+    "title": "Sprint #11 Planning",
+    "description": "## Sprint #11 Planning\n\n### Focus Areas\n\nThis sprint marks the beginning of a new development cycle for our AI Dev Team Simulation project. The team should focus on:\n\n- Identifying high-value features that enhance the simulation experience\n- Improving the realism and interactivity of the agent workflow visualization\n- Addressing any technical debt or architectural improvements\n- Considering user experience enhancements\n\n### Call for Proposals\n\n**Carlos (Senior Developer)** and **Ana (Junior Developer)** - please propose features for this sprint:\n\n- **Carlos**: Consider architectural improvements, complex features, or technical infrastructure tasks that will benefit the project long-term\n- **Ana**: Focus on UI components, user-facing features, or enhancements to existing interfaces\n\n### Guidelines\n\n- Proposed tasks should be achievable within a single sprint\n- Tasks should not create file conflicts between developers\n- Each developer should aim for 1-2 substantial tasks\n- Consider the existing tech stack (React 19, TypeScript, TanStack ecosystem)\n\nPlease add your proposals as comments to this issue.",
+    "status": "open",
+    "project": "ai-dev-team-simulation",
+    "team": "Fabio Vedovelli",
+    "createdAt": "2026-03-03T14:39:00Z",
+    "comments": [
+      {
+        "author": "Sprint Orchestrator",
+        "createdAt": "2026-03-03T15:34:00Z",
+        "body": "## Sprint #11 Tasks Created\n\nBased on Carlos's proposals, the following tasks have been created:\n\n| Issue | Title | Assignee | Complexity | Branch |\n|-------|-------|----------|------------|--------|\n| FAB-12 | Sprint Management Dashboard - Backend & State | Carlos | Senior | feature/sprint-management-backend |\n| FAB-13 | Sprint Management Dashboard - UI & Forms | Ana | Junior | feature/sprint-management-ui |\n| FAB-14 | Task Assignment & Queue System | Carlos | Senior | feature/task-assignment-system |\n| FAB-15 | Agent Performance Analytics Dashboard | Ana | Junior | feature/agent-analytics-ui |\n\n**Architecture approach:**\n- Carlos handles data layer, routing setup, MSW handlers, and TanStack Query hooks\n- Ana builds UI components, forms, and visualization layers\n- This split minimizes file conflicts while allowing parallel work\n\nAll tasks are now ready for implementation. Sprint #11 begins!"
+      }
+    ]
+  },
+  {
+    "id": "FAB-12",
+    "identifier": "FAB-12",
+    "title": "Sprint Management Dashboard - Backend & State",
+    "description": "## Overview\nImplement the backend infrastructure and state management for the Sprint Management Dashboard feature.\n\n## Scope\n- Create MSW handlers for sprint CRUD operations:\n  - `GET /api/sprints` - list all sprints\n  - `POST /api/sprints` - create new sprint\n  - `GET /api/sprints/:id` - get sprint details\n  - `PATCH /api/sprints/:id` - update sprint (name, description, dates, status)\n- Implement TanStack Query hooks:\n  - `useSprints()` - fetch sprint list\n  - `useSprintDetails(sprintId)` - fetch single sprint\n  - `useCreateSprint()` - mutation for creating sprints\n  - `useUpdateSprint()` - mutation for updating sprints\n- Create TypeScript types for sprint data:\n  - `Sprint` interface with id, name, description, startDate, endDate, goal, status\n  - `SprintStatus` enum: `PLANNING | ACTIVE | COMPLETED`\n- Set up routing structure:\n  - `/sprints` - sprint list route\n  - `/sprints/:sprintId` - sprint detail route\n- Create mock data factory for realistic sprint data in MSW\n\n## Technical Notes\n- Follow existing patterns in `src/mocks/handlers.ts`\n- Use TanStack Query for caching and optimistic updates\n- Ensure type safety across all endpoints\n- Sprint state machine: PLANNING → ACTIVE → COMPLETED (enforce in handlers)\n\n## Files to Create/Modify\n- `src/mocks/handlers.ts` - add sprint endpoints\n- `src/mocks/data/sprints.ts` - mock sprint data factory\n- `src/hooks/useSprints.ts` - sprint query hooks\n- `src/types/sprint.ts` - sprint type definitions\n- `src/routes/__root.tsx` or router config - add sprint routes",
+    "status": "todo",
+    "labels": ["senior", "backend", "architecture"],
+    "project": "ai-dev-team-simulation",
+    "team": "Fabio Vedovelli",
+    "assignee": "Carlos",
+    "createdAt": "2026-03-03T15:34:00Z",
+    "comments": []
+  },
+  {
+    "id": "FAB-13",
+    "identifier": "FAB-13",
+    "title": "Sprint Management Dashboard - UI & Forms",
+    "description": "## Overview\nBuild the user interface and form components for the Sprint Management Dashboard.\n\n## Scope\n- Create sprint list page component (`/sprints`):\n  - Display all sprints in a card grid or list layout\n  - Show sprint name, dates, status badge, and progress indicator\n  - \"Create Sprint\" button\n  - Filter/sort controls (by status, date)\n- Build sprint creation/editing form using TanStack Form:\n  - Form fields: name (text), description (textarea), start date, end date\n  - Goal editor with markdown support (simple textarea for MVP)\n  - Form validation: required fields, date range validation\n  - Submit/cancel buttons with loading states\n- Create sprint detail page component (`/sprints/:sprintId`):\n  - Display sprint header with name, dates, status\n  - Show goal/description in formatted view\n  - Edit button to open form in edit mode\n  - Status transition buttons (e.g., \"Start Sprint\", \"Complete Sprint\")\n- Update sidebar to show active sprint context\n  - Display active sprint name/dates in sidebar\n  - Link to active sprint detail page\n- Create reusable components:\n  - `SprintCard` - sprint summary card\n  - `SprintStatusBadge` - colored status indicator\n  - `SprintForm` - form component using TanStack Form\n\n## Technical Notes\n- Use TanStack Form for form state management and validation\n- Follow existing component patterns and styling conventions\n- Integrate with hooks from FAB-12 (useSprints, useSprintDetails, etc.)\n- Use existing UI components where possible\n- Ensure responsive design\n\n## Files to Create/Modify\n- `src/routes/sprints/index.tsx` - sprint list page\n- `src/routes/sprints/$sprintId.tsx` - sprint detail page\n- `src/components/sprints/SprintCard.tsx`\n- `src/components/sprints/SprintForm.tsx`\n- `src/components/sprints/SprintStatusBadge.tsx`\n- `src/components/layout/Sidebar.tsx` - add active sprint display",
+    "status": "todo",
+    "labels": ["junior", "ui", "forms"],
+    "project": "ai-dev-team-simulation",
+    "team": "Fabio Vedovelli",
+    "assignee": "Ana",
+    "createdAt": "2026-03-03T15:34:00Z",
+    "comments": []
+  },
+  {
+    "id": "FAB-14",
+    "identifier": "FAB-14",
+    "title": "Task Assignment & Queue System",
+    "description": "## Overview\nImplement a comprehensive task assignment and queue management system for sprint tasks.\n\n## Scope\n- Create MSW handlers for task operations:\n  - `GET /api/sprints/:sprintId/tasks` - list tasks for a sprint\n  - `POST /api/sprints/:sprintId/tasks` - create new task\n  - `GET /api/tasks/:taskId` - get task details\n  - `PATCH /api/tasks/:taskId/assign` - assign task to agent\n  - `PATCH /api/tasks/:taskId/status` - update task status\n  - `PATCH /api/tasks/:taskId` - update task fields\n- Implement TanStack Query hooks:\n  - `useSprintTasks(sprintId)` - fetch tasks for sprint\n  - `useTaskDetails(taskId)` - fetch single task\n  - `useAssignTask()` - mutation for assignment\n  - `useUpdateTaskStatus()` - mutation for status changes\n  - `useBulkTaskActions()` - mutation for bulk operations\n- Create TypeScript types:\n  - `Task` interface: id, title, description, assignee, status, priority, estimatedPoints, sprintId\n  - `TaskStatus` enum: `BACKLOG | TODO | IN_PROGRESS | REVIEW | DONE`\n  - `TaskPriority` enum: `LOW | MEDIUM | HIGH | CRITICAL`\n- Build TanStack Table integration:\n  - Configure table with columns: ID, title, assignee, status, priority, points\n  - Implement sorting, filtering by status/assignee\n  - Row selection for bulk actions\n  - Inline editing for assignee (dropdown cell)\n- Create task board route: `/sprints/:sprintId/tasks`\n- Mock data factory for realistic task data\n\n## Technical Notes\n- Use TanStack Table v8 for table state and operations\n- Follow existing patterns for MSW handlers and queries\n- Ensure optimistic updates for smooth UX\n- Support drag-drop in future (keep architecture flexible)\n- Status transitions should be validated on backend\n\n## Files to Create/Modify\n- `src/mocks/handlers.ts` - add task endpoints\n- `src/mocks/data/tasks.ts` - mock task data factory\n- `src/hooks/useTasks.ts` - task query hooks\n- `src/types/task.ts` - task type definitions\n- `src/routes/sprints/$sprintId/tasks.tsx` - task board route\n- `src/components/tasks/TaskTable.tsx` - TanStack Table component\n- `src/components/tasks/AssigneeCell.tsx` - inline assignee editor",
+    "status": "todo",
+    "labels": ["senior", "backend", "architecture"],
+    "project": "ai-dev-team-simulation",
+    "team": "Fabio Vedovelli",
+    "assignee": "Carlos",
+    "createdAt": "2026-03-03T15:34:00Z",
+    "comments": []
+  },
+  {
+    "id": "FAB-15",
+    "identifier": "FAB-15",
+    "title": "Agent Performance Analytics Dashboard",
+    "description": "## Overview\nCreate a comprehensive analytics dashboard to visualize agent performance metrics and task history.\n\n## Scope\n- Create agent analytics page (`/agents/:agentId/analytics`):\n  - Performance metric cards:\n    - Tasks completed (count)\n    - Average cycle time (hours/days)\n    - Error rate (percentage)\n    - Average review comments per task\n  - Time period selector: 24h / 7d / 30d\n  - Simple trend indicators (up/down/stable)\n- Build virtualized task history list using TanStack Virtual:\n  - Display recent tasks with: title, status badge, completion date, cycle time\n  - Support pagination/infinite scroll\n  - Smooth scrolling for 100+ items\n  - Click to view task details\n- Create visualization components:\n  - Use HTML Canvas for simple trend chart (line chart showing tasks completed over time)\n  - Responsive card layout for metrics\n  - Color-coded status badges\n- Create reusable components:\n  - `MetricCard` - displays single metric with value, label, trend\n  - `TaskHistoryItem` - single task row in virtualized list\n  - `AgentAnalyticsHeader` - agent info + period selector\n  - `TrendChart` - simple canvas-based chart component\n\n## Technical Notes\n- Integrate with hooks from backend (useAgentMetrics, useAgentTaskHistory)\n- Use TanStack Virtual for performant list rendering\n- Keep chart implementation simple (Canvas API, no external chart library for MVP)\n- Follow existing design system and component patterns\n- Ensure responsive layout for different screen sizes\n- Handle loading and error states gracefully\n\n## Dependencies\n- Requires agent and task data structures to be in place\n- Will integrate with existing useAgentWorkload hook patterns\n\n## Files to Create/Modify\n- `src/routes/agents/$agentId/analytics.tsx` - analytics page route\n- `src/components/analytics/MetricCard.tsx`\n- `src/components/analytics/TaskHistoryList.tsx` - virtualized list\n- `src/components/analytics/TaskHistoryItem.tsx`\n- `src/components/analytics/TrendChart.tsx` - canvas chart\n- `src/components/analytics/AgentAnalyticsHeader.tsx`",
+    "status": "todo",
+    "labels": ["junior", "ui", "analytics"],
+    "project": "ai-dev-team-simulation",
+    "team": "Fabio Vedovelli",
+    "assignee": "Ana",
+    "createdAt": "2026-03-03T15:34:00Z",
+    "comments": []
+  }
+]
