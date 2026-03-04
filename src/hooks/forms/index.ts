@@ -1,46 +1,61 @@
 /**
- * React Hook Form custom hooks and utilities
+ * Form hooks and utilities
  *
- * Provides a reusable abstraction layer over React Hook Form with consistent patterns for:
- * - Form field management (useFormField)
- * - Form submission and loading states (useFormSubmit)
- * - Validation rules and patterns (useValidation, validationRules)
+ * Provides reusable abstraction layers for form handling:
+ * - React Hook Form: useFormField, useFormSubmit, useValidation, validationRules, ExampleForm
+ * - TanStack Form: useLoginForm, useFilterForm, useCrudForm
+ *
+ * React Hook Form is used for traditional form patterns with fine-grained control.
+ * TanStack Form is used for more complex patterns like filter forms and CRUD operations.
  *
  * @example
  * ```tsx
- * import { useFormField, useFormSubmit, validationRules } from '@/hooks/forms'
- * import { useForm } from 'react-hook-form'
+ * // TanStack Form example
+ * import { useLoginForm } from '@/hooks/forms'
  *
- * function MyForm() {
- *   const { control, handleSubmit, setError } = useForm({
- *     defaultValues: { email: '', password: '' }
- *   })
- *
- *   const { isLoading, error, onSubmit } = useFormSubmit({
- *     handleSubmit,
- *     setError,
- *     onSuccess: async (data) => {
+ * function LoginPage() {
+ *   const form = useLoginForm({
+ *     onSubmit: async (data) => {
  *       await api.login(data)
  *     }
  *   })
  *
  *   return (
- *     <form onSubmit={onSubmit}>
+ *     <form
+ *       onSubmit={(e) => {
+ *         e.preventDefault()
+ *         form.handleSubmit()
+ *       }}
+ *     >
+ *       {form.state.errors?.email && (
+ *         <span>{form.state.errors.email}</span>
+ *       )}
  *       <input
- *         {...register('email', validationRules.email())}
+ *         type="email"
+ *         value={form.state.values.email}
+ *         onChange={(e) =>
+ *           form.setFieldValue('email', e.target.value)
+ *         }
  *       />
- *       <button type="submit" disabled={isLoading}>
- *         {isLoading ? 'Logging in...' : 'Log in'}
- *       </button>
+ *       <button type="submit">Login</button>
  *     </form>
  *   )
  * }
  * ```
  */
 
+// React Hook Form exports
 export { useFormField } from './useFormField'
 export { useFormSubmit } from './useFormSubmit'
 export { useValidation, validationRules } from './useValidation'
 export { ExampleForm } from './ExampleForm'
 
+// TanStack Form exports
+export { useLoginForm } from './useLoginForm'
+export { useFilterForm } from './useFilterForm'
+export { useCrudForm } from './useCrudForm'
+
 export type { UseFormSubmitReturn } from './useFormSubmit'
+export type { LoginFormData } from './useLoginForm'
+export type { FilterFormData } from './useFilterForm'
+export type { CrudFormMode } from './useCrudForm'
