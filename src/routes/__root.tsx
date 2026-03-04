@@ -2,6 +2,7 @@ import { createRootRouteWithContext, Outlet, Link, isRouterError } from '@tansta
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import { ToastProvider } from '../components/Toast'
+import { Sidebar } from '../components/Sidebar'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -10,63 +11,66 @@ interface RouterContext {
 function RootLayout() {
   return (
     <ToastProvider>
-      <div className="flex flex-col min-h-screen bg-slate-950 text-white">
-        <nav className="bg-slate-900 border-b border-slate-800">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex justify-between items-center h-16">
-              <div className="flex items-center gap-8">
-                <Link
-                  to="/"
-                  className="font-bold text-lg hover:text-slate-300 transition-colors"
-                >
-                  AI Dev Team
-                </Link>
-                <div className="flex gap-6">
+      <div className="flex min-h-screen bg-slate-950 text-white">
+        <Sidebar />
+        <div className="flex-1 flex flex-col">
+          <nav className="bg-slate-900 border-b border-slate-800">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center h-16">
+                <div className="flex items-center gap-8">
                   <Link
-                    to="/teams"
-                    className="text-sm hover:text-slate-300 transition-colors"
-                    activeProps={{
-                      className: 'text-blue-400 font-semibold',
-                    }}
+                    to="/"
+                    className="font-bold text-lg hover:text-slate-300 transition-colors"
                   >
-                    Teams
+                    AI Dev Team
                   </Link>
-                  <Link
-                    to="/kanban"
-                    className="text-sm hover:text-slate-300 transition-colors"
-                    activeProps={{
-                      className: 'text-blue-400 font-semibold',
-                    }}
-                  >
-                    Kanban Board
-                  </Link>
-                  <Link
-                    to="/feed"
-                    className="text-sm hover:text-slate-300 transition-colors"
-                    activeProps={{
-                      className: 'text-blue-400 font-semibold',
-                    }}
-                  >
-                    Activity Feed
-                  </Link>
-                  <Link
-                    to="/create"
-                    className="text-sm hover:text-slate-300 transition-colors"
-                    activeProps={{
-                      className: 'text-blue-400 font-semibold',
-                    }}
-                  >
-                    Create
-                  </Link>
+                  <div className="hidden md:flex gap-6">
+                    <Link
+                      to="/teams"
+                      className="text-sm hover:text-slate-300 transition-colors"
+                      activeProps={{
+                        className: 'text-blue-400 font-semibold',
+                      }}
+                    >
+                      Teams
+                    </Link>
+                    <Link
+                      to="/kanban"
+                      className="text-sm hover:text-slate-300 transition-colors"
+                      activeProps={{
+                        className: 'text-blue-400 font-semibold',
+                      }}
+                    >
+                      Kanban Board
+                    </Link>
+                    <Link
+                      to="/feed"
+                      className="text-sm hover:text-slate-300 transition-colors"
+                      activeProps={{
+                        className: 'text-blue-400 font-semibold',
+                      }}
+                    >
+                      Activity Feed
+                    </Link>
+                    <Link
+                      to="/create"
+                      className="text-sm hover:text-slate-300 transition-colors"
+                      activeProps={{
+                        className: 'text-blue-400 font-semibold',
+                      }}
+                    >
+                      Create
+                    </Link>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </nav>
-        <main className="flex-1">
-          <Outlet />
-        </main>
-        {import.meta.env.DEV && <TanStackRouterDevtools />}
+          </nav>
+          <main className="flex-1">
+            <Outlet />
+          </main>
+          {import.meta.env.DEV && <TanStackRouterDevtools />}
+        </div>
       </div>
     </ToastProvider>
   )
