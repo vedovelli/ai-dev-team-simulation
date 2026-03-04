@@ -5,6 +5,7 @@ import {
   Header,
 } from '@tanstack/react-table'
 import { VirtualizedDataTable, useVirtualizedTableState } from '../components/VirtualizedDataTable'
+import { EnhancedDataTable } from '../components/DataTable'
 import type { Task, TaskStatus, TaskPriority } from '../types/task'
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
@@ -332,6 +333,66 @@ function DataTablesPage() {
           <li>High contrast colors for visual accessibility</li>
           <li>Focus management and visual focus indicators</li>
         </ul>
+      </div>
+
+      {/* Enhanced Data Table Section */}
+      <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+        <h2 className="text-xl font-semibold mb-4">Enhanced Data Table (FAB-19)</h2>
+        <p className="text-slate-600 mb-4">Reusable table component with filtering, sorting, pagination, column visibility, and row selection:</p>
+        <EnhancedDataTable
+          data={tasks.slice(0, 50)}
+          columns={taskColumns}
+          pageSize={10}
+          enableColumnFilters={true}
+          enableColumnVisibility={true}
+          enableRowSelection={true}
+          onRowSelect={(selectedRows) => {
+            console.log('Selected rows:', Array.from(selectedRows))
+          }}
+        />
+      </div>
+
+      {/* Enhanced Table Features */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="p-6 bg-green-50 rounded-lg border border-green-200">
+          <h3 className="text-lg font-semibold text-green-900 mb-3">Text Filtering</h3>
+          <p className="text-green-800 mb-3">Search across all columns in real-time using the global search input.</p>
+          <ul className="space-y-2 text-sm text-green-800 list-disc list-inside">
+            <li>Filter by task title</li>
+            <li>Filter by assignee</li>
+            <li>Filter by status or priority</li>
+          </ul>
+        </div>
+
+        <div className="p-6 bg-purple-50 rounded-lg border border-purple-200">
+          <h3 className="text-lg font-semibold text-purple-900 mb-3">Single Column Sort</h3>
+          <p className="text-purple-800 mb-3">Click column headers to sort ascending or descending. Visual indicator shows sort direction.</p>
+          <ul className="space-y-2 text-sm text-purple-800 list-disc list-inside">
+            <li>Click header to toggle sort</li>
+            <li>Arrow indicators (↑/↓)</li>
+            <li>Works with any column</li>
+          </ul>
+        </div>
+
+        <div className="p-6 bg-orange-50 rounded-lg border border-orange-200">
+          <h3 className="text-lg font-semibold text-orange-900 mb-3">Row Selection</h3>
+          <p className="text-orange-800 mb-3">Select individual rows or all rows on current page with checkboxes. State is managed via custom hook.</p>
+          <ul className="space-y-2 text-sm text-orange-800 list-disc list-inside">
+            <li>Individual row checkboxes</li>
+            <li>Select all button</li>
+            <li>Custom hook integration</li>
+          </ul>
+        </div>
+
+        <div className="p-6 bg-cyan-50 rounded-lg border border-cyan-200">
+          <h3 className="text-lg font-semibold text-cyan-900 mb-3">Column Visibility</h3>
+          <p className="text-cyan-800 mb-3">Toggle visibility of any column using the button controls above the table.</p>
+          <ul className="space-y-2 text-sm text-cyan-800 list-disc list-inside">
+            <li>Hide/show columns dynamically</li>
+            <li>Visual toggle buttons</li>
+            <li>Customizable per column</li>
+          </ul>
+        </div>
       </div>
     </div>
   )
