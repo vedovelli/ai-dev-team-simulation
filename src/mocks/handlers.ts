@@ -1333,4 +1333,50 @@ export const paginatedHandlers = [
       },
     })
   }),
+
+  // Data table endpoint with filtering, sorting, and pagination
+  http.get('/api/data-table', ({ request }) => {
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search') || ''
+    const sortBy = url.searchParams.get('sortBy') || 'title'
+    const sortOrder = url.searchParams.get('sortOrder') || 'asc'
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '10'), 100)
+
+    let filteredItems = [...paginatedItemsStore]
+
+    // Apply text search
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredItems = filteredItems.filter(
+        (item) =>
+          item.title.toLowerCase().includes(searchLower) ||
+          item.description.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Apply sorting
+    filteredItems.sort((a, b) => {
+      let comparison = 0
+      if (sortBy === 'title') {
+        comparison = a.title.localeCompare(b.title)
+      } else if (sortBy === 'createdAt') {
+        comparison = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      }
+      return sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    // Apply pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedData = filteredItems.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedData,
+      total: filteredItems.length,
+      pageIndex,
+      pageSize,
+      hasNextPage: end < filteredItems.length,
+    })
+  }),
 ]
