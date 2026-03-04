@@ -1,10 +1,4 @@
 import { http, HttpResponse } from 'msw'
-import type { Agent } from '../types/agent'
-import type { Task } from '../types/task'
-import type { Team } from '../types/team'
-
-// Remove duplicate Team interface since it's imported from types
-type RouteTeam = Team
 
 /**
  * Route-based MSW handlers for testing route requirements
@@ -12,7 +6,7 @@ type RouteTeam = Team
  */
 
 /**
- * Agents route handlers
+ * Agents route handlers with search parameter support
  */
 export const agentRouteHandlers = [
   // GET /api/agents - List all agents with optional search parameters
@@ -22,36 +16,41 @@ export const agentRouteHandlers = [
     const sort = url.searchParams.get('sort') ?? 'name'
     const sortOrder = url.searchParams.get('sortOrder') ?? 'asc'
 
-    let agents: Agent[] = [
+    // Mock agent data
+    const agents = [
       {
         id: 'agent-1',
         name: 'Alice',
-        role: 'Frontend Developer',
-        status: 'working',
-        workload: 85,
-        currentTasks: 3,
+        role: 'sr-dev' as const,
+        status: 'working' as const,
+        currentTask: 'Implementing feature X',
+        output: 'Successfully merged PR',
+        lastUpdated: new Date().toISOString(),
       },
       {
         id: 'agent-2',
         name: 'Bob',
-        role: 'Backend Developer',
-        status: 'idle',
-        workload: 30,
-        currentTasks: 1,
+        role: 'junior' as const,
+        status: 'idle' as const,
+        currentTask: 'Code review',
+        output: 'Waiting for feedback',
+        lastUpdated: new Date().toISOString(),
       },
       {
         id: 'agent-3',
         name: 'Charlie',
-        role: 'DevOps Engineer',
-        status: 'blocked',
-        workload: 50,
-        currentTasks: 2,
+        role: 'pm' as const,
+        status: 'blocked' as const,
+        currentTask: 'Planning sprint',
+        output: 'Blocked on dependency',
+        lastUpdated: new Date().toISOString(),
       },
     ]
 
     // Apply filter
+    let filtered = agents
     if (filter) {
-      agents = agents.filter(
+      filtered = agents.filter(
         (agent) =>
           agent.name.toLowerCase().includes(filter) ||
           agent.role.toLowerCase().includes(filter)
@@ -59,7 +58,7 @@ export const agentRouteHandlers = [
     }
 
     // Apply sorting
-    agents.sort((a, b) => {
+    filtered.sort((a, b) => {
       let comparison = 0
       if (sort === 'name') {
         comparison = a.name.localeCompare(b.name)
@@ -72,19 +71,20 @@ export const agentRouteHandlers = [
       return sortOrder === 'desc' ? -comparison : comparison
     })
 
-    return HttpResponse.json({ data: agents })
+    return HttpResponse.json({ data: filtered })
   }),
 
-  // GET /api/agents/:id - Get agent detail
+  // GET /api/agents/:id - Get agent detail by ID
   http.get('/api/agents/:id', ({ params }) => {
     const { id } = params
-    const agent: Agent = {
+    const agent = {
       id: String(id),
       name: 'Alice',
-      role: 'Frontend Developer',
-      status: 'working',
-      workload: 85,
-      currentTasks: 3,
+      role: 'sr-dev' as const,
+      status: 'working' as const,
+      currentTask: 'Implementing feature X',
+      output: 'Successfully merged PR',
+      lastUpdated: new Date().toISOString(),
     }
 
     return HttpResponse.json({ data: agent })
@@ -133,55 +133,57 @@ export const taskRouteHandlers = [
     const sortBy = url.searchParams.get('sortBy')
     const sortOrder = url.searchParams.get('sortOrder')
 
-    let tasks: Task[] = [
+    // Mock task data
+    const tasks = [
       {
         id: '1',
         title: 'Implement authentication',
-        status: 'in-progress',
-        priority: 'high',
+        status: 'in-progress' as const,
+        priority: 'high' as const,
         team: 'Backend',
         assignee: 'Bob',
         createdAt: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 86400000).toISOString(),
+        updatedAt: new Date().toISOString(),
       },
       {
         id: '2',
         title: 'Design dashboard UI',
-        status: 'todo',
-        priority: 'medium',
+        status: 'backlog' as const,
+        priority: 'medium' as const,
         team: 'Frontend',
         assignee: 'Alice',
         createdAt: new Date().toISOString(),
-        dueDate: new Date(Date.now() + 172800000).toISOString(),
+        updatedAt: new Date().toISOString(),
       },
       {
         id: '3',
         title: 'Deploy to staging',
-        status: 'done',
-        priority: 'high',
+        status: 'done' as const,
+        priority: 'high' as const,
         team: 'DevOps',
         assignee: 'Charlie',
         createdAt: new Date().toISOString(),
-        dueDate: new Date(Date.now() - 86400000).toISOString(),
+        updatedAt: new Date().toISOString(),
       },
     ]
 
     // Apply filters
-    if (status) tasks = tasks.filter((t) => t.status === status)
-    if (priority) tasks = tasks.filter((t) => t.priority === priority)
+    let filtered = tasks
+    if (status) filtered = filtered.filter((t) => t.status === status)
+    if (priority) filtered = filtered.filter((t) => t.priority === priority)
     if (search) {
-      tasks = tasks.filter((t) =>
+      filtered = filtered.filter((t) =>
         t.title.toLowerCase().includes(search.toLowerCase())
       )
     }
-    if (team) tasks = tasks.filter((t) => t.team === team)
-    if (assignee) tasks = tasks.filter((t) => t.assignee === assignee)
+    if (team) filtered = filtered.filter((t) => t.team === team)
+    if (assignee) filtered = filtered.filter((t) => t.assignee === assignee)
 
     // Apply sorting
-    if (sortBy) {
-      tasks.sort((a, b) => {
-        const aVal = a[sortBy as keyof Task]
-        const bVal = b[sortBy as keyof Task]
+    if (sortBy && sortOrder) {
+      filtered.sort((a, b) => {
+        const aVal = a[sortBy as keyof typeof tasks[0]]
+        const bVal = b[sortBy as keyof typeof tasks[0]]
 
         if (typeof aVal === 'string' && typeof bVal === 'string') {
           return sortOrder === 'desc'
@@ -193,7 +195,7 @@ export const taskRouteHandlers = [
       })
     }
 
-    return HttpResponse.json({ data: tasks })
+    return HttpResponse.json({ data: filtered })
   }),
 ]
 
@@ -203,7 +205,7 @@ export const taskRouteHandlers = [
 export const teamRouteHandlers = [
   // GET /api/teams - List teams
   http.get('/api/teams', () => {
-    const teams: Team[] = [
+    const teams = [
       {
         id: 'team-1',
         name: 'Frontend Team',
@@ -226,7 +228,7 @@ export const teamRouteHandlers = [
   // GET /api/teams/:id - Get team details
   http.get('/api/teams/:id', ({ params }) => {
     const { id } = params
-    const team: Team = {
+    const team = {
       id: String(id),
       name: 'Frontend Team',
       description: 'Responsible for UI/UX',

@@ -86,32 +86,7 @@ const teamsStore: Team[] = []
 // In-memory store for agents
 const agentsStore: Agent[] = generateMockAgents()
 
-// In-memory store for users
-const usersStore: User[] = generateMockUsers()
-
-function generateMockUsers(): User[] {
-  const names = [
-    'Alice Johnson',
-    'Bob Smith',
-    'Charlie Davis',
-    'Diana Wilson',
-    'Eve Martinez',
-    'Frank Brown',
-    'Grace Lee',
-    'Henry Taylor',
-    'Ivy Anderson',
-    'Jack Thompson',
-  ]
-  const roles: UserRole[] = ['admin', 'developer', 'manager']
-
-  return names.map((name, i) => ({
-    id: `user-${i + 1}`,
-    name,
-    email: `${name.toLowerCase().replace(' ', '.')}@example.com`,
-    role: roles[i % roles.length],
-    createdAt: new Date(Date.now() - Math.random() * 30 * 24 * 60 * 60 * 1000).toISOString(),
-  }))
-}
+// In-memory store for users is initialized below after function definition
 
 function generateMockAgents(): Agent[] {
   const roles: AgentRole[] = ['sr-dev', 'junior', 'pm']

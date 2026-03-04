@@ -9,38 +9,303 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as UsersRouteImport } from './routes/users'
+import { Route as TeamsRouteImport } from './routes/teams'
+import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as KanbanRouteImport } from './routes/kanban'
+import { Route as FeedRouteImport } from './routes/feed'
+import { Route as CreateRouteImport } from './routes/create'
+import { Route as AgentsRouteImport } from './routes/agents'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as SprintsIndexRouteImport } from './routes/sprints/index'
+import { Route as AgentsIndexRouteImport } from './routes/agents/index'
+import { Route as UsersCreateRouteImport } from './routes/users.create'
+import { Route as TeamsNewRouteImport } from './routes/teams.new'
+import { Route as SprintsNewRouteImport } from './routes/sprints/new'
+import { Route as AgentsWorkloadRouteImport } from './routes/agents/workload'
+import { Route as AgentsIdRouteImport } from './routes/agents/$id'
+import { Route as AgentsAgentIdRouteImport } from './routes/agents.$agentId'
+import { Route as SprintsIdHealthRouteImport } from './routes/sprints/$id.health'
+import { Route as AgentsIdAnalyticsRouteImport } from './routes/agents/$id/analytics'
 
+const UsersRoute = UsersRouteImport.update({
+  id: '/users',
+  path: '/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TeamsRoute = TeamsRouteImport.update({
+  id: '/teams',
+  path: '/teams',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TasksRoute = TasksRouteImport.update({
+  id: '/tasks',
+  path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const KanbanRoute = KanbanRouteImport.update({
+  id: '/kanban',
+  path: '/kanban',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FeedRoute = FeedRouteImport.update({
+  id: '/feed',
+  path: '/feed',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CreateRoute = CreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsRoute = AgentsRouteImport.update({
+  id: '/agents',
+  path: '/agents',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SprintsIndexRoute = SprintsIndexRouteImport.update({
+  id: '/sprints/',
+  path: '/sprints/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsIndexRoute = AgentsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AgentsRoute,
+} as any)
+const UsersCreateRoute = UsersCreateRouteImport.update({
+  id: '/create',
+  path: '/create',
+  getParentRoute: () => UsersRoute,
+} as any)
+const TeamsNewRoute = TeamsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => TeamsRoute,
+} as any)
+const SprintsNewRoute = SprintsNewRouteImport.update({
+  id: '/sprints/new',
+  path: '/sprints/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsWorkloadRoute = AgentsWorkloadRouteImport.update({
+  id: '/workload',
+  path: '/workload',
+  getParentRoute: () => AgentsRoute,
+} as any)
+const AgentsIdRoute = AgentsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => AgentsRoute,
+} as any)
+const AgentsAgentIdRoute = AgentsAgentIdRouteImport.update({
+  id: '/$agentId',
+  path: '/$agentId',
+  getParentRoute: () => AgentsRoute,
+} as any)
+const SprintsIdHealthRoute = SprintsIdHealthRouteImport.update({
+  id: '/sprints/$id/health',
+  path: '/sprints/$id/health',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AgentsIdAnalyticsRoute = AgentsIdAnalyticsRouteImport.update({
+  id: '/analytics',
+  path: '/analytics',
+  getParentRoute: () => AgentsIdRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRouteWithChildren
+  '/create': typeof CreateRoute
+  '/feed': typeof FeedRoute
+  '/kanban': typeof KanbanRoute
+  '/tasks': typeof TasksRoute
+  '/teams': typeof TeamsRouteWithChildren
+  '/users': typeof UsersRouteWithChildren
+  '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/agents/$id': typeof AgentsIdRouteWithChildren
+  '/agents/workload': typeof AgentsWorkloadRoute
+  '/sprints/new': typeof SprintsNewRoute
+  '/teams/new': typeof TeamsNewRoute
+  '/users/create': typeof UsersCreateRoute
+  '/agents/': typeof AgentsIndexRoute
+  '/sprints/': typeof SprintsIndexRoute
+  '/agents/$id/analytics': typeof AgentsIdAnalyticsRoute
+  '/sprints/$id/health': typeof SprintsIdHealthRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/create': typeof CreateRoute
+  '/feed': typeof FeedRoute
+  '/kanban': typeof KanbanRoute
+  '/tasks': typeof TasksRoute
+  '/teams': typeof TeamsRouteWithChildren
+  '/users': typeof UsersRouteWithChildren
+  '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/agents/$id': typeof AgentsIdRouteWithChildren
+  '/agents/workload': typeof AgentsWorkloadRoute
+  '/sprints/new': typeof SprintsNewRoute
+  '/teams/new': typeof TeamsNewRoute
+  '/users/create': typeof UsersCreateRoute
+  '/agents': typeof AgentsIndexRoute
+  '/sprints': typeof SprintsIndexRoute
+  '/agents/$id/analytics': typeof AgentsIdAnalyticsRoute
+  '/sprints/$id/health': typeof SprintsIdHealthRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/agents': typeof AgentsRouteWithChildren
+  '/create': typeof CreateRoute
+  '/feed': typeof FeedRoute
+  '/kanban': typeof KanbanRoute
+  '/tasks': typeof TasksRoute
+  '/teams': typeof TeamsRouteWithChildren
+  '/users': typeof UsersRouteWithChildren
+  '/agents/$agentId': typeof AgentsAgentIdRoute
+  '/agents/$id': typeof AgentsIdRouteWithChildren
+  '/agents/workload': typeof AgentsWorkloadRoute
+  '/sprints/new': typeof SprintsNewRoute
+  '/teams/new': typeof TeamsNewRoute
+  '/users/create': typeof UsersCreateRoute
+  '/agents/': typeof AgentsIndexRoute
+  '/sprints/': typeof SprintsIndexRoute
+  '/agents/$id/analytics': typeof AgentsIdAnalyticsRoute
+  '/sprints/$id/health': typeof SprintsIdHealthRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/agents'
+    | '/create'
+    | '/feed'
+    | '/kanban'
+    | '/tasks'
+    | '/teams'
+    | '/users'
+    | '/agents/$agentId'
+    | '/agents/$id'
+    | '/agents/workload'
+    | '/sprints/new'
+    | '/teams/new'
+    | '/users/create'
+    | '/agents/'
+    | '/sprints/'
+    | '/agents/$id/analytics'
+    | '/sprints/$id/health'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/create'
+    | '/feed'
+    | '/kanban'
+    | '/tasks'
+    | '/teams'
+    | '/users'
+    | '/agents/$agentId'
+    | '/agents/$id'
+    | '/agents/workload'
+    | '/sprints/new'
+    | '/teams/new'
+    | '/users/create'
+    | '/agents'
+    | '/sprints'
+    | '/agents/$id/analytics'
+    | '/sprints/$id/health'
+  id:
+    | '__root__'
+    | '/'
+    | '/agents'
+    | '/create'
+    | '/feed'
+    | '/kanban'
+    | '/tasks'
+    | '/teams'
+    | '/users'
+    | '/agents/$agentId'
+    | '/agents/$id'
+    | '/agents/workload'
+    | '/sprints/new'
+    | '/teams/new'
+    | '/users/create'
+    | '/agents/'
+    | '/sprints/'
+    | '/agents/$id/analytics'
+    | '/sprints/$id/health'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AgentsRoute: typeof AgentsRouteWithChildren
+  CreateRoute: typeof CreateRoute
+  FeedRoute: typeof FeedRoute
+  KanbanRoute: typeof KanbanRoute
+  TasksRoute: typeof TasksRoute
+  TeamsRoute: typeof TeamsRouteWithChildren
+  UsersRoute: typeof UsersRouteWithChildren
+  SprintsNewRoute: typeof SprintsNewRoute
+  SprintsIndexRoute: typeof SprintsIndexRoute
+  SprintsIdHealthRoute: typeof SprintsIdHealthRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/users': {
+      id: '/users'
+      path: '/users'
+      fullPath: '/users'
+      preLoaderRoute: typeof UsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/teams': {
+      id: '/teams'
+      path: '/teams'
+      fullPath: '/teams'
+      preLoaderRoute: typeof TeamsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/tasks': {
+      id: '/tasks'
+      path: '/tasks'
+      fullPath: '/tasks'
+      preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/kanban': {
+      id: '/kanban'
+      path: '/kanban'
+      fullPath: '/kanban'
+      preLoaderRoute: typeof KanbanRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/feed': {
+      id: '/feed'
+      path: '/feed'
+      fullPath: '/feed'
+      preLoaderRoute: typeof FeedRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/create': {
+      id: '/create'
+      path: '/create'
+      fullPath: '/create'
+      preLoaderRoute: typeof CreateRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents': {
+      id: '/agents'
+      path: '/agents'
+      fullPath: '/agents'
+      preLoaderRoute: typeof AgentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -48,11 +313,140 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sprints/': {
+      id: '/sprints/'
+      path: '/sprints'
+      fullPath: '/sprints/'
+      preLoaderRoute: typeof SprintsIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/': {
+      id: '/agents/'
+      path: '/'
+      fullPath: '/agents/'
+      preLoaderRoute: typeof AgentsIndexRouteImport
+      parentRoute: typeof AgentsRoute
+    }
+    '/users/create': {
+      id: '/users/create'
+      path: '/create'
+      fullPath: '/users/create'
+      preLoaderRoute: typeof UsersCreateRouteImport
+      parentRoute: typeof UsersRoute
+    }
+    '/teams/new': {
+      id: '/teams/new'
+      path: '/new'
+      fullPath: '/teams/new'
+      preLoaderRoute: typeof TeamsNewRouteImport
+      parentRoute: typeof TeamsRoute
+    }
+    '/sprints/new': {
+      id: '/sprints/new'
+      path: '/sprints/new'
+      fullPath: '/sprints/new'
+      preLoaderRoute: typeof SprintsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/workload': {
+      id: '/agents/workload'
+      path: '/workload'
+      fullPath: '/agents/workload'
+      preLoaderRoute: typeof AgentsWorkloadRouteImport
+      parentRoute: typeof AgentsRoute
+    }
+    '/agents/$id': {
+      id: '/agents/$id'
+      path: '/$id'
+      fullPath: '/agents/$id'
+      preLoaderRoute: typeof AgentsIdRouteImport
+      parentRoute: typeof AgentsRoute
+    }
+    '/agents/$agentId': {
+      id: '/agents/$agentId'
+      path: '/$agentId'
+      fullPath: '/agents/$agentId'
+      preLoaderRoute: typeof AgentsAgentIdRouteImport
+      parentRoute: typeof AgentsRoute
+    }
+    '/sprints/$id/health': {
+      id: '/sprints/$id/health'
+      path: '/sprints/$id/health'
+      fullPath: '/sprints/$id/health'
+      preLoaderRoute: typeof SprintsIdHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/agents/$id/analytics': {
+      id: '/agents/$id/analytics'
+      path: '/analytics'
+      fullPath: '/agents/$id/analytics'
+      preLoaderRoute: typeof AgentsIdAnalyticsRouteImport
+      parentRoute: typeof AgentsIdRoute
+    }
   }
 }
 
+interface AgentsIdRouteChildren {
+  AgentsIdAnalyticsRoute: typeof AgentsIdAnalyticsRoute
+}
+
+const AgentsIdRouteChildren: AgentsIdRouteChildren = {
+  AgentsIdAnalyticsRoute: AgentsIdAnalyticsRoute,
+}
+
+const AgentsIdRouteWithChildren = AgentsIdRoute._addFileChildren(
+  AgentsIdRouteChildren,
+)
+
+interface AgentsRouteChildren {
+  AgentsAgentIdRoute: typeof AgentsAgentIdRoute
+  AgentsIdRoute: typeof AgentsIdRouteWithChildren
+  AgentsWorkloadRoute: typeof AgentsWorkloadRoute
+  AgentsIndexRoute: typeof AgentsIndexRoute
+}
+
+const AgentsRouteChildren: AgentsRouteChildren = {
+  AgentsAgentIdRoute: AgentsAgentIdRoute,
+  AgentsIdRoute: AgentsIdRouteWithChildren,
+  AgentsWorkloadRoute: AgentsWorkloadRoute,
+  AgentsIndexRoute: AgentsIndexRoute,
+}
+
+const AgentsRouteWithChildren =
+  AgentsRoute._addFileChildren(AgentsRouteChildren)
+
+interface TeamsRouteChildren {
+  TeamsNewRoute: typeof TeamsNewRoute
+}
+
+const TeamsRouteChildren: TeamsRouteChildren = {
+  TeamsNewRoute: TeamsNewRoute,
+}
+
+const TeamsRouteWithChildren = TeamsRoute._addFileChildren(TeamsRouteChildren)
+
+interface UsersRouteChildren {
+  UsersCreateRoute: typeof UsersCreateRoute
+}
+
+const UsersRouteChildren: UsersRouteChildren = {
+  UsersCreateRoute: UsersCreateRoute,
+}
+
+const UsersRouteWithChildren = UsersRoute._addFileChildren(UsersRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AgentsRoute: AgentsRouteWithChildren,
+  CreateRoute: CreateRoute,
+  FeedRoute: FeedRoute,
+  KanbanRoute: KanbanRoute,
+  TasksRoute: TasksRoute,
+  TeamsRoute: TeamsRouteWithChildren,
+  UsersRoute: UsersRouteWithChildren,
+  SprintsNewRoute: SprintsNewRoute,
+  SprintsIndexRoute: SprintsIndexRoute,
+  SprintsIdHealthRoute: SprintsIdHealthRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
