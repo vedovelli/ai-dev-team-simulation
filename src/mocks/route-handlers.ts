@@ -241,6 +241,217 @@ export const teamRouteHandlers = [
 ]
 
 /**
+ * Auth route handlers for form validation examples
+ */
+export const authRouteHandlers = [
+  // POST /api/auth/login - Login form handler
+  http.post('/api/auth/login', async ({ request }) => {
+    const body = await request.json() as { email: string; password: string }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(body.email)) {
+      return HttpResponse.json(
+        { message: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Validate password is not empty
+    if (!body.password || body.password.length === 0) {
+      return HttpResponse.json(
+        { message: 'Password is required' },
+        { status: 400 }
+      )
+    }
+
+    // Mock successful login
+    return HttpResponse.json({
+      success: true,
+      message: 'Login successful',
+      user: {
+        id: 'user-123',
+        email: body.email,
+        name: 'User',
+      },
+      token: 'mock-jwt-token',
+    })
+  }),
+]
+
+/**
+ * Users/Items route handlers for CRUD form examples
+ */
+export const crudRouteHandlers = [
+  // GET /api/users - List users with filtering
+  http.get('/api/users', ({ request }) => {
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search')?.toLowerCase() ?? ''
+    const status = url.searchParams.get('status') ?? 'all'
+    const sortBy = url.searchParams.get('sortBy') ?? 'name'
+
+    const mockUsers = [
+      { id: '1', name: 'Alice Johnson', email: 'alice@example.com', phone: '+1 (555) 111-0001', bio: 'Senior developer', status: 'active' },
+      { id: '2', name: 'Bob Smith', email: 'bob@example.com', phone: '+1 (555) 111-0002', bio: 'Product designer', status: 'active' },
+      { id: '3', name: 'Carol White', email: 'carol@example.com', phone: '+1 (555) 111-0003', bio: 'Project manager', status: 'inactive' },
+    ]
+
+    let filtered = mockUsers
+    if (search) {
+      filtered = filtered.filter((u) =>
+        u.name.toLowerCase().includes(search) ||
+        u.email.toLowerCase().includes(search)
+      )
+    }
+    if (status !== 'all') {
+      filtered = filtered.filter((u) => u.status === status)
+    }
+
+    // Sort
+    if (sortBy === 'name') {
+      filtered.sort((a, b) => a.name.localeCompare(b.name))
+    } else if (sortBy === 'email') {
+      filtered.sort((a, b) => a.email.localeCompare(b.email))
+    }
+
+    return HttpResponse.json({ items: filtered })
+  }),
+
+  // GET /api/users/:id - Get user by ID
+  http.get('/api/users/:id', ({ params }) => {
+    const { id } = params
+    const user = {
+      id: String(id),
+      name: 'Alice Johnson',
+      email: 'alice@example.com',
+      phone: '+1 (555) 111-0001',
+      bio: 'Senior developer',
+      status: 'active',
+    }
+
+    return HttpResponse.json({ user })
+  }),
+
+  // POST /api/users - Create user
+  http.post('/api/users', async ({ request }) => {
+    const body = await request.json() as {
+      name: string
+      email: string
+      phone?: string
+      bio?: string
+    }
+
+    // Validate required fields
+    if (!body.name || body.name.length < 2) {
+      return HttpResponse.json(
+        { message: 'Name must be at least 2 characters' },
+        { status: 400 }
+      )
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(body.email)) {
+      return HttpResponse.json(
+        { message: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Mock user creation
+    return HttpResponse.json(
+      {
+        success: true,
+        message: 'User created successfully',
+        user: {
+          id: 'user-' + Date.now(),
+          name: body.name,
+          email: body.email,
+          phone: body.phone || '',
+          bio: body.bio || '',
+          status: 'active',
+        },
+      },
+      { status: 201 }
+    )
+  }),
+
+  // PUT /api/users/:id - Update user
+  http.put('/api/users/:id', async ({ params, request }) => {
+    const { id } = params
+    const body = await request.json() as {
+      name: string
+      email: string
+      phone?: string
+      bio?: string
+    }
+
+    // Validate required fields
+    if (!body.name || body.name.length < 2) {
+      return HttpResponse.json(
+        { message: 'Name must be at least 2 characters' },
+        { status: 400 }
+      )
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+    if (!emailRegex.test(body.email)) {
+      return HttpResponse.json(
+        { message: 'Invalid email format' },
+        { status: 400 }
+      )
+    }
+
+    // Mock user update
+    return HttpResponse.json({
+      success: true,
+      message: 'User updated successfully',
+      user: {
+        id: String(id),
+        name: body.name,
+        email: body.email,
+        phone: body.phone || '',
+        bio: body.bio || '',
+        status: 'active',
+      },
+    })
+  }),
+
+  // GET /api/items - List items with filtering
+  http.get('/api/items', ({ request }) => {
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search')?.toLowerCase() ?? ''
+    const status = url.searchParams.get('status') ?? 'all'
+    const dateFrom = url.searchParams.get('dateFrom')
+    const dateTo = url.searchParams.get('dateTo')
+
+    const mockItems = [
+      { id: '1', name: 'Item Alpha', status: 'active', date: '2026-03-01' },
+      { id: '2', name: 'Item Beta', status: 'active', date: '2026-03-02' },
+      { id: '3', name: 'Item Gamma', status: 'inactive', date: '2026-02-28' },
+      { id: '4', name: 'Item Delta', status: 'archived', date: '2026-02-15' },
+    ]
+
+    let filtered = mockItems
+    if (search) {
+      filtered = filtered.filter((i) =>
+        i.name.toLowerCase().includes(search)
+      )
+    }
+    if (status !== 'all') {
+      filtered = filtered.filter((i) => i.status === status)
+    }
+    if (dateFrom) {
+      filtered = filtered.filter((i) => i.date >= dateFrom)
+    }
+    if (dateTo) {
+      filtered = filtered.filter((i) => i.date <= dateTo)
+    }
+
+    return HttpResponse.json({ items: filtered })
+  }),
+]
+
+/**
  * Combine all route-based handlers
  */
 export const routeHandlers = [
@@ -248,4 +459,6 @@ export const routeHandlers = [
   ...sprintRouteHandlers,
   ...taskRouteHandlers,
   ...teamRouteHandlers,
+  ...authRouteHandlers,
+  ...crudRouteHandlers,
 ]
