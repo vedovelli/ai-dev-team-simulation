@@ -1,32 +1,28 @@
 import { useMemo, useState } from 'react'
 import { ColumnDef } from '@tanstack/react-table'
-import { AdvancedTable, useAdvancedTableState, useAdvancedTableQuery } from '.'
+import { AdvancedTable, useAdvancedTable } from '.'
 import type { Task } from '../../types/task'
 
 /**
  * Example implementation of AdvancedTable with MSW mocked data
  * Uses /api/virtualized-tasks endpoint with server-side pagination and sorting
+ *
+ * Demonstrates the useAdvancedTable hook which combines:
+ * - State management (pagination, sorting)
+ * - Data fetching with React Query
+ * - Filtering support
  */
 export function AdvancedTableExample() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [priorityFilter, setPriorityFilter] = useState<string>('')
 
-  const tableState = useAdvancedTableState({
+  const table = useAdvancedTable<Task>('/api/virtualized-tasks', {
     initialPageSize: 25,
+    filters: {
+      status: statusFilter || undefined,
+      priority: priorityFilter || undefined,
+    },
   })
-
-  const { data, isLoading, isError, error } = useAdvancedTableQuery<Task>(
-    '/api/virtualized-tasks',
-    {
-      pageIndex: tableState.pageIndex,
-      pageSize: tableState.pageSize,
-      sorting: tableState.sorting,
-      filters: {
-        status: statusFilter || undefined,
-        priority: priorityFilter || undefined,
-      },
-    }
-  )
 
   const columns = useMemo<ColumnDef<Task>[]>(
     () => [
@@ -114,7 +110,7 @@ export function AdvancedTableExample() {
   const handleResetFilters = () => {
     setStatusFilter('')
     setPriorityFilter('')
-    tableState.resetState()
+    table.resetState()
   }
 
   return (
@@ -150,10 +146,10 @@ export function AdvancedTableExample() {
               value={statusFilter}
               onChange={(e) => {
                 setStatusFilter(e.target.value)
-                tableState.setPageIndex(0)
+                table.setPageIndex(0)
               }}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
+              disabled={table.isLoading}
             >
               <option value="">All Statuses</option>
               <option value="backlog">Backlog</option>
@@ -172,10 +168,10 @@ export function AdvancedTableExample() {
               value={priorityFilter}
               onChange={(e) => {
                 setPriorityFilter(e.target.value)
-                tableState.setPageIndex(0)
+                table.setPageIndex(0)
               }}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              disabled={isLoading}
+              disabled={table.isLoading}
             >
               <option value="">All Priorities</option>
               <option value="low">Low</option>
@@ -216,10 +212,10 @@ export function AdvancedTableExample() {
       </div>
 
       {/* Error State */}
-      {isError && (
+      {table.isError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
           <p className="text-red-800">
-            <span className="font-semibold">Error loading data:</span> {error?.message || 'Unknown error'}
+            <span className="font-semibold">Error loading data:</span> {table.error?.message || 'Unknown error'}
           </p>
         </div>
       )}
@@ -227,16 +223,16 @@ export function AdvancedTableExample() {
       {/* Table */}
       <AdvancedTable<Task>
         columns={columns}
-        data={data.data}
-        pageIndex={tableState.pageIndex}
-        pageSize={tableState.pageSize}
-        total={data.total}
-        sorting={tableState.sorting}
-        onPageIndexChange={tableState.setPageIndex}
-        onPageSizeChange={tableState.setPageSize}
-        onSortingChange={tableState.setSorting}
-        isLoading={isLoading}
-        isError={isError}
+        data={table.data.data}
+        pageIndex={table.pageIndex}
+        pageSize={table.pageSize}
+        total={table.data.total}
+        sorting={table.sorting}
+        onPageIndexChange={table.setPageIndex}
+        onPageSizeChange={table.setPageSize}
+        onSortingChange={table.setSorting}
+        isLoading={table.isLoading}
+        isError={table.isError}
         emptyMessage={
           statusFilter || priorityFilter
             ? 'No tasks match the selected filters'
@@ -254,9 +250,9 @@ export function AdvancedTableExample() {
       {/* Info */}
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-900">
-          <span className="font-semibold">Total tasks:</span> {data.total} •{' '}
-          <span className="font-semibold">Loaded:</span> {data.data.length} •{' '}
-          <span className="font-semibold">Page size:</span> {tableState.pageSize}
+          <span className="font-semibold">Total tasks:</span> {table.data.total} •{' '}
+          <span className="font-semibold">Loaded:</span> {table.data.data.length} •{' '}
+          <span className="font-semibold">Page size:</span> {table.pageSize}
         </p>
       </div>
     </div>
