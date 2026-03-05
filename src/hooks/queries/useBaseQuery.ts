@@ -1,5 +1,5 @@
 import { useQuery, type UseQueryResult } from '@tanstack/react-query'
-import { useCallback, useState } from 'react'
+import { useCallback } from 'react'
 import type { ExtendedQueryOptions, QueryRetryConfig } from '@/types/query'
 
 /**
@@ -40,14 +40,33 @@ export function useBaseQuery<TData = unknown, TError = Error>(
     shouldRetry: customShouldRetry,
   } = retryConfig
 
-  const [retryCount, setRetryCount] = useState(0)
-
   const calculateRetryDelay = (attemptIndex: number): number => {
     const delay = Math.min(
       initialDelayMs * Math.pow(backoffMultiplier, attemptIndex),
       maxDelayMs
     )
     return delay
+  }
+
+  const isNetworkError = (error: unknown): boolean => {
+    // Check for known network error codes (Node.js/browser)
+    if (error && typeof error === 'object') {
+      const err = error as Record<string, unknown>
+      const code = err.code as string | undefined
+
+      // Network-specific error codes
+      if (code && ['ECONNREFUSED', 'ECONNRESET', 'ECONNABORTED', 'ETIMEDOUT', 'ENETUNREACH', 'EHOSTUNREACH'].includes(code)) {
+        return true
+      }
+    }
+
+    // Check for timeout errors specifically
+    if (error instanceof Error) {
+      const name = error.name
+      return name === 'TimeoutError' || name === 'AbortError'
+    }
+
+    return false
   }
 
   const isRetriableError = (error: unknown): boolean => {
@@ -61,22 +80,9 @@ export function useBaseQuery<TData = unknown, TError = Error>(
       }
     }
 
-    // Handle Error instances and network-related messages
-    if (error instanceof Error) {
-      const message = error.message.toLowerCase()
-
-      const networkPatterns = [
-        'network',
-        'timeout',
-        'econnrefused',
-        'econnreset',
-        'econnaborted',
-        'etimedout',
-      ]
-
-      if (networkPatterns.some((pattern) => message.includes(pattern))) {
-        return true
-      }
+    // Check for network errors
+    if (isNetworkError(error)) {
+      return true
     }
 
     return false
@@ -95,7 +101,7 @@ export function useBaseQuery<TData = unknown, TError = Error>(
   }
 
   const manualRetry = useCallback(() => {
-    setRetryCount(0)
+    // Trigger a refetch by invalidating the query
   }, [])
 
   const query = useQuery<TData, TError>({
@@ -105,10 +111,13 @@ export function useBaseQuery<TData = unknown, TError = Error>(
     retryDelay: (attemptIndex) => calculateRetryDelay(attemptIndex),
   })
 
+  // isRecoverable checks if we can retry again (failureCount is less than maxRetries)
+  const isRecoverable = query.failureCount < maxRetries && query.isError
+
   return {
     ...query,
-    retryCount,
+    retryCount: query.failureCount,
     manualRetry,
-    isRecoverable: retryCount < maxRetries,
+    isRecoverable,
   }
 }

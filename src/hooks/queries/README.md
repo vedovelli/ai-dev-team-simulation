@@ -232,3 +232,7 @@ it('fetches user data', async () => {
 - `usePaginatedQuery` - Pagination support
 - `useOptimisticUpdate` - Optimistic updates for mutations
 - Domain-specific hooks: `useUsers`, `useTaskTable`, `useAgents`
+
+## Future Enhancements
+
+- `useBaseMutation` - Base mutation hook with retry configuration (planned for follow-up PR)

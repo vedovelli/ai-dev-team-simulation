@@ -1,4 +1,4 @@
-import type { UseQueryOptions, UseMutationOptions } from '@tanstack/react-query'
+import type { UseQueryOptions } from '@tanstack/react-query'
 
 /**
  * Retry configuration for queries with exponential backoff
@@ -29,17 +29,6 @@ export interface ExtendedQueryOptions<
   retryConfig?: QueryRetryConfig
 }
 
-/**
- * Extended mutation options with retry configuration
- */
-export interface ExtendedMutationOptions<
-  TData = unknown,
-  TError = Error,
-  TVariables = void
-> extends Omit<UseMutationOptions<TData, TError, TVariables>, 'retry' | 'retryDelay'> {
-  /** Retry configuration for this mutation */
-  retryConfig?: QueryRetryConfig
-}
 
 /**
  * Standard API error format
