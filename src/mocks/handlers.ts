@@ -435,6 +435,8 @@ export const handlers = [
     const search = url.searchParams.get('search') || ''
     const sortBy = url.searchParams.get('sortBy') || 'name'
     const sortOrder = url.searchParams.get('sortOrder') || 'asc'
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10)
 
     let filteredUsers = [...usersStore]
 
@@ -466,7 +468,17 @@ export const handlers = [
       return sortOrder === 'desc' ? -comparison : comparison
     })
 
-    return HttpResponse.json(filteredUsers)
+    // Pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedUsers = filteredUsers.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedUsers,
+      total: filteredUsers.length,
+      pageIndex,
+      pageSize,
+    })
   }),
 
   http.get('/api/users/:id', ({ params }) => {
@@ -521,10 +533,6 @@ export const handlers = [
 
   http.get('/api/agents', () => {
     return HttpResponse.json(agentsStore)
-  }),
-
-  http.get('/api/users', () => {
-    return HttpResponse.json(usersStore)
   }),
 
   http.get('/api/agents/:id/history', ({ params }) => {
