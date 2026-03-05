@@ -6,9 +6,15 @@
  * - RegistrationFormExample: TanStack Form with async validation and cross-field validation (complex form)
  * - FilterFormExample: TanStack Form with debouncing and query sync
  * - CrudFormExample: TanStack Form with create/update modes
+ * - EmailValidationExample: useFormValidation with sync/async email validation
+ * - PasswordStrengthExample: useFormValidation with password strength checking
+ * - FormValidationCompleteExample: Full form with multiple validations and Zod schema
  */
 
 export { LoginFormExample } from './LoginFormExample'
 export { RegistrationFormExample } from './RegistrationFormExample'
 export { FilterFormExample } from './FilterFormExample'
 export { CrudFormExample } from './CrudFormExample'
+export { EmailValidationExample } from './EmailValidationExample'
+export { PasswordStrengthExample } from './PasswordStrengthExample'
+export { FormValidationCompleteExample } from './FormValidationCompleteExample'
