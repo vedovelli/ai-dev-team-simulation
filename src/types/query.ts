@@ -52,6 +52,22 @@ export interface PaginatedResponse<T> {
 }
 
 /**
+ * Extended mutation options with retry configuration
+ *
+ * @note Implementation of useBaseMutation hook is planned as a follow-up.
+ * See https://github.com/vedovelli/ai-dev-team-simulation/issues/42
+ */
+export interface ExtendedMutationOptions<
+  TData = unknown,
+  TError = Error,
+  TVariables = void,
+  TContext = unknown
+> {
+  /** Retry configuration for this mutation */
+  retryConfig?: QueryRetryConfig
+}
+
+/**
  * Query cache invalidation pattern
  */
 export interface CacheInvalidationOptions {

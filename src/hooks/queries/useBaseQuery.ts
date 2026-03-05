@@ -101,8 +101,8 @@ export function useBaseQuery<TData = unknown, TError = Error>(
   }
 
   const manualRetry = useCallback(() => {
-    // Trigger a refetch by invalidating the query
-  }, [])
+    query.refetch()
+  }, [query])
 
   const query = useQuery<TData, TError>({
     ...queryOptions,
