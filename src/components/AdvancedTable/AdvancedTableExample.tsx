@@ -128,9 +128,9 @@ export function AdvancedTableExample() {
       </div>
 
       {/* Filters */}
-      <div className="bg-white p-4 rounded-lg border border-slate-200 space-y-4">
+      <div className="bg-white p-6 rounded-lg border border-slate-200 space-y-4">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">Filters</h2>
+          <h2 className="text-lg font-semibold text-slate-900">Filters & Search</h2>
           {(statusFilter || priorityFilter) && (
             <button
               onClick={handleResetFilters}
@@ -141,7 +141,7 @@ export function AdvancedTableExample() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div>
             <label htmlFor="status-filter" className="block text-sm font-medium text-slate-700 mb-1">
               Status
@@ -153,7 +153,7 @@ export function AdvancedTableExample() {
                 setStatusFilter(e.target.value)
                 table.setPageIndex(0)
               }}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
               disabled={table.isLoading}
             >
               <option value="">All Statuses</option>
@@ -175,7 +175,7 @@ export function AdvancedTableExample() {
                 setPriorityFilter(e.target.value)
                 table.setPageIndex(0)
               }}
-              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
               disabled={table.isLoading}
             >
               <option value="">All Priorities</option>
@@ -187,13 +187,13 @@ export function AdvancedTableExample() {
         </div>
 
         {(statusFilter || priorityFilter) && (
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             {statusFilter && (
-              <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                Status: {statusFilter}
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                <span>Status: {statusFilter}</span>
                 <button
                   onClick={() => setStatusFilter('')}
-                  className="hover:text-blue-900 font-bold"
+                  className="hover:text-blue-900 font-bold hover:bg-blue-200 rounded px-1"
                   aria-label="Remove status filter"
                 >
                   ×
@@ -201,11 +201,11 @@ export function AdvancedTableExample() {
               </div>
             )}
             {priorityFilter && (
-              <div className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
-                Priority: {priorityFilter}
+              <div className="inline-flex items-center gap-2 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">
+                <span>Priority: {priorityFilter}</span>
                 <button
                   onClick={() => setPriorityFilter('')}
-                  className="hover:text-blue-900 font-bold"
+                  className="hover:text-blue-900 font-bold hover:bg-blue-200 rounded px-1"
                   aria-label="Remove priority filter"
                 >
                   ×
@@ -218,7 +218,7 @@ export function AdvancedTableExample() {
 
       {/* Error State */}
       {table.isError && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+        <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4">
           <p className="text-red-800">
             <span className="font-semibold">Error loading data:</span> {table.error?.message || 'Unknown error'}
           </p>
