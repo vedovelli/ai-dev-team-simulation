@@ -16,12 +16,17 @@ export function AdvancedTableExample() {
   const [statusFilter, setStatusFilter] = useState<string>('')
   const [priorityFilter, setPriorityFilter] = useState<string>('')
 
-  const table = useAdvancedTable<Task>('/api/virtualized-tasks', {
-    initialPageSize: 25,
-    filters: {
+  const filters = useMemo(
+    () => ({
       status: statusFilter || undefined,
       priority: priorityFilter || undefined,
-    },
+    }),
+    [statusFilter, priorityFilter]
+  )
+
+  const table = useAdvancedTable<Task>('/api/virtualized-tasks', {
+    initialPageSize: 25,
+    filters,
   })
 
   const columns = useMemo<ColumnDef<Task>[]>(

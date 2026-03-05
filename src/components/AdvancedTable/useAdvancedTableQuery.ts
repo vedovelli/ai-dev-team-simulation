@@ -28,6 +28,9 @@ export function useAdvancedTableQuery<T extends Record<string, unknown>>(
 ): UseAdvancedTableQueryResult<T> {
   const { pageIndex, pageSize, sorting, filters = {}, enabled = true } = options
 
+  // Query key includes stringified filters to properly track changes.
+  // Even if the filters object reference changes, JSON.stringify ensures
+  // that React Query detects actual filter value changes and re-fetches data
   const queryKey = [
     endpoint,
     pageIndex,
