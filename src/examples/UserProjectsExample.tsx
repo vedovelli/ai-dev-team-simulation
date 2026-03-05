@@ -1,11 +1,12 @@
 import React from 'react'
-import { useUsers, useUser } from '../hooks/queries/users'
+import { useUsersQuery, useUserQuery } from '../hooks/queries/useUserQuery'
 import { useProjects, useProject } from '../hooks/queries/projects'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 
 /**
  * Example component demonstrating TanStack Query hooks for users and projects.
  * Shows how to handle loading, error, and success states from custom hooks.
+ * Uses the new useUserQuery hook for better caching and invalidation.
  */
 export function UserProjectsExample() {
   return (
@@ -31,10 +32,10 @@ export function UserProjectsExample() {
 }
 
 /**
- * Demonstrates useUsers hook with loading and error states
+ * Demonstrates useUsersQuery hook with loading and error states
  */
 function AllUsersSection() {
-  const { data: users, isLoading, isError, error } = useUsers()
+  const { data: users, isLoading, isError, error } = useUsersQuery()
 
   if (isLoading) {
     return (
@@ -115,10 +116,11 @@ function AllProjectsSection() {
 }
 
 /**
- * Demonstrates useUser hook (single user by ID) with loading and error states
+ * Demonstrates useUserQuery hook (single user by ID) with loading and error states.
+ * Also shows how to use the invalidate function for cache invalidation.
  */
 function SingleUserExample({ userId }: { userId: string }) {
-  const { data: user, isLoading, isError, error } = useUser(userId)
+  const { data: user, isLoading, isError, error, invalidate } = useUserQuery(userId)
 
   return (
     <div className="bg-purple-50 p-6 rounded-lg border border-purple-200">
@@ -146,6 +148,12 @@ function SingleUserExample({ userId }: { userId: string }) {
           <p>
             <strong>Status:</strong> {user.status}
           </p>
+          <button
+            onClick={() => invalidate()}
+            className="mt-4 px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600"
+          >
+            Refresh
+          </button>
         </div>
       )}
     </div>
