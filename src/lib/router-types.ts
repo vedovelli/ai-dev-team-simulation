@@ -100,3 +100,30 @@ export const serializeAgentsSearchParams = (params: AgentsSearchParams): Record<
 export const deserializeAgentsSearchParams = (params: Record<string, unknown>): AgentsSearchParams => {
   return AgentsSearchParamSchema.parse(params)
 }
+
+export const serializeSprintsSearchParams = (params: SprintsSearchParams): Record<string, string> => {
+  const result: Record<string, string> = {}
+  if (params.status) result.status = params.status
+  if (params.priority) result.priority = params.priority
+  if (params.search) result.search = params.search
+  if (params.team) result.team = params.team
+  if (params.sprint) result.sprint = params.sprint
+  if (params.assignee) result.assignee = params.assignee
+  return result
+}
+
+export const deserializeSprintsSearchParams = (params: Record<string, unknown>): SprintsSearchParams => {
+  return SprintsSearchParamSchema.parse(params)
+}
+
+export const serializeAnalyticsSearchParams = (params: AnalyticsSearchParams): Record<string, string> => {
+  const result: Record<string, string> = {}
+  if (params.sprint) result.sprint = params.sprint
+  if (params.status) result.status = params.status
+  if (params.timeRange) result.timeRange = params.timeRange
+  return result
+}
+
+export const deserializeAnalyticsSearchParams = (params: Record<string, unknown>): AnalyticsSearchParams => {
+  return AnalyticsSearchParamSchema.parse(params)
+}

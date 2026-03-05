@@ -5,10 +5,16 @@ import {
   TeamIdParamSchema,
   TasksSearchParamSchema,
   AgentsSearchParamSchema,
+  SprintsSearchParamSchema,
+  AnalyticsSearchParamSchema,
   serializeTasksSearchParams,
   deserializeTasksSearchParams,
   serializeAgentsSearchParams,
   deserializeAgentsSearchParams,
+  serializeSprintsSearchParams,
+  deserializeSprintsSearchParams,
+  serializeAnalyticsSearchParams,
+  deserializeAnalyticsSearchParams,
 } from '../router-types'
 
 describe('Route Parameter Validation', () => {
@@ -234,6 +240,96 @@ describe('Search Parameter Serialization', () => {
   })
 })
 
+describe('Sprints Search Parameters', () => {
+  describe('serializeSprintsSearchParams', () => {
+    it('should serialize sprints parameters', () => {
+      const params = {
+        status: 'active',
+        priority: 'high',
+        search: 'sprint test',
+        team: 'Frontend',
+        sprint: 'Sprint 1',
+        assignee: 'Alice',
+      }
+
+      const serialized = serializeSprintsSearchParams(params)
+
+      expect(serialized).toEqual({
+        status: 'active',
+        priority: 'high',
+        search: 'sprint test',
+        team: 'Frontend',
+        sprint: 'Sprint 1',
+        assignee: 'Alice',
+      })
+    })
+
+    it('should omit undefined parameters', () => {
+      const params = {
+        status: 'active',
+        priority: undefined,
+      }
+
+      const serialized = serializeSprintsSearchParams(params)
+
+      expect(serialized).toEqual({
+        status: 'active',
+      })
+    })
+  })
+
+  describe('deserializeSprintsSearchParams', () => {
+    it('should deserialize valid sprints parameters', () => {
+      const params = {
+        status: 'active',
+        priority: 'high',
+        sprint: 'Sprint 1',
+      }
+
+      const deserialized = deserializeSprintsSearchParams(params)
+
+      expect(deserialized).toEqual({
+        status: 'active',
+        priority: 'high',
+        sprint: 'Sprint 1',
+      })
+    })
+  })
+})
+
+describe('Analytics Search Parameters', () => {
+  describe('serializeAnalyticsSearchParams', () => {
+    it('should serialize analytics parameters with default timeRange', () => {
+      const params = {
+        sprint: 'Sprint 1',
+        status: 'completed',
+        timeRange: '30d' as const,
+      }
+
+      const serialized = serializeAnalyticsSearchParams(params)
+
+      expect(serialized).toEqual({
+        sprint: 'Sprint 1',
+        status: 'completed',
+        timeRange: '30d',
+      })
+    })
+  })
+
+  describe('deserializeAnalyticsSearchParams', () => {
+    it('should deserialize and apply default timeRange', () => {
+      const params = {
+        sprint: 'Sprint 1',
+      }
+
+      const deserialized = deserializeAnalyticsSearchParams(params)
+
+      expect(deserialized.timeRange).toBe('30d')
+      expect(deserialized.sprint).toBe('Sprint 1')
+    })
+  })
+})
+
 describe('Round-trip Serialization', () => {
   it('should serialize and deserialize tasks search params correctly', () => {
     const original = {
@@ -259,6 +355,32 @@ describe('Round-trip Serialization', () => {
 
     const serialized = serializeAgentsSearchParams(original)
     const deserialized = deserializeAgentsSearchParams(serialized)
+
+    expect(deserialized).toEqual(original)
+  })
+
+  it('should serialize and deserialize sprints search params correctly', () => {
+    const original = {
+      status: 'active',
+      priority: 'high',
+      team: 'Frontend',
+    }
+
+    const serialized = serializeSprintsSearchParams(original)
+    const deserialized = deserializeSprintsSearchParams(serialized)
+
+    expect(deserialized).toEqual(original)
+  })
+
+  it('should serialize and deserialize analytics search params correctly', () => {
+    const original = {
+      sprint: 'Sprint 1',
+      status: 'completed',
+      timeRange: '7d' as const,
+    }
+
+    const serialized = serializeAnalyticsSearchParams(original)
+    const deserialized = deserializeAnalyticsSearchParams(serialized)
 
     expect(deserialized).toEqual(original)
   })
