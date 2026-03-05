@@ -8,6 +8,7 @@ This guide documents the patterns and best practices implemented in this project
 2. [Query Configuration](#query-configuration)
 3. [Query Key Factory Pattern](#query-key-factory-pattern)
 4. [Advanced Hooks](#advanced-hooks)
+   - [Pagination Patterns](#pagination-patterns)
 5. [Example Implementations](#example-implementations)
 6. [MSW Handlers](#msw-handlers)
 7. [Error Handling](#error-handling)
@@ -170,6 +171,132 @@ const { mutate: deleteTask } = useDeleteMutation({
   mutationFn: () => deleteTaskAPI(taskId),
   invalidateQueries: queryKeys.tasks.all,
 })
+```
+
+### Pagination Patterns
+
+This project provides two pagination hooks for different use cases:
+
+#### Offset/Limit Pagination
+Best for traditional paginated interfaces with page numbers (e.g., products page 1-10).
+Simpler to implement but potentially less efficient with large datasets.
+Use `usePaginatedQuery` hook.
+
+#### Cursor-Based Pagination
+Best for infinite scroll interfaces and feed-like experiences.
+More efficient as the server only needs to return data after a cursor position.
+Use `useInfiniteScroll` hook.
+
+### usePaginatedQuery
+
+Handles offset/limit pagination with convenient navigation methods.
+
+**Location**: `src/hooks/usePaginatedQuery.ts`
+
+**Usage**:
+```typescript
+const {
+  data,
+  page,
+  pageSize,
+  totalPages,
+  total,
+  nextPage,
+  previousPage,
+  goToPage,
+  setPageSize,
+  canNextPage,
+  canPreviousPage,
+  isPending,
+  isError,
+  error,
+} = usePaginatedQuery({
+  queryKey: ['users'],
+  queryFn: (params) => fetchUsers(params),
+  initialPageSize: 20,
+})
+```
+
+**Features**:
+- Offset/limit pagination pattern
+- State management for page and page size
+- Navigation helpers (`nextPage`, `previousPage`, `goToPage`)
+- Boundary checks (`canNextPage`, `canPreviousPage`)
+- Full error and loading state handling
+- Automatic cache management per page
+
+**Integration with TanStack Table**:
+```typescript
+const { data, page, pageSize, totalPages, setPageSize, goToPage } = usePaginatedQuery(...)
+
+const table = useReactTable({
+  data,
+  columns,
+  state: { pagination: { pageIndex: page - 1, pageSize } },
+  onPaginationChange: (updater) => {
+    const newState = typeof updater === 'function'
+      ? updater({ pageIndex: page - 1, pageSize })
+      : updater
+    setPageSize(newState.pageSize)
+    goToPage(newState.pageIndex + 1)
+  },
+  pageCount: totalPages,
+})
+```
+
+### useInfiniteScroll
+
+Handles cursor-based infinite pagination for feed-like interfaces.
+
+**Location**: `src/hooks/useInfiniteScroll.ts`
+
+**Usage**:
+```typescript
+const {
+  data,
+  hasNextPage,
+  isFetchingNextPage,
+  isPending,
+  isError,
+  error,
+  fetchNextPage,
+  refetch,
+  isRefetching,
+} = useInfiniteScroll({
+  queryKey: ['feed'],
+  queryFn: (cursor) => fetchFeedItems(cursor),
+  pageSize: 20,
+})
+```
+
+**Features**:
+- Cursor-based pagination for better performance
+- Automatic page concatenation
+- Loading states for initial and subsequent pages
+- Error handling per page
+- Refetch capability
+
+**Integration with React Virtual** (for performance):
+```typescript
+import { useVirtualizer } from '@tanstack/react-virtual'
+
+const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useInfiniteScroll(...)
+
+const virtualizer = useVirtualizer({
+  count: hasNextPage ? data.length + 1 : data.length,
+  getScrollElement: () => parentRef.current,
+  estimateSize: () => 50,
+  overscan: 10,
+})
+
+// Load more when scrolling near bottom
+useEffect(() => {
+  const [lastItem] = virtualizer.getVirtualItems().slice(-1)
+  if (!lastItem) return
+  if (lastItem.index >= data.length - 1 && hasNextPage && !isFetchingNextPage) {
+    fetchNextPage()
+  }
+}, [virtualizer.getVirtualItems(), data.length, hasNextPage, isFetchingNextPage, fetchNextPage])
 ```
 
 ## Example Implementations
