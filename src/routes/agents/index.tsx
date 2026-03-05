@@ -1,8 +1,10 @@
-import { createFileRoute } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { useSearch } from '@tanstack/react-router'
 import { useAgents } from '../../hooks/useAgents'
 import { AgentCard } from '../../components/AgentCard'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
-import { Suspense } from 'react'
+import { Suspense, useMemo } from 'react'
+import { AgentsSearchParamSchema, serializeAgentsSearchParams, deserializeAgentsSearchParams } from '../../lib/router-types'
 
 /* eslint-disable react-refresh/only-export-components */
 
@@ -14,8 +16,76 @@ async function loadAgents() {
 }
 
 function AgentsDashboard() {
+  const navigate = useNavigate()
+  const searchParams = useSearch({ from: '/agents/' })
   const { data: response, isLoading, error } = useAgents()
   const agents = response?.data ?? []
+
+  // Validate and deserialize search params
+  const validatedParams = useMemo(() => {
+    try {
+      return deserializeAgentsSearchParams(searchParams)
+    } catch {
+      return {}
+    }
+  }, [searchParams])
+
+  // Filter agents based on search params
+  const filteredAgents = useMemo(() => {
+    return agents.filter((agent) => {
+      if (validatedParams.filter) {
+        const filterLower = validatedParams.filter.toLowerCase()
+        return (
+          agent.name.toLowerCase().includes(filterLower) ||
+          agent.role?.toLowerCase().includes(filterLower) ||
+          agent.status?.toLowerCase().includes(filterLower)
+        )
+      }
+      return true
+    }).sort((a, b) => {
+      const sortField = validatedParams.sort || 'name'
+      const isDesc = validatedParams.sortOrder === 'desc'
+
+      let aValue: string | undefined
+      let bValue: string | undefined
+
+      if (sortField === 'name') {
+        aValue = a.name
+        bValue = b.name
+      } else if (sortField === 'status') {
+        aValue = a.status
+        bValue = b.status
+      } else if (sortField === 'role') {
+        aValue = a.role
+        bValue = b.role
+      }
+
+      if (!aValue || !bValue) return 0
+      const comparison = aValue.localeCompare(bValue)
+      return isDesc ? -comparison : comparison
+    })
+  }, [agents, validatedParams])
+
+  const handleFilterChange = (filter: string) => {
+    navigate({
+      to: '/agents/',
+      search: serializeAgentsSearchParams({ ...validatedParams, filter: filter || undefined }),
+    })
+  }
+
+  const handleSortChange = (sort: 'name' | 'status' | 'role') => {
+    navigate({
+      to: '/agents/',
+      search: serializeAgentsSearchParams({ ...validatedParams, sort }),
+    })
+  }
+
+  const handleSortOrderChange = (sortOrder: 'asc' | 'desc') => {
+    navigate({
+      to: '/agents/',
+      search: serializeAgentsSearchParams({ ...validatedParams, sortOrder }),
+    })
+  }
 
   if (isLoading) {
     return (
@@ -56,11 +126,55 @@ function AgentsDashboard() {
           <p className="text-slate-400 text-sm sm:text-base">Manage and monitor your team agents</p>
         </header>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-          {agents.map((agent) => (
-            <AgentCard key={agent.id} agent={agent} />
-          ))}
+        <div className="mb-6 space-y-4 p-4 bg-slate-800 rounded-lg">
+          <div>
+            <label className="block text-sm font-medium text-slate-300 mb-2">Filter</label>
+            <input
+              type="text"
+              value={validatedParams.filter || ''}
+              onChange={(e) => handleFilterChange(e.target.value)}
+              placeholder="Search by name, role, or status..."
+              className="w-full px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Sort By</label>
+              <select
+                value={validatedParams.sort || 'name'}
+                onChange={(e) => handleSortChange(e.target.value as 'name' | 'status' | 'role')}
+                className="px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:outline-none focus:border-blue-500"
+              >
+                <option value="name">Name</option>
+                <option value="status">Status</option>
+                <option value="role">Role</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-slate-300 mb-2">Order</label>
+              <select
+                value={validatedParams.sortOrder || 'asc'}
+                onChange={(e) => handleSortOrderChange(e.target.value as 'asc' | 'desc')}
+                className="px-3 py-2 bg-slate-700 text-white rounded border border-slate-600 focus:outline-none focus:border-blue-500"
+              >
+                <option value="asc">Ascending</option>
+                <option value="desc">Descending</option>
+              </select>
+            </div>
+          </div>
         </div>
+
+        {filteredAgents.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-slate-400">No agents match your filters</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+            {filteredAgents.map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -89,4 +203,5 @@ export const Route = createFileRoute('/agents/')({
   errorComponent: ({ error }) => (
     <RouteErrorBoundary error={error} />
   ),
+  validateSearch: (search) => AgentsSearchParamSchema.parse(search),
 })
