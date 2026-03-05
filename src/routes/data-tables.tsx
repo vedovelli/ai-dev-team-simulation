@@ -6,6 +6,7 @@ import {
 } from '@tanstack/react-table'
 import { VirtualizedDataTable, useVirtualizedTableState } from '../components/VirtualizedDataTable'
 import { EnhancedDataTable } from '../components/DataTable'
+import { PaginatedDataTableStory } from '../components/DataTable/PaginatedDataTableStory'
 import type { Task, TaskStatus, TaskPriority } from '../types/task'
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
@@ -393,6 +394,11 @@ function DataTablesPage() {
             <li>Customizable per column</li>
           </ul>
         </div>
+      </div>
+
+      {/* Paginated Data Table Section (FAB-49) */}
+      <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
+        <PaginatedDataTableStory totalItems={234} />
       </div>
     </div>
   )
