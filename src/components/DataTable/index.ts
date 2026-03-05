@@ -1,5 +1,7 @@
 export { DataTable } from './DataTable'
 export type { DataTableProps } from './DataTable'
+export { PaginatedDataTable } from './PaginatedDataTable'
+export type { PaginatedDataTableProps } from './PaginatedDataTable'
 export { useDataTableState } from './useDataTableState'
 export type { UseDataTableStateReturn } from './useDataTableState'
 export { useDataTableQuery } from './useDataTableQuery'
