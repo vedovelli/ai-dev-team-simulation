@@ -8,6 +8,12 @@ import {
   flexRender,
 } from '@tanstack/react-table'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { TableRow } from './TableRow'
+import { TableCell } from './TableCell'
+import { PaginationControls } from './PaginationControls'
+import { TableSkeleton } from './TableSkeleton'
+import { TableEmptyState } from './TableEmptyState'
+import { TableErrorState } from './TableErrorState'
 
 interface AdvancedTableProps<T extends Record<string, unknown>> {
   data: T[]
@@ -28,6 +34,9 @@ interface AdvancedTableProps<T extends Record<string, unknown>> {
   estimateSize?: number
   overscan?: number
   rowClassName?: (row: T, index: number) => string
+  onRetryError?: () => void
+  containerHeight?: string
+  variant?: 'simple' | 'extended'
 }
 
 export function AdvancedTable<T extends Record<string, unknown>>({
@@ -49,6 +58,9 @@ export function AdvancedTable<T extends Record<string, unknown>>({
   estimateSize = 50,
   overscan = 10,
   rowClassName,
+  onRetryError,
+  containerHeight = '500px',
+  variant = 'extended',
 }: AdvancedTableProps<T>) {
   const tableContainerRef = useRef<HTMLDivElement>(null)
   const [selectedRowIndex, setSelectedRowIndex] = useState<number | null>(null)
@@ -113,203 +125,145 @@ export function AdvancedTable<T extends Record<string, unknown>>({
 
   if (isError) {
     return (
-      <div
-        className="flex items-center justify-center rounded-lg border border-red-200 bg-red-50 p-8"
-        role="alert"
-      >
-        <div className="text-center">
-          <h2 className="text-lg font-semibold text-red-800 mb-2">Error</h2>
-          <p className="text-red-600">{errorMessage}</p>
-        </div>
-      </div>
+      <TableErrorState
+        message={errorMessage}
+        onRetry={onRetryError}
+      />
     )
+  }
+
+  if (isLoading) {
+    return <TableSkeleton columnCount={columns.length} height={containerHeight} />
+  }
+
+  if (data.length === 0) {
+    return <TableEmptyState message={emptyMessage} />
   }
 
   return (
     <div className="space-y-4">
-      {/* Page Size Selector */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <label htmlFor="page-size" className="text-sm font-medium text-slate-700">
-            Rows per page:
-          </label>
-          <select
-            id="page-size"
-            value={pageSize}
-            onChange={(e) => handlePageSizeChange(parseInt(e.target.value, 10))}
-            className="px-3 py-1 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            disabled={isLoading}
-          >
-            {pageSizeOptions.map((size) => (
-              <option key={size} value={size}>
-                {size}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div className="text-sm text-slate-600">
-          Showing {data.length === 0 ? 0 : pageIndex * pageSize + 1} to{' '}
-          {Math.min((pageIndex + 1) * pageSize, total)} of {total}
-        </div>
-      </div>
-
-      {/* Loading State */}
-      {isLoading && (
-        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-8">
-          <div className="text-center">
-            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mb-4"></div>
-            <p className="text-slate-600">Loading data...</p>
-          </div>
-        </div>
-      )}
-
-      {/* Empty State */}
-      {!isLoading && data.length === 0 && (
-        <div className="flex items-center justify-center rounded-lg border border-slate-200 bg-slate-50 p-8">
-          <p className="text-slate-600">{emptyMessage}</p>
-        </div>
+      {/* Pagination Controls - Top */}
+      {variant === 'extended' && (
+        <PaginationControls
+          currentPage={pageIndex}
+          totalPages={totalPages}
+          canPreviousPage={canPreviousPage}
+          canNextPage={canNextPage}
+          onPreviousPage={handlePreviousPage}
+          onNextPage={handleNextPage}
+          onPageSizeChange={handlePageSizeChange}
+          pageSize={pageSize}
+          pageSizeOptions={pageSizeOptions}
+          totalRecords={total}
+          isLoading={isLoading}
+          variant="extended"
+        />
       )}
 
       {/* Virtualized Table */}
-      {!isLoading && data.length > 0 && (
-        <>
-          <div
-            ref={tableContainerRef}
-            className="rounded-lg border border-slate-200 overflow-auto"
-            style={{ height: '500px' }}
-            role="region"
-            aria-label="Advanced data table with server-side pagination and sorting"
-          >
-            <table
-              className="w-full border-collapse"
-              role="grid"
-              aria-rowcount={total}
-              aria-colcount={columns.length}
-            >
-              <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-300">
-                {headerGroups.map((headerGroup) => (
-                  <tr key={headerGroup.id}>
-                    {headerGroup.headers.map((header) => (
-                      <th
-                        key={header.id}
-                        className="px-4 py-3 text-left text-sm font-semibold text-slate-700 bg-slate-100 border-b border-slate-300"
-                        role="columnheader"
-                        aria-sort={
-                          header.column.getIsSorted()
-                            ? header.column.getIsSorted() === 'asc'
-                              ? 'ascending'
-                              : 'descending'
-                            : 'none'
-                        }
-                      >
-                        {header.isPlaceholder ? null : (
-                          <div
-                            className={
-                              header.column.getCanSort()
-                                ? 'cursor-pointer select-none flex items-center gap-2'
-                                : ''
-                            }
-                            onClick={
-                              header.column.getCanSort()
-                                ? header.column.getToggleSortingHandler()
-                                : undefined
-                            }
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext()
-                            )}
-                            {header.column.getCanSort() && (
-                              <span className="text-xs">
-                                {header.column.getIsSorted() === 'asc'
-                                  ? ' ↑'
-                                  : header.column.getIsSorted() === 'desc'
-                                    ? ' ↓'
-                                    : ' ⇅'}
-                              </span>
-                            )}
-                          </div>
+      <div
+        ref={tableContainerRef}
+        className="rounded-lg border border-slate-200 overflow-auto"
+        style={{ height: containerHeight }}
+        role="region"
+        aria-label="Advanced data table with server-side pagination and sorting"
+      >
+        <table
+          className="w-full border-collapse"
+          role="grid"
+          aria-rowcount={total}
+          aria-colcount={columns.length}
+        >
+          <thead className="sticky top-0 z-10 bg-slate-100 border-b border-slate-300">
+            {headerGroups.map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <TableCell
+                    key={header.id}
+                    isHeader
+                    isSortable={header.column.getCanSort()}
+                    sortDirection={
+                      header.column.getCanSort()
+                        ? header.column.getIsSorted() === 'asc'
+                          ? 'asc'
+                          : header.column.getIsSorted() === 'desc'
+                            ? 'desc'
+                            : null
+                        : null
+                    }
+                    onClick={
+                      header.column.getCanSort()
+                        ? header.column.getToggleSortingHandler()
+                        : undefined
+                    }
+                  >
+                    {header.isPlaceholder
+                      ? null
+                      : flexRender(
+                          header.column.columnDef.header,
+                          header.getContext()
                         )}
-                      </th>
-                    ))}
-                  </tr>
+                  </TableCell>
                 ))}
-              </thead>
-              <tbody>
-                {paddingTop > 0 && (
-                  <tr>
-                    <td style={{ height: `${paddingTop}px` }} />
-                  </tr>
-                )}
-                {virtualItems.map((virtualItem) => {
-                  const row = rows[virtualItem.index]
-                  const isSelected = selectedRowIndex === virtualItem.index
+              </tr>
+            ))}
+          </thead>
+          <tbody>
+            {paddingTop > 0 && (
+              <tr>
+                <td style={{ height: `${paddingTop}px` }} />
+              </tr>
+            )}
+            {virtualItems.map((virtualItem) => {
+              const row = rows[virtualItem.index]
+              const isSelected = selectedRowIndex === virtualItem.index
 
-                  return (
-                    <tr
-                      key={row.id}
-                      data-index={virtualItem.index}
-                      className={`border-b border-slate-200 hover:bg-blue-50 transition-colors focus-visible:outline-2 focus-visible:outline-blue-500 ${
-                        isSelected ? 'bg-blue-100' : ''
-                      } ${rowClassName ? rowClassName(row.original, virtualItem.index) : ''}`}
-                      style={{
-                        height: `${virtualItem.size}px`,
-                      }}
-                      onClick={() => setSelectedRowIndex(virtualItem.index)}
-                      role="row"
-                      aria-rowindex={pageIndex * pageSize + virtualItem.index + 2}
-                      tabIndex={isSelected ? 0 : -1}
-                    >
-                      {row.getVisibleCells().map((cell) => (
-                        <td
-                          key={cell.id}
-                          className="px-4 py-3 text-sm text-slate-900"
-                          role="gridcell"
-                        >
-                          {flexRender(
-                            cell.column.columnDef.cell,
-                            cell.getContext()
-                          )}
-                        </td>
-                      ))}
-                    </tr>
-                  )
-                })}
-                {paddingBottom > 0 && (
-                  <tr>
-                    <td style={{ height: `${paddingBottom}px` }} />
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+              return (
+                <TableRow
+                  key={row.id}
+                  isSelected={isSelected}
+                  onSelect={() => setSelectedRowIndex(virtualItem.index)}
+                  rowIndex={virtualItem.index}
+                  pageIndex={pageIndex}
+                  pageSize={pageSize}
+                  className={rowClassName ? rowClassName(row.original, virtualItem.index) : ''}
+                  style={{ height: `${virtualItem.size}px` }}
+                >
+                  {row.getVisibleCells().map((cell) => (
+                    <TableCell key={cell.id}>
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext()
+                      )}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              )
+            })}
+            {paddingBottom > 0 && (
+              <tr>
+                <td style={{ height: `${paddingBottom}px` }} />
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
 
-          {/* Pagination Controls */}
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-slate-600">
-              Page {pageIndex + 1} of {totalPages}
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={handlePreviousPage}
-                disabled={!canPreviousPage || isLoading}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Previous page"
-              >
-                ← Previous
-              </button>
-              <button
-                onClick={handleNextPage}
-                disabled={!canNextPage || isLoading}
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm font-medium hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Next page"
-              >
-                Next →
-              </button>
-            </div>
-          </div>
-        </>
-      )}
+      {/* Pagination Controls - Bottom */}
+      <PaginationControls
+        currentPage={pageIndex}
+        totalPages={totalPages}
+        canPreviousPage={canPreviousPage}
+        canNextPage={canNextPage}
+        onPreviousPage={handlePreviousPage}
+        onNextPage={handleNextPage}
+        onPageSizeChange={handlePageSizeChange}
+        pageSize={pageSize}
+        pageSizeOptions={pageSizeOptions}
+        totalRecords={total}
+        isLoading={isLoading}
+        variant={variant}
+      />
     </div>
   )
 }
