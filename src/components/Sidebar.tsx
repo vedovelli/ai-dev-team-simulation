@@ -14,6 +14,7 @@ const navItems: NavItem[] = [
   { label: 'Create', href: '/create' },
   { label: 'Agents', href: '/agents' },
   { label: 'Sprints', href: '/sprints' },
+  { label: 'Search & Filters', href: '/search-filters' },
 ]
 
 export function Sidebar() {
