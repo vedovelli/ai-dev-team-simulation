@@ -7,6 +7,7 @@ import {
 import { VirtualizedDataTable, useVirtualizedTableState } from '../components/VirtualizedDataTable'
 import { EnhancedDataTable } from '../components/DataTable'
 import { PaginatedDataTableStory } from '../components/DataTable/PaginatedDataTableStory'
+import { useTableState } from '../hooks/useTableState'
 import type { Task, TaskStatus, TaskPriority } from '../types/task'
 
 function SortIcon({ isSorted }: { isSorted: false | 'asc' | 'desc' }) {
@@ -196,6 +197,7 @@ const taskColumns: ColumnDef<Task>[] = [
 
 function DataTablesPage() {
   const tableState = useVirtualizedTableState()
+  const urlTableState = useTableState({ pageSize: 10 })
   const [dataSize, setDataSize] = useState(1000)
 
   const tasks = useMemo(() => generateMockTasks(dataSize), [dataSize])
@@ -229,7 +231,10 @@ function DataTablesPage() {
           </select>
         </div>
         <button
-          onClick={() => tableState.resetState()}
+          onClick={() => {
+            tableState.resetState()
+            urlTableState.clearAllState()
+          }}
           className="px-4 py-2 bg-slate-300 text-slate-700 rounded-lg hover:bg-slate-400 transition-colors font-medium"
         >
           Reset Filters
@@ -255,6 +260,22 @@ function DataTablesPage() {
           <p className="text-sm text-amber-800">Arrow keys to navigate rows</p>
         </div>
       </div>
+
+      {/* URL State Info */}
+      {urlTableState.hasActiveState && (
+        <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <h3 className="font-semibold text-blue-900 mb-2">URL State Persistence</h3>
+          <p className="text-sm text-blue-800 mb-2">
+            Your table state is persisted in the URL! Try:
+          </p>
+          <ul className="space-y-1 text-sm text-blue-800 list-disc list-inside">
+            {urlTableState.hasActiveSorting && <li>Click column headers to sort (state saved to URL)</li>}
+            {urlTableState.hasActiveFilters && <li>Filters are saved in URL query params</li>}
+            <li>Share the URL to preserve this exact table view</li>
+            <li>Use browser back/forward buttons to restore previous states</li>
+          </ul>
+        </div>
+      )}
 
       {/* Virtualized Table */}
       <div className="bg-white p-6 rounded-lg border border-slate-200 shadow-sm">
