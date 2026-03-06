@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, useNavigate, Link } from '@tanstack/react-router'
 import { useSearch } from '@tanstack/react-router'
 import { useAgents } from '../../hooks/useAgents'
 import { AgentCard } from '../../components/AgentCard'
@@ -121,9 +121,17 @@ function AgentsDashboard() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 bg-slate-950 min-h-screen text-white">
       <div className="max-w-7xl mx-auto">
-        <header className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-bold mb-2">Agent Dashboard</h1>
-          <p className="text-slate-400 text-sm sm:text-base">Manage and monitor your team agents</p>
+        <header className="mb-8 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">Agent Dashboard</h1>
+            <p className="text-slate-400 text-sm sm:text-base">Manage and monitor your team agents</p>
+          </div>
+          <Link
+            to="/agents/bulk-operations"
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+          >
+            Bulk Operations
+          </Link>
         </header>
 
         <div className="mb-6 space-y-4 p-4 bg-slate-800 rounded-lg">
