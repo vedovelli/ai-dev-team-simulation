@@ -3,12 +3,12 @@ import { createContext, useContext, useState } from 'react'
 interface ToastMessage {
   id: string
   message: string
-  type: 'success' | 'error'
+  type: 'success' | 'error' | 'warning' | 'info'
 }
 
 interface ToastContextType {
   toasts: ToastMessage[]
-  showToast: (message: string, type: 'success' | 'error') => void
+  showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void
   removeToast: (id: string) => void
 }
 
@@ -50,16 +50,16 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [exitingToasts, setExitingToasts] = useState<Set<string>>(new Set())
 
-  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+  const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
     const id = `toast-${Date.now()}`
     setToasts((prev) => [...prev, { id, message, type }])
     setExitingToasts((prev) => new Set(prev))
 
-    // Auto-remove after 3 seconds
+    // Auto-remove after 5 seconds
     setTimeout(() => {
       setExitingToasts((prev) => new Set(prev).add(id))
       setTimeout(() => removeToast(id), 300)
-    }, 3000)
+    }, 5000)
   }
 
   const removeToast = (id: string) => {
@@ -76,21 +76,28 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
       {children}
       <style>{toastAnimationStyles}</style>
       <div className="fixed bottom-4 right-4 space-y-2 z-50" role="status" aria-live="polite" aria-atomic="true">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`px-4 py-3 rounded-lg text-white font-medium ${
-              toast.type === 'success'
-                ? 'bg-emerald-500'
-                : 'bg-red-500'
-            } ${
-              exitingToasts.has(toast.id) ? 'toast-exit' : 'toast-enter'
-            } transition-all duration-300`}
-            role="alert"
-          >
-            {toast.message}
-          </div>
-        ))}
+        {toasts.map((toast) => {
+          const colorClasses = {
+            success: 'bg-emerald-500',
+            error: 'bg-red-500',
+            warning: 'bg-amber-500',
+            info: 'bg-blue-500',
+          }
+
+          return (
+            <div
+              key={toast.id}
+              className={`px-4 py-3 rounded-lg text-white font-medium ${
+                colorClasses[toast.type]
+              } ${
+                exitingToasts.has(toast.id) ? 'toast-exit' : 'toast-enter'
+              } transition-all duration-300`}
+              role="alert"
+            >
+              {toast.message}
+            </div>
+          )
+        })}
       </div>
     </ToastContext.Provider>
   )

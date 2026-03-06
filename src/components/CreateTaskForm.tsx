@@ -6,7 +6,7 @@ import { useCreateTask } from '../hooks/useCreateTask'
 import { useToast } from './Toast'
 import { MutationErrorAlert } from './MutationErrorAlert'
 import { MutationStatus } from './MutationStatus'
-import { FormField } from './FormField'
+import { FormField, FieldError, ValidationStatus } from './FormField'
 import type { TaskStatus, TaskPriority } from '../types/task'
 
 interface FormFields {
@@ -153,6 +153,12 @@ export const CreateTaskForm = () => {
                     </div>
                   )}
                 </div>
+                {field.state.meta.errorMap && (
+                  <FieldError error={field.state.meta.errorMap?.onBlur?.[0]} fieldName={field.name} />
+                )}
+                <ValidationStatus
+                  state={validatingName ? 'validating' : field.state.meta.errors.length > 0 ? 'invalid' : 'idle'}
+                />
               </FormField>
             )}
           </form.Field>
@@ -184,6 +190,9 @@ export const CreateTaskForm = () => {
                   <option value="in-review">In Review</option>
                   <option value="done">Done</option>
                 </select>
+                {field.state.meta.errors.length > 0 && (
+                  <FieldError error={field.state.meta.errors[0]} fieldName={field.name} />
+                )}
               </FormField>
             )}
           </form.Field>
@@ -214,6 +223,9 @@ export const CreateTaskForm = () => {
                   placeholder="Enter team name"
                   disabled={isPending}
                 />
+                {field.state.meta.errors.length > 0 && (
+                  <FieldError error={field.state.meta.errors[0]} fieldName={field.name} />
+                )}
               </FormField>
             )}
           </form.Field>
@@ -244,6 +256,9 @@ export const CreateTaskForm = () => {
                   placeholder="Enter sprint name"
                   disabled={isPending}
                 />
+                {field.state.meta.errors.length > 0 && (
+                  <FieldError error={field.state.meta.errors[0]} fieldName={field.name} />
+                )}
               </FormField>
             )}
           </form.Field>
@@ -274,6 +289,9 @@ export const CreateTaskForm = () => {
                   <option value="medium">Medium</option>
                   <option value="high">High</option>
                 </select>
+                {field.state.meta.errors.length > 0 && (
+                  <FieldError error={field.state.meta.errors[0]} fieldName={field.name} />
+                )}
               </FormField>
             )}
           </form.Field>
@@ -312,6 +330,9 @@ export const CreateTaskForm = () => {
                   placeholder="Enter estimated hours"
                   disabled={isPending}
                 />
+                {field.state.meta.errors.length > 0 && (
+                  <FieldError error={field.state.meta.errors[0]} fieldName={field.name} />
+                )}
               </FormField>
             )}
           </form.Field>
@@ -343,6 +364,9 @@ export const CreateTaskForm = () => {
                   placeholder="Enter agent name or ID"
                   disabled={isPending}
                 />
+                {field.state.meta.errors.length > 0 && (
+                  <FieldError error={field.state.meta.errors[0]} fieldName={field.name} />
+                )}
               </FormField>
             )}
           </form.Field>
