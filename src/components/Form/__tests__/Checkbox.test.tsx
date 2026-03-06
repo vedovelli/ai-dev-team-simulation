@@ -86,4 +86,39 @@ describe('Checkbox Component', () => {
 
     expect(mockHandleBlur).toHaveBeenCalled()
   })
+
+  it('supports indeterminate state', () => {
+    const field = createMockField(false)
+
+    const { container } = render(
+      <Checkbox field={field as any} indeterminate />
+    )
+
+    const checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement
+    expect(checkbox.indeterminate).toBe(true)
+  })
+
+  it('updates indeterminate state when prop changes', () => {
+    const field = createMockField(false)
+
+    const { container, rerender } = render(
+      <Checkbox field={field as any} indeterminate={false} />
+    )
+
+    let checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement
+    expect(checkbox.indeterminate).toBe(false)
+
+    rerender(<Checkbox field={field as any} indeterminate={true} />)
+    checkbox = container.querySelector('input[type="checkbox"]') as HTMLInputElement
+    expect(checkbox.indeterminate).toBe(true)
+  })
+
+  it('handles unchecked state correctly', () => {
+    const field = createMockField(false)
+
+    render(<Checkbox field={field as any} />)
+
+    const checkbox = screen.getByRole('checkbox') as HTMLInputElement
+    expect(checkbox.checked).toBe(false)
+  })
 })

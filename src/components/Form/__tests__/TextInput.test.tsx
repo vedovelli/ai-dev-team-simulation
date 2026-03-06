@@ -97,4 +97,44 @@ describe('TextInput Component', () => {
     const input = screen.getByRole('textbox') as HTMLInputElement
     expect(input.value).toBe('john@example.com')
   })
+
+  it('renders help text when provided', () => {
+    const field = createMockField()
+
+    render(
+      <TextInput
+        field={field as any}
+        label="Email"
+        helpText="We never share your email"
+      />
+    )
+
+    expect(screen.getByText("We never share your email")).toBeInTheDocument()
+  })
+
+  it('supports number input type', () => {
+    const mockHandleChange = vi.fn()
+    const field = createMockField()
+    field.handleChange = mockHandleChange
+
+    render(<TextInput field={field as any} type="number" />)
+
+    const input = screen.getByRole('spinbutton') as HTMLInputElement
+    expect(input.type).toBe('number')
+
+    fireEvent.change(input, { target: { value: '42' } })
+    expect(mockHandleChange).toHaveBeenCalledWith(42)
+  })
+
+  it('handles empty number input', () => {
+    const mockHandleChange = vi.fn()
+    const field = createMockField()
+    field.handleChange = mockHandleChange
+
+    render(<TextInput field={field as any} type="number" />)
+
+    const input = screen.getByRole('spinbutton')
+    fireEvent.change(input, { target: { value: '' } })
+    expect(mockHandleChange).toHaveBeenCalledWith('')
+  })
 })
