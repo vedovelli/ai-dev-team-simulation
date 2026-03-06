@@ -9,6 +9,7 @@
  * - EmailValidationExample: useFormValidation with sync/async email validation
  * - PasswordStrengthExample: useFormValidation with password strength checking
  * - FormValidationCompleteExample: Full form with multiple validations and Zod schema
+ * - FormFieldAsyncValidationExample: useFormField with async validators and real-time feedback
  */
 
 export { LoginFormExample } from './LoginFormExample'
@@ -18,3 +19,4 @@ export { CrudFormExample } from './CrudFormExample'
 export { EmailValidationExample } from './EmailValidationExample'
 export { PasswordStrengthExample } from './PasswordStrengthExample'
 export { FormValidationCompleteExample } from './FormValidationCompleteExample'
+export { FormFieldAsyncValidationExample } from './FormFieldAsyncValidationExample'
