@@ -5,6 +5,7 @@ import type { Activity, ActivityEventType } from '../types/activity'
 import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
 import type { User, UserRole } from '../types/user'
 import type { Project } from '../types/project'
+import type { Employee } from '../types/employee'
 import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
 import { formSubmissionHandlers } from './formSubmissionHandlers'
 
@@ -42,6 +43,75 @@ interface User {
   role: string
   createdAt: string
 }
+
+// Generate mock employee data with 50+ records
+function generateMockEmployees(): Employee[] {
+  const firstNames = [
+    'John', 'Jane', 'Michael', 'Sarah', 'David', 'Emma', 'James', 'Lisa',
+    'Robert', 'Mary', 'Richard', 'Patricia', 'Joseph', 'Jennifer', 'Thomas',
+    'Linda', 'Charles', 'Barbara', 'Christopher', 'Elizabeth', 'Daniel',
+    'Susan', 'Matthew', 'Jessica', 'Mark', 'Karen', 'Donald', 'Nancy',
+    'Steven', 'Lisa', 'Paul', 'Betty', 'Andrew', 'Margaret', 'Joshua',
+    'Sandra', 'Kenneth', 'Ashley', 'Kevin', 'Kimberly', 'Brian', 'Emily',
+    'George', 'Donna', 'Edward', 'Michelle', 'Ronald', 'Dorothy', 'Anthony',
+  ]
+
+  const lastNames = [
+    'Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller',
+    'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez',
+    'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin',
+    'Lee', 'Perez', 'Thompson', 'White', 'Harris', 'Sanchez', 'Clark',
+    'Ramirez', 'Lewis', 'Robinson', 'Young', 'Allen', 'King', 'Wright',
+    'Scott', 'Torres', 'Peterson', 'Phillips', 'Campbell', 'Parker',
+  ]
+
+  const departments = [
+    'Engineering', 'Sales', 'Marketing', 'HR', 'Finance', 'Operations',
+    'Product', 'Design', 'Support', 'Legal',
+  ]
+
+  const positions = [
+    'Manager', 'Senior Developer', 'Junior Developer', 'Product Manager',
+    'Designer', 'Analyst', 'Coordinator', 'Specialist', 'Lead', 'Director',
+    'Consultant', 'Engineer', 'Associate',
+  ]
+
+  const statuses: Array<'active' | 'inactive' | 'on-leave'> = [
+    'active', 'active', 'active', 'inactive', 'on-leave',
+  ]
+
+  const employees: Employee[] = []
+  for (let i = 0; i < 60; i++) {
+    const firstName = firstNames[i % firstNames.length]
+    const lastName = lastNames[i % lastNames.length]
+    employees.push({
+      id: `emp-${i + 1}`,
+      firstName,
+      lastName,
+      email: `${firstName.toLowerCase()}.${lastName.toLowerCase()}@company.com`,
+      department: departments[i % departments.length],
+      position: positions[i % positions.length],
+      salary: 50000 + Math.floor(Math.random() * 150000),
+      joinDate: new Date(
+        2020 + Math.floor(i / 20),
+        i % 12,
+        (i % 28) + 1
+      ).toISOString(),
+      status: statuses[i % statuses.length],
+      phone: `+1-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 900) + 100}-${Math.floor(Math.random() * 9000) + 1000}`,
+      createdAt: new Date(
+        2020 + Math.floor(i / 20),
+        i % 12,
+        (i % 28) + 1
+      ).toISOString(),
+      updatedAt: new Date().toISOString(),
+    })
+  }
+  return employees
+}
+
+// In-memory store for employees
+const employeesStore: Employee[] = generateMockEmployees()
 
 // Mock agents data with tasks (for workload dashboard)
 const mockAgents = [
@@ -428,6 +498,85 @@ function generateAgentHistory(agentId: string): HistoryEntry[] {
 export const handlers = [
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
+  }),
+
+  // Employees endpoints
+  http.get('/api/employees', ({ request }) => {
+    const url = new URL(request.url)
+    const search = url.searchParams.get('search') || ''
+    const department = url.searchParams.get('department')
+    const status = url.searchParams.get('status')
+    const sortBy = url.searchParams.get('sortBy') || 'firstName'
+    const sortOrder = url.searchParams.get('sortOrder') || 'asc'
+    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
+    const pageSize = parseInt(url.searchParams.get('pageSize') || '25', 10)
+
+    let filteredEmployees = [...employeesStore]
+
+    // Filter by search
+    if (search) {
+      const searchLower = search.toLowerCase()
+      filteredEmployees = filteredEmployees.filter((emp) =>
+        emp.firstName.toLowerCase().includes(searchLower) ||
+        emp.lastName.toLowerCase().includes(searchLower) ||
+        emp.email.toLowerCase().includes(searchLower) ||
+        emp.position.toLowerCase().includes(searchLower)
+      )
+    }
+
+    // Filter by department
+    if (department) {
+      filteredEmployees = filteredEmployees.filter(
+        (emp) => emp.department === department
+      )
+    }
+
+    // Filter by status
+    if (status) {
+      filteredEmployees = filteredEmployees.filter(
+        (emp) => emp.status === status
+      )
+    }
+
+    // Sorting
+    const validSortFields = [
+      'id',
+      'firstName',
+      'lastName',
+      'email',
+      'department',
+      'position',
+      'salary',
+      'status',
+      'joinDate',
+    ]
+    const validSortBy = validSortFields.includes(sortBy) ? sortBy : 'firstName'
+
+    filteredEmployees.sort((a, b) => {
+      const aValue = a[validSortBy as keyof Employee] ?? ''
+      const bValue = b[validSortBy as keyof Employee] ?? ''
+
+      let comparison = 0
+      if (typeof aValue === 'string' && typeof bValue === 'string') {
+        comparison = aValue.localeCompare(bValue)
+      } else if (typeof aValue === 'number' && typeof bValue === 'number') {
+        comparison = aValue - bValue
+      }
+
+      return sortOrder === 'desc' ? -comparison : comparison
+    })
+
+    // Pagination
+    const start = pageIndex * pageSize
+    const end = start + pageSize
+    const paginatedEmployees = filteredEmployees.slice(start, end)
+
+    return HttpResponse.json({
+      data: paginatedEmployees,
+      total: filteredEmployees.length,
+      pageIndex,
+      pageSize,
+    })
   }),
 
   // Users endpoints
