@@ -52,6 +52,13 @@ export { useFormSubmit } from './useFormSubmit'
 export { useValidation, validationRules } from './useValidation'
 export { ExampleForm } from './ExampleForm'
 
+export type {
+  ValidationError,
+  AsyncValidatorConfig,
+  UseFormFieldProps,
+  UseFormFieldReturn,
+} from './useFormField'
+
 // TanStack Form exports
 export { useForm } from './useForm'
 export { useLoginForm } from './useLoginForm'
