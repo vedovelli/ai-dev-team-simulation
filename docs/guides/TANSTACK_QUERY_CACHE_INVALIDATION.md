@@ -61,6 +61,11 @@ export function useCreateTaskMutation() {
       // Invalidate all task lists - they'll refetch automatically
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() })
     },
+    onError: (error) => {
+      // Handle failure gracefully
+      console.error('Failed to create task:', error.message)
+      // Optionally show toast notification: toast.error('Failed to create task')
+    },
   })
 }
 ```
@@ -111,6 +116,7 @@ export function useUpdateTaskWithOptimisticMutation() {
     onMutate: async ({ id, updates }) => {
       // Cancel any pending refetches to avoid overwriting optimistic update
       await queryClient.cancelQueries({ queryKey: queryKeys.tasks.detail(id) })
+      // Also cancel lists to prevent stale data from overwriting optimistic updates
       await queryClient.cancelQueries({ queryKey: queryKeys.tasks.lists() })
 
       // Snapshot previous data for rollback if needed
@@ -159,6 +165,21 @@ export function useUpdateTaskWithOptimisticMutation() {
       queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() })
     },
   })
+}
+```
+
+**⚠️ Important Pagination Note**: This pattern assumes a flat array structure for lists. If your lists use pagination or cursor-based pagination, directly updating with `setQueryData` will only work for items on the current page and may update wrong items on different pages. For paginated lists, use `invalidateQueries` instead of `setQueryData` to be safe:
+
+```typescript
+// Safer for paginated lists - let React Query refetch
+onMutate: async ({ id, updates }) => {
+  await queryClient.cancelQueries({ queryKey: queryKeys.tasks.lists() })
+  // Just cancel, don't try to update optimistically
+  return { id, updates }
+},
+onSuccess: () => {
+  // Refetch all pages to ensure consistency
+  queryClient.invalidateQueries({ queryKey: queryKeys.tasks.lists() })
 }
 ```
 
