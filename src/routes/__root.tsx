@@ -27,6 +27,15 @@ function RootLayout() {
                   </Link>
                   <div className="hidden md:flex gap-6">
                     <Link
+                      to="/dashboard"
+                      className="text-sm hover:text-slate-300 transition-colors"
+                      activeProps={{
+                        className: 'text-blue-400 font-semibold',
+                      }}
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
                       to="/teams"
                       className="text-sm hover:text-slate-300 transition-colors"
                       activeProps={{
