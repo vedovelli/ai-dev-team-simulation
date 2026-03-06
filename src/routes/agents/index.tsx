@@ -126,12 +126,20 @@ function AgentsDashboard() {
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">Agent Dashboard</h1>
             <p className="text-slate-400 text-sm sm:text-base">Manage and monitor your team agents</p>
           </div>
-          <Link
-            to="/agents/bulk-operations"
-            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
-          >
-            Bulk Operations
-          </Link>
+          <div className="flex gap-3">
+            <Link
+              to="/agents/performance"
+              className="px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 font-medium text-sm"
+            >
+              Performance Metrics
+            </Link>
+            <Link
+              to="/agents/bulk-operations"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium text-sm"
+            >
+              Bulk Operations
+            </Link>
+          </div>
         </header>
 
         <div className="mb-6 space-y-4 p-4 bg-slate-800 rounded-lg">
