@@ -9,6 +9,7 @@ import type { Employee } from '../types/employee'
 import type { SprintTask } from '../types/sprint'
 import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
 import { formSubmissionHandlers } from './formSubmissionHandlers'
+import { metricsHandlers } from './handlers/metrics'
 
 interface Team {
   id: string
@@ -2133,4 +2134,6 @@ export const paginatedHandlers = [
     tasksStore[taskIndex] = updatedTask
     return HttpResponse.json(updatedTask, { status: 200 })
   }),
+
+  ...metricsHandlers,
 ]
