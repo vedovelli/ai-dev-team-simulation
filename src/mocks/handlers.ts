@@ -1908,4 +1908,41 @@ export const paginatedHandlers = [
 
     return HttpResponse.json({ available })
   }),
+
+  // Task Monitoring Endpoint
+  // Provides real-time task monitoring with smart polling support
+  http.get('/api/task-monitor', ({ request }) => {
+    const url = new URL(request.url)
+    const status = url.searchParams.get('status')
+    const team = url.searchParams.get('team')
+    const assignee = url.searchParams.get('assignee')
+
+    let monitoredTasks = [...tasksStore]
+
+    if (status) {
+      monitoredTasks = monitoredTasks.filter((task) => task.status === status)
+    }
+
+    if (team) {
+      monitoredTasks = monitoredTasks.filter((task) => task.team === team)
+    }
+
+    if (assignee) {
+      monitoredTasks = monitoredTasks.filter((task) => task.assignee === assignee)
+    }
+
+    // Return tasks with real-time simulation (shuffle based on request time)
+    // This simulates live updates in monitoring scenario
+    const monitored = monitoredTasks.map((task) => ({
+      ...task,
+      // Update timestamp to reflect live polling
+      updatedAt: new Date().toISOString(),
+      // Simulate progress updates in 'in-progress' tasks
+      ...(task.status === 'in-progress' && {
+        _polledAt: new Date().toISOString(),
+      }),
+    }))
+
+    return HttpResponse.json(monitored)
+  }),
 ]
