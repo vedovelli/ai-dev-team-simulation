@@ -1,12 +1,29 @@
+export type SprintStatus = 'planning' | 'active' | 'completed'
+
 export interface Sprint {
   id: string
   name: string
+  status: SprintStatus
   goals: string
   tasks: string[]
   estimatedPoints: number
+  taskCount: number
+  completedCount: number
   createdAt: string
   startDate?: string
   endDate?: string
+}
+
+export type TaskStatus = 'backlog' | 'in-progress' | 'in-review' | 'done'
+export type TaskPriority = 'low' | 'medium' | 'high'
+
+export interface SprintTask {
+  id: string
+  title: string
+  status: TaskStatus
+  assignee: string
+  priority: TaskPriority
+  sprintId: string
 }
 
 export interface SprintMetrics {

@@ -6,6 +6,7 @@ import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
 import type { User, UserRole } from '../types/user'
 import type { Project } from '../types/project'
 import type { Employee } from '../types/employee'
+import type { SprintTask } from '../types/sprint'
 import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
 import { formSubmissionHandlers } from './formSubmissionHandlers'
 
@@ -270,8 +271,32 @@ function getTaskIdCounter(): number {
   return maxId + 1
 }
 
+// Generate mock sprints data
+function generateMockSprints(): Sprint[] {
+  const statuses = ['planning', 'active', 'completed'] as const
+  const sprints: Sprint[] = []
+
+  for (let i = 1; i <= 5; i++) {
+    sprints.push({
+      id: `sprint-${i}`,
+      name: `Sprint ${i}`,
+      status: statuses[i % statuses.length],
+      goals: `Sprint ${i} goals and objectives`,
+      tasks: [],
+      estimatedPoints: 40 + i * 10,
+      taskCount: 15 + i * 5,
+      completedCount: i * 3,
+      createdAt: new Date(Date.now() - (6 - i) * 14 * 24 * 60 * 60 * 1000).toISOString(),
+      startDate: new Date(Date.now() - (6 - i) * 14 * 24 * 60 * 60 * 1000).toISOString(),
+      endDate: i < 3 ? new Date(Date.now() + (3 - i) * 14 * 24 * 60 * 60 * 1000).toISOString() : undefined,
+    })
+  }
+
+  return sprints
+}
+
 // In-memory store for sprints
-const sprintsStore: Sprint[] = []
+const sprintsStore: Sprint[] = generateMockSprints()
 
 // Generate mock activities for activity feed
 function generateMockActivities(): Activity[] {
@@ -928,6 +953,53 @@ export const handlers = [
       },
       burndownData,
     })
+  }),
+
+  http.get('/api/sprints/:id', ({ params }) => {
+    const { id } = params
+    const sprint = sprintsStore.find((s) => s.id === id)
+
+    if (!sprint) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    return HttpResponse.json(sprint)
+  }),
+
+  http.get('/api/sprints/:id/tasks', ({ params }) => {
+    const { id } = params
+    const sprintTasks = tasksStore
+      .filter((task) => task.sprint === id)
+      .map((task) => ({
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        assignee: task.assignee,
+        priority: task.priority,
+        sprintId: task.sprint,
+      } as SprintTask))
+
+    return HttpResponse.json(sprintTasks)
+  }),
+
+  http.patch('/api/sprints/:id', async ({ request, params }) => {
+    const { id } = params
+    const body = await request.json() as Partial<typeof sprintsStore[0]>
+
+    const sprintIndex = sprintsStore.findIndex((s) => s.id === id)
+    if (sprintIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    const updatedSprint = { ...sprintsStore[sprintIndex], ...body }
+    sprintsStore[sprintIndex] = updatedSprint
+    return HttpResponse.json(updatedSprint)
   }),
 
   http.post('/api/tasks/validate-name', async ({ request }) => {
