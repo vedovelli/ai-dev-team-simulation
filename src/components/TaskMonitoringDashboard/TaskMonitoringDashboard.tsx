@@ -26,6 +26,8 @@ import { useVirtualizer } from '@tanstack/react-virtual'
 import { useRef } from 'react'
 import type { Task, TaskStatus, TaskPriority } from '@/types/task'
 import { useTaskMonitor } from '@/hooks/useTaskMonitor'
+import { useAgents } from '@/hooks/useAgents'
+import { TaskAssignmentModal } from '../TaskAssignmentModal'
 import { MutationErrorAlert } from '../MutationErrorAlert'
 
 export interface TaskMonitoringDashboardProps {
@@ -117,7 +119,9 @@ export function TaskMonitoringDashboard({
     })
 
   const [sorting, setSorting] = useState<SortingState>([])
+  const [selectedTask, setSelectedTask] = useState<Task | null>(null)
   const tableContainerRef = useRef<HTMLDivElement>(null)
+  const { data: agents = [] } = useAgents()
 
   // Define columns for the monitoring dashboard
   const columns: ColumnDef<Task>[] = useMemo(
@@ -205,6 +209,22 @@ export function TaskMonitoringDashboard({
             <div className="text-xs text-slate-600">
               {date.toLocaleString()}
             </div>
+          )
+        },
+      },
+      {
+        id: 'actions',
+        header: 'Actions',
+        size: 100,
+        cell: (info) => {
+          const task = info.row.original
+          return (
+            <button
+              onClick={() => setSelectedTask(task)}
+              className="px-3 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 transition-colors"
+            >
+              Assign
+            </button>
           )
         },
       },
@@ -385,6 +405,16 @@ export function TaskMonitoringDashboard({
         <span>Showing {rows.length} task{rows.length !== 1 ? 's' : ''}</span>
         <span>Last update: {new Date().toLocaleTimeString()}</span>
       </div>
+
+      {/* Task Assignment Modal */}
+      {selectedTask && (
+        <TaskAssignmentModal
+          task={selectedTask}
+          agents={agents}
+          isOpen={true}
+          onClose={() => setSelectedTask(null)}
+        />
+      )}
     </div>
   )
 }
