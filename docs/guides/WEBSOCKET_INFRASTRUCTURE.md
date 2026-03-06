@@ -245,11 +245,38 @@ const { invalidateQuery } = useWebSocketQueryIntegration({
 })
 ```
 
+#### 5. Auto-Handle Message with handleWebSocketMessage
+
+Use `handleWebSocketMessage` to automatically apply configured cache strategy when receiving WebSocket messages:
+
+```typescript
+const { handleWebSocketMessage } = useWebSocketQueryIntegration({
+  queryKey: ['agents'],
+  onMergeData: (existing, incoming) => ({
+    ...existing,
+    agents: existing.agents.map(a =>
+      a.id === incoming.id ? incoming : a
+    ),
+  }),
+})
+
+// In your WebSocket handler
+const { isConnected } = useWebSocket({
+  url: 'ws://localhost:8080',
+  onMessage: (message) => {
+    if (message.type === 'agent-update') {
+      // Automatically updates query cache based on configuration
+      handleWebSocketMessage(message)
+    }
+  },
+})
+```
+
 ### API Reference
 
 ```typescript
 interface WebSocketQueryIntegrationOptions {
-  queryKey: string[]                          // Query key to update
+  queryKey: (string | number)[]               // Query key to update
   onMergeData?: (existing, incoming) => any   // Custom merge function
   onInvalidate?: boolean                      // Invalidate instead of update
   onRefetch?: boolean                         // Refetch instead of update

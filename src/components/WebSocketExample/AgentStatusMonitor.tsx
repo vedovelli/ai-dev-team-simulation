@@ -44,7 +44,7 @@ export function AgentStatusMonitor({ wsUrl }: { wsUrl: string }) {
   const [lastUpdate, setLastUpdate] = useState<AgentStatusUpdate | null>(null)
 
   // Fetch initial agent list
-  const { data: agents = [] } = useQuery({
+  const { data: agents = [], isLoading, error: queryError, refetch } = useQuery({
     queryKey: ['agents'],
     queryFn: async () => {
       // Mock data - in real app, fetch from server
@@ -54,6 +54,8 @@ export function AgentStatusMonitor({ wsUrl }: { wsUrl: string }) {
         { id: '3', name: 'Agent Gamma', status: 'busy' as const, lastSeen: new Date().toISOString() },
       ]
     },
+    retry: 1,
+    gcTime: 5 * 60 * 1000, // Cache for 5 minutes
   })
 
   // Setup WebSocket query integration
@@ -122,6 +124,21 @@ export function AgentStatusMonitor({ wsUrl }: { wsUrl: string }) {
           {error && <span className="text-sm text-red-600">Error: {error.message}</span>}
         </div>
 
+        {/* Query Error State */}
+        {queryError && (
+          <div className="mb-4 p-3 bg-red-50 rounded border border-red-200">
+            <p className="text-sm font-medium text-red-700 mb-2">
+              Failed to load agents
+            </p>
+            <button
+              onClick={() => refetch()}
+              className="px-2 py-1 bg-red-500 text-white text-xs rounded hover:bg-red-600"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+
         {/* Last Update */}
         {lastUpdate && (
           <div className="mb-4 p-3 bg-blue-50 rounded">
@@ -135,8 +152,10 @@ export function AgentStatusMonitor({ wsUrl }: { wsUrl: string }) {
       {/* Agent List */}
       <div className="space-y-2">
         <h3 className="font-semibold text-gray-700">Agents</h3>
-        {agents.length === 0 ? (
+        {isLoading ? (
           <p className="text-gray-500 text-sm">Loading agents...</p>
+        ) : agents.length === 0 ? (
+          <p className="text-gray-500 text-sm">No agents available</p>
         ) : (
           <ul className="space-y-1">
             {agents.map((agent) => (

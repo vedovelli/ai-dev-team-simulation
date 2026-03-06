@@ -51,7 +51,16 @@ describe('useWebSocket', () => {
 
   it('should handle incoming messages', async () => {
     const onMessage = jest.fn()
-    let mockWsInstance: MockWebSocket
+    let capturedWs: MockWebSocket | null = null
+
+    // Capture the WebSocket instance created by the hook
+    const OriginalWebSocket = global.WebSocket
+    global.WebSocket = class extends MockWebSocket {
+      constructor(url: string) {
+        super(url)
+        capturedWs = this
+      }
+    } as any
 
     const { result } = renderHook(() =>
       useWebSocket({
@@ -66,22 +75,20 @@ describe('useWebSocket', () => {
       expect(result.current.isConnected).toBe(true)
     })
 
-    // Get the mock WebSocket instance that was created
-    const originalWebSocket = global.WebSocket
-    mockWsInstance = new originalWebSocket('ws://localhost:8080') as any
-
-    // Simulate incoming message
+    // Simulate incoming message through the captured instance
     const testMessage: WebSocketMessage = {
       type: 'test-message',
       payload: { data: 'test' },
     }
 
     act(() => {
-      mockWsInstance.simulateMessage(testMessage)
+      ;(capturedWs as any).simulateMessage(testMessage)
     })
 
-    // Note: In real testing, you'd capture the ws instance from the hook
-    // This is a limitation of the current hook design for testing
+    expect(onMessage).toHaveBeenCalledWith(testMessage)
+    expect(onMessage).toHaveBeenCalledTimes(1)
+
+    global.WebSocket = OriginalWebSocket
   })
 
   it('should send messages when connected', async () => {

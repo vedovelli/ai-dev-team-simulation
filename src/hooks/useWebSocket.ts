@@ -1,5 +1,4 @@
 import { useEffect, useRef, useCallback, useState } from 'react'
-import { useQueryClient } from '@tanstack/react-query'
 
 export interface WebSocketMessage<T = any> {
   type: string
@@ -16,7 +15,6 @@ export interface UseWebSocketOptions<T = any> {
   maxReconnectAttempts?: number
   initialReconnectDelay?: number
   maxReconnectDelay?: number
-  onQueryData?: (queryKey: string[], data: any) => void
 }
 
 export interface UseWebSocketReturn {
@@ -72,24 +70,17 @@ export function useWebSocket<T = any>(
   const [isConnecting, setIsConnecting] = useState(false)
   const [error, setError] = useState<Error | null>(null)
 
-  const queryClient = useQueryClient()
-
   // Handle incoming messages
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
         const message: WebSocketMessage<T> = JSON.parse(event.data)
         onMessage?.(message)
-
-        // Support TanStack Query integration if callback provided
-        if (options.onQueryData) {
-          options.onQueryData(['websocket', message.type], message.payload)
-        }
       } catch (err) {
         console.error('Failed to parse WebSocket message:', err)
       }
     },
-    [onMessage, options]
+    [onMessage]
   )
 
   // Handle connection open

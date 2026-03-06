@@ -3,7 +3,7 @@ import { useQueryClient, UseQueryResult } from '@tanstack/react-query'
 import type { WebSocketMessage } from './useWebSocket'
 
 export interface WebSocketQueryIntegrationOptions {
-  queryKey: string[]
+  queryKey: (string | number)[]
   onMergeData?: (existing: any, incoming: any) => any
   onInvalidate?: boolean
   onRefetch?: boolean
