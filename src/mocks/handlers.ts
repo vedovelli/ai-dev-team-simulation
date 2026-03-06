@@ -6,6 +6,7 @@ import type { HistoryEntry, AgentDetailResponse } from '../types/agentHistory'
 import type { User, UserRole } from '../types/user'
 import type { Project } from '../types/project'
 import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
+import { formSubmissionHandlers } from './formSubmissionHandlers'
 
 interface Team {
   id: string
@@ -1511,6 +1512,9 @@ export const handlers = [
 
   // Optimistic update and paginated query handlers
   ...optimisticUpdateHandlers,
+
+  // Form submission handlers
+  ...formSubmissionHandlers,
 ]
 
 export const allHandlers = [...handlers, ...paginatedHandlers]
