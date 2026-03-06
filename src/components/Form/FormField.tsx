@@ -4,9 +4,10 @@ interface FormFieldProps {
   field: FieldApi<any, any, any, any>
   children: React.ReactNode
   label?: string
+  helpText?: string
 }
 
-export function FormField({ field, children, label }: FormFieldProps) {
+export function FormField({ field, children, label, helpText }: FormFieldProps) {
   return (
     <div className="flex flex-col gap-1">
       {label && (
@@ -14,6 +15,7 @@ export function FormField({ field, children, label }: FormFieldProps) {
           {label}
         </label>
       )}
+      {helpText && <p className="text-xs text-gray-500">{helpText}</p>}
       {children}
       {field.state.meta.errors.length > 0 && (
         <div className="text-sm text-red-600">
