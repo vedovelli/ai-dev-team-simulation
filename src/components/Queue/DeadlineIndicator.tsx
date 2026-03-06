@@ -1,11 +1,21 @@
 interface DeadlineIndicatorProps {
-  createdAt: string
+  deadline?: string
+  createdAt?: string
 }
 
-export function DeadlineIndicator({ createdAt }: DeadlineIndicatorProps) {
+export function DeadlineIndicator({ deadline, createdAt }: DeadlineIndicatorProps) {
   const now = new Date()
-  const deadline = new Date(createdAt)
-  const diffMs = deadline.getTime() - now.getTime()
+  const dateToCheck = deadline || createdAt
+  if (!dateToCheck) {
+    return (
+      <span className="px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+        No deadline
+      </span>
+    )
+  }
+
+  const deadlineDate = new Date(dateToCheck)
+  const diffMs = deadlineDate.getTime() - now.getTime()
   const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24))
 
   let bgColor = 'bg-gray-100'

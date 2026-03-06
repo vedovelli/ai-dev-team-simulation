@@ -15,6 +15,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   dependsOn?: string[]
+  deadline?: string
 }
 
 export interface UpdateTaskInput {

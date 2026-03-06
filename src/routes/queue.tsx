@@ -197,7 +197,7 @@ function QueueRoute() {
                             </span>
                           </td>
                           <td className="px-6 py-4 text-sm">
-                            <DeadlineIndicator createdAt={task.createdAt} />
+                            <DeadlineIndicator deadline={task.deadline} createdAt={task.createdAt} />
                           </td>
                         </tr>
                       ))}
