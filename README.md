@@ -78,6 +78,7 @@ src/
 
 - **[TanStack Data Layer Architecture](./docs/architecture/data-layer.md)** — Overview of Query → Table → Form flow, design decisions, and common patterns
 - **[TanStack Query Guide](./docs/guides/tanstack-query.md)** — Server state management, query hooks, cache invalidation strategies
+- **[TanStack Query Cache Invalidation & Optimistic Updates](./docs/guides/TANSTACK_QUERY_CACHE_INVALIDATION.md)** — Advanced patterns for cache management, invalidation strategies, and optimistic updates with rollback
 - **[TanStack Table Guide](./docs/guides/tanstack-table.md)** — Building tables with sorting, filtering, selection, and customization
 - **[TanStack Form Guide](./docs/guides/tanstack-form.md)** — Form state management, validation patterns, field types
 - **[MSW Documentation](./docs/guides/msw-documentation.md)** — Mock handler structure, patterns, and testing strategies
