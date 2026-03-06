@@ -1945,4 +1945,120 @@ export const paginatedHandlers = [
 
     return HttpResponse.json(monitored)
   }),
+
+  // Task assignment endpoints
+  http.post('/api/tasks/:id/assign', async ({ request, params }) => {
+    await simulateDelay()
+
+    const { id } = params
+    const body = (await request.json()) as { agent: string; priority: number; estimatedHours?: number }
+
+    // Simulate 10% failure rate for testing error handling
+    if (shouldFailMutation(`POST /api/tasks/${id}/assign`)) {
+      return HttpResponse.json(
+        { error: 'Failed to assign task. Agent may be at capacity.' },
+        { status: 500 }
+      )
+    }
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    // Convert priority number to priority string
+    const priorityMap: Record<number, TaskPriority> = {
+      1: 'high',
+      2: 'medium',
+      3: 'low',
+      4: 'low',
+    }
+
+    const updatedTask: Task = {
+      ...tasksStore[taskIndex],
+      assignee: body.agent,
+      priority: priorityMap[body.priority] || 'low',
+      estimatedHours: body.estimatedHours,
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore[taskIndex] = updatedTask
+    return HttpResponse.json(updatedTask, { status: 200 })
+  }),
+
+  // Priority update endpoint
+  http.patch('/api/tasks/:id/priority', async ({ request, params }) => {
+    await simulateDelay()
+
+    const { id } = params
+    const body = (await request.json()) as { priority: number }
+
+    // Simulate 10% failure rate for testing error handling
+    if (shouldFailMutation(`PATCH /api/tasks/${id}/priority`)) {
+      return HttpResponse.json(
+        { error: 'Failed to update priority' },
+        { status: 500 }
+      )
+    }
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    // Convert priority number to priority string
+    const priorityMap: Record<number, TaskPriority> = {
+      1: 'high',
+      2: 'medium',
+      3: 'low',
+      4: 'low',
+    }
+
+    const updatedTask: Task = {
+      ...tasksStore[taskIndex],
+      priority: priorityMap[body.priority] || 'low',
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore[taskIndex] = updatedTask
+    return HttpResponse.json(updatedTask, { status: 200 })
+  }),
+
+  // Task completion endpoint
+  http.post('/api/tasks/:id/complete', async ({ request, params }) => {
+    await simulateDelay()
+
+    const { id } = params
+
+    // Simulate 10% failure rate for testing error handling
+    if (shouldFailMutation(`POST /api/tasks/${id}/complete`)) {
+      return HttpResponse.json(
+        { error: 'Failed to complete task' },
+        { status: 500 }
+      )
+    }
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    const updatedTask: Task = {
+      ...tasksStore[taskIndex],
+      status: 'done',
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore[taskIndex] = updatedTask
+    return HttpResponse.json(updatedTask, { status: 200 })
+  }),
 ]
