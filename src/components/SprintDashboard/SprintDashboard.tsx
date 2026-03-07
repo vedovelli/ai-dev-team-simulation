@@ -1,11 +1,15 @@
 import { useRouter } from '@tanstack/react-router'
 import { useEffect, useState } from 'react'
 import { useSprint } from '../../hooks/useSprint'
+import { useSprintMetrics } from '../../hooks/useSprintMetrics'
+import { useAgentWorkloadList } from '../../hooks/useAgentWorkload'
 import { SprintSelector } from './SprintSelector'
 import { SprintOverview } from './SprintOverview'
 import { BurndownChart, type BurndownDataPoint } from './BurndownChart'
 import { TeamCapacityPanel, type TeamMember } from './TeamCapacityPanel'
 import { DashboardSkeleton } from '../Skeletons'
+import { MetricCard } from './MetricCard'
+import { AgentWorkloadChart } from './AgentWorkloadChart'
 
 interface SprintDashboardProps {
   sprintId?: string
@@ -20,10 +24,15 @@ interface SprintDashboardProps {
 export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: SprintDashboardProps) {
   const router = useRouter()
   const [selectedSprintId, setSelectedSprintId] = useState(initialSprintId)
+  const [selectedAgentFilter, setSelectedAgentFilter] = useState<string | null>(null)
   const [retryBurndown, setRetryBurndown] = useState(false)
   const [retryCapacity, setRetryCapacity] = useState(false)
 
   const { data, isLoading, error } = useSprint(selectedSprintId || '')
+  const { data: metricsData, isLoading: metricsLoading, error: metricsError } = useSprintMetrics(selectedSprintId || '')
+  const { data: workloadList, isLoading: workloadLoading, error: workloadError } = useAgentWorkloadList(
+    metricsData?.agentWorkload?.map((w) => w.agent) || []
+  )
 
   // Sync selected sprint with URL changes
   useEffect(() => {
@@ -107,6 +116,14 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
     capacity: 5,
   }))
 
+  // Calculate metrics from hooks
+  const metrics = metricsData ? {
+    completionPercentage: metricsData.summary.completionPercentage,
+    tasksPerDay: 0,
+    averageCompletionTime: 0,
+    projectedCompletionDate: undefined,
+  } : null
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -174,8 +191,78 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
         completedTasks={summary.completedTasks}
         inProgressTasks={summary.inProgressTasks}
         blockedTasks={summary.totalTasks - summary.completedTasks - summary.inProgressTasks - summary.remainingTasks}
-        isLoading={isLoading}
+        isLoading={isLoading || metricsLoading}
       />
+
+      {/* Performance Metrics Grid */}
+      {metrics && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          <MetricCard
+            label="Completion Rate"
+            value={metrics.completionPercentage}
+            unit="%"
+            color="blue"
+            trend="up"
+            isLoading={metricsLoading}
+            hasError={!!metricsError}
+          />
+          <MetricCard
+            label="Remaining Tasks"
+            value={summary.remainingTasks}
+            unit="tasks"
+            color="yellow"
+            isLoading={metricsLoading}
+            hasError={!!metricsError}
+          />
+          <MetricCard
+            label="In Progress"
+            value={summary.inProgressTasks}
+            unit="tasks"
+            color="purple"
+            isLoading={metricsLoading}
+            hasError={!!metricsError}
+          />
+          <MetricCard
+            label="Team Velocity"
+            value={metricsLoading ? '—' : 'Tracking'}
+            color="green"
+            isLoading={metricsLoading}
+            hasError={!!metricsError}
+          />
+        </div>
+      )}
+
+      {/* Agent Filter Controls */}
+      {workloadList && workloadList.length > 0 && (
+        <div className="bg-slate-800 rounded-lg p-4 border border-slate-700">
+          <h3 className="text-sm font-semibold mb-3 text-slate-300">Filter by Agent</h3>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setSelectedAgentFilter(null)}
+              className={`px-3 py-1 rounded text-sm transition-colors ${
+                selectedAgentFilter === null
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+              }`}
+            >
+              All Agents
+            </button>
+            {workloadList.map((workload) => (
+              <button
+                key={workload.agentId}
+                onClick={() => setSelectedAgentFilter(selectedAgentFilter === workload.agentId ? null : workload.agentId)}
+                className={`px-3 py-1 rounded text-sm transition-colors ${
+                  selectedAgentFilter === workload.agentId
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+                }`}
+              >
+                {workload.agentId} ({workload.activeTasksCount})
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Two Column Layout: Burndown and Capacity */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -199,6 +286,17 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
           />
         </div>
       </div>
+
+      {/* Agent Workload Distribution */}
+      {workloadList && workloadList.length > 0 && (
+        <AgentWorkloadChart
+          workloadData={workloadList}
+          isLoading={workloadLoading}
+          hasError={!!workloadError}
+          selectedAgentId={selectedAgentFilter}
+          onAgentSelect={setSelectedAgentFilter}
+        />
+      )}
     </div>
   )
 }
