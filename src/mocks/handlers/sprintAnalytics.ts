@@ -3,8 +3,9 @@
  *
  * Mock API endpoints for sprint metrics and agent workload data.
  * Provides:
- * - Sprint health metrics (tasks, completion, timeline)
+ * - Sprint health metrics (tasks, completion, timeline, burndown data)
  * - Agent workload distribution and capacity
+ * - Real-time-ish data with slight variance for realistic polling
  */
 
 import { http, HttpResponse } from 'msw'
@@ -12,16 +13,51 @@ import type { SprintHealthData } from '../../types/sprint'
 import type { WorkloadData } from '../../hooks/useAgentWorkload'
 
 /**
- * Generate mock sprint health metrics
+ * Generate mock burndown data points for visualization
+ * Includes both ideal and actual burndown curves
  */
-function generateSprintMetrics(sprintId: string): SprintHealthData {
-  const sprintMap: Record<string, { name: string; totalTasks: number; completedTasks: number; inProgressTasks: number }> = {
-    'sprint-1': { name: 'Sprint 1 - Auth & Core Features', totalTasks: 5, completedTasks: 5, inProgressTasks: 0 },
-    'sprint-2': { name: 'Sprint 2 - API & Data Layer', totalTasks: 6, completedTasks: 3, inProgressTasks: 2 },
-    'sprint-3': { name: 'Sprint 3 - UI Polish & Performance', totalTasks: 3, completedTasks: 0, inProgressTasks: 1 },
+function generateBurndownData(totalTasks: number, completedTasks: number, daysIntoSprint: number) {
+  const dataPoints = []
+  const sprintDuration = 14 // 2 weeks
+
+  for (let day = 0; day <= Math.min(daysIntoSprint, sprintDuration); day++) {
+    // Ideal burndown: linear decrease
+    const idealRemaining = Math.max(0, totalTasks - (totalTasks / sprintDuration) * day)
+
+    // Actual burndown: more realistic with variations
+    let actualRemaining = totalTasks
+    if (day > 0) {
+      // Simulate realistic task completion patterns
+      const avgCompletionRate = completedTasks / Math.max(daysIntoSprint, 1)
+      actualRemaining = Math.max(0, totalTasks - avgCompletionRate * day - Math.random() * 2)
+    }
+
+    dataPoints.push({
+      day,
+      ideal: Math.round(idealRemaining),
+      actual: Math.round(actualRemaining),
+      date: new Date(Date.now() - (daysIntoSprint - day) * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
+    })
   }
 
-  const sprintConfig = sprintMap[sprintId] || { name: 'Unknown Sprint', totalTasks: 10, completedTasks: 5, inProgressTasks: 2 }
+  return dataPoints
+}
+
+/**
+ * Generate mock sprint health metrics with realistic data variance
+ */
+function generateSprintMetrics(sprintId: string): SprintHealthData {
+  const sprintMap: Record<string, { name: string; totalTasks: number; completedTasks: number; inProgressTasks: number; daysIntoSprint: number }> = {
+    'sprint-1': { name: 'Sprint 1 - Auth & Core Features', totalTasks: 5, completedTasks: 5, inProgressTasks: 0, daysIntoSprint: 14 },
+    'sprint-2': { name: 'Sprint 2 - API & Data Layer', totalTasks: 6, completedTasks: 3, inProgressTasks: 2, daysIntoSprint: 7 },
+    'sprint-3': { name: 'Sprint 3 - UI Polish & Performance', totalTasks: 3, completedTasks: 0, inProgressTasks: 1, daysIntoSprint: 0 },
+  }
+
+  const sprintConfig = sprintMap[sprintId] || { name: 'Unknown Sprint', totalTasks: 10, completedTasks: 5, inProgressTasks: 2, daysIntoSprint: 5 }
+
+  const startDate = new Date(2026, 1, 1 + (parseInt(sprintId.split('-')[1]) - 1) * 14)
+  const endDate = new Date(startDate)
+  endDate.setDate(endDate.getDate() + 14)
 
   return {
     sprint: {
@@ -29,16 +65,34 @@ function generateSprintMetrics(sprintId: string): SprintHealthData {
       name: sprintConfig.name,
       status: sprintId === 'sprint-1' ? 'completed' : sprintId === 'sprint-2' ? 'active' : 'planning',
       goals: 'Sprint goals for ' + sprintConfig.name,
-      startDate: new Date(2026, 1, 1 + parseInt(sprintId.split('-')[1]) * 14).toISOString(),
-      endDate: new Date(2026, 1, 15 + parseInt(sprintId.split('-')[1]) * 14).toISOString(),
+      tasks: [],
+      estimatedPoints: sprintConfig.totalTasks,
+      taskCount: sprintConfig.totalTasks,
+      completedCount: sprintConfig.completedTasks,
+      createdAt: startDate.toISOString(),
+      startDate: startDate.toISOString(),
+      endDate: endDate.toISOString(),
     },
     summary: {
       totalTasks: sprintConfig.totalTasks,
       completedTasks: sprintConfig.completedTasks,
       inProgressTasks: sprintConfig.inProgressTasks,
       remainingTasks: sprintConfig.totalTasks - sprintConfig.completedTasks - sprintConfig.inProgressTasks,
-      completionPercentage: Math.round((sprintConfig.completedTasks / sprintConfig.totalTasks) * 100),
+      completionPercentage: sprintConfig.totalTasks > 0 ? Math.round((sprintConfig.completedTasks / sprintConfig.totalTasks) * 100) : 0,
     },
+    metrics: {
+      sprintId,
+      totalPoints: sprintConfig.totalTasks,
+      completedPoints: sprintConfig.completedTasks,
+      remainingPoints: sprintConfig.totalTasks - sprintConfig.completedTasks,
+      daysRemaining: Math.max(0, 14 - sprintConfig.daysIntoSprint),
+      daysElapsed: sprintConfig.daysIntoSprint,
+      sprintDuration: 14,
+      velocity: Math.round((sprintConfig.completedTasks / Math.max(sprintConfig.daysIntoSprint, 1)) * 10) / 10,
+      onTrack: sprintConfig.completedTasks >= (sprintConfig.totalTasks / 14) * sprintConfig.daysIntoSprint,
+      completionPercentage: sprintConfig.totalTasks > 0 ? Math.round((sprintConfig.completedTasks / sprintConfig.totalTasks) * 100) : 0,
+    },
+    burndownData: generateBurndownData(sprintConfig.totalTasks, sprintConfig.completedTasks, sprintConfig.daysIntoSprint),
     agentWorkload: [
       {
         agent: 'alice',
