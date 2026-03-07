@@ -4,6 +4,7 @@ import type { QueryClient } from '@tanstack/react-query'
 import { ToastProvider } from '../components/Toast'
 import { Sidebar } from '../components/Sidebar'
 import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
+import { PermissionProvider } from '../contexts/PermissionContext'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -11,8 +12,9 @@ interface RouterContext {
 
 function RootLayout() {
   return (
-    <ToastProvider>
-      <div className="flex min-h-screen bg-slate-950 text-white">
+    <PermissionProvider>
+      <ToastProvider>
+        <div className="flex min-h-screen bg-slate-950 text-white">
         <Sidebar />
         <div className="flex-1 flex flex-col">
           <nav className="bg-slate-900 border-b border-slate-800">
@@ -82,7 +84,8 @@ function RootLayout() {
           {import.meta.env.DEV && <TanStackRouterDevtools />}
         </div>
       </div>
-    </ToastProvider>
+      </ToastProvider>
+    </PermissionProvider>
   )
 }
 
