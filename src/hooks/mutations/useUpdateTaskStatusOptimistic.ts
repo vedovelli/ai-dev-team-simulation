@@ -49,11 +49,21 @@ export function useUpdateTaskStatusOptimistic(sprintId: string, taskId: string) 
       return response.json() as Promise<Task>
     },
 
-    optimisticUpdate: (variables, currentData) => ({
-      ...currentData!,
-      status: variables.status,
-      updatedAt: new Date().toISOString(),
-    }),
+    optimisticUpdate: (variables, currentData) => {
+      if (!currentData) {
+        // If no previous data exists, return minimal valid Task object
+        return {
+          id: '',
+          status: variables.status,
+          updatedAt: new Date().toISOString(),
+        } as Task
+      }
+      return {
+        ...currentData,
+        status: variables.status,
+        updatedAt: new Date().toISOString(),
+      }
+    },
 
     queryKey: ['task', taskId],
 
