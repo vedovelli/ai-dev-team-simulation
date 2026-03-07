@@ -96,7 +96,7 @@ export function useSprints(
  */
 export function useSprintDetails(sprintId: string | null | undefined) {
   return useQuery<Sprint>({
-    queryKey: sprintKeys.detail(sprintId || ''),
+    queryKey: sprintId ? sprintKeys.detail(sprintId) : [],
     queryFn: async () => {
       const response = await fetch(`/api/sprints/${sprintId}`)
       if (!response.ok) {
@@ -129,7 +129,7 @@ export function useSprintDetails(sprintId: string | null | undefined) {
  */
 export function useSprintTasks(sprintId: string | null | undefined) {
   return useQuery<SprintTask[]>({
-    queryKey: sprintKeys.taskList(sprintId || ''),
+    queryKey: sprintId ? sprintKeys.taskList(sprintId) : [],
     queryFn: async () => {
       const response = await fetch(`/api/sprints/${sprintId}/tasks`)
       if (!response.ok) {
@@ -151,20 +151,26 @@ export function useSprintTasks(sprintId: string | null | undefined) {
  *
  * Cache invalidation patterns (following FAB-60 guide):
  * - Use `queryClient.invalidateQueries` when tasks change
- * - Cancel ongoing refetch when sprint status changes to 'completed'
+ * - Pass sprintStatus to disable refetching when sprint is completed
  *
  * @param sprintId - The sprint ID (can be null/undefined)
+ * @param sprintStatus - The sprint status ('active', 'completed', etc). Disables refetching when not 'active'
  * @returns Array of BurndownDataPoint objects with day/ideal/actual metrics
  *
  * @example
  * ```tsx
- * const { data: burndownData } = useBurndownData(sprintId)
+ * const { data: sprint } = useSprintDetails(sprintId)
+ * const { data: burndownData } = useBurndownData(sprintId, sprint?.status)
  * // Automatically refetches every 30 seconds while sprint is active
+ * // Stops refetching when status changes to 'completed'
  * ```
  */
-export function useBurndownData(sprintId: string | null | undefined) {
+export function useBurndownData(
+  sprintId: string | null | undefined,
+  sprintStatus?: string
+) {
   return useQuery<BurndownDataPoint[]>({
-    queryKey: sprintKeys.burndownData(sprintId || ''),
+    queryKey: sprintId ? sprintKeys.burndownData(sprintId) : [],
     queryFn: async () => {
       const response = await fetch(`/api/sprints/${sprintId}/burndown`)
       if (!response.ok) {
@@ -175,7 +181,8 @@ export function useBurndownData(sprintId: string | null | undefined) {
     staleTime: 1000 * 30, // 30 seconds (burndown should feel fresh)
     gcTime: 1000 * 60 * 10, // 10 minutes
     refetchOnWindowFocus: true,
-    refetchInterval: 1000 * 30, // Auto-refetch every 30 seconds for "real-time" feel
+    refetchInterval:
+      sprintStatus === 'active' ? 1000 * 30 : false, // Auto-refetch only while active
     retry: 2,
     enabled: !!sprintId, // Dependent query
   })
@@ -198,7 +205,7 @@ export function useBurndownData(sprintId: string | null | undefined) {
  */
 export function useTeamCapacity(sprintId: string | null | undefined) {
   return useQuery<TeamCapacity>({
-    queryKey: sprintKeys.capacityData(sprintId || ''),
+    queryKey: sprintId ? sprintKeys.capacityData(sprintId) : [],
     queryFn: async () => {
       const response = await fetch(`/api/sprints/${sprintId}/capacity`)
       if (!response.ok) {
