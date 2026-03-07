@@ -10,11 +10,14 @@ export interface TaskFilters {
   team?: string
   sprint?: string
   assignee?: string
+  page?: number
+  limit?: number
 }
 
 /**
- * Hook that syncs task filters with Router search params
+ * Hook that syncs task filters with Router search params and pagination
  * Handles invalid params gracefully by clearing them with warnings
+ * Structures query keys as: ['tasks', { filters: {...}, page, pageSize }]
  */
 export function useTaskFilters() {
   const navigate = useNavigate()
@@ -31,6 +34,14 @@ export function useTaskFilters() {
     typeof searchParams.sprint === 'string' ? searchParams.sprint : ''
   const assignee =
     typeof searchParams.assignee === 'string' ? searchParams.assignee : ''
+  const page =
+    typeof searchParams.page === 'string'
+      ? parseInt(searchParams.page, 10)
+      : 1
+  const limit =
+    typeof searchParams.limit === 'string'
+      ? parseInt(searchParams.limit, 10)
+      : 10
 
   const updateFilter = useCallback(
     (updates: Partial<TaskFilters>) => {
@@ -44,10 +55,19 @@ export function useTaskFilters() {
           sprint: updates.sprint !== undefined ? updates.sprint : sprint,
           assignee:
             updates.assignee !== undefined ? updates.assignee : assignee,
+          page: updates.page !== undefined ? updates.page : page,
+          limit: updates.limit !== undefined ? updates.limit : limit,
         },
       })
     },
-    [navigate, status, priority, search, team, sprint, assignee]
+    [navigate, status, priority, search, team, sprint, assignee, page, limit]
+  )
+
+  const setPage = useCallback(
+    (newPage: number) => {
+      updateFilter({ page: newPage })
+    },
+    [updateFilter]
   )
 
   const clearAllFilters = useCallback(() => {
@@ -63,7 +83,10 @@ export function useTaskFilters() {
     team,
     sprint,
     assignee,
+    page,
+    limit,
     updateFilter,
+    setPage,
     clearAllFilters,
   }
 }
