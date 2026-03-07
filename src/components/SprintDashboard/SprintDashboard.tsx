@@ -8,7 +8,7 @@ import { SprintOverview } from './SprintOverview'
 import { BurndownChart, type BurndownDataPoint } from './BurndownChart'
 import { TeamCapacityPanel, type TeamMember } from './TeamCapacityPanel'
 import { DashboardSkeleton } from '../Skeletons'
-import { MetricCard } from './MetricCard'
+import { SprintMetricsPanel } from './SprintMetricsPanel'
 import { AgentWorkloadChart } from './AgentWorkloadChart'
 
 interface SprintDashboardProps {
@@ -98,14 +98,21 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
 
   const { sprint, summary, agentWorkload } = data
 
-  // Generate burndown data based on sprint progress
-  const mockBurndown: BurndownDataPoint[] = [
-    { day: 1, plannedTasks: summary.totalTasks, completedTasks: Math.round(summary.totalTasks * 0.1) },
-    { day: 2, plannedTasks: summary.totalTasks - 2, completedTasks: Math.round(summary.totalTasks * 0.25) },
-    { day: 3, plannedTasks: summary.totalTasks - 5, completedTasks: Math.round(summary.totalTasks * 0.4) },
-    { day: 4, plannedTasks: summary.totalTasks - 8, completedTasks: Math.round(summary.totalTasks * 0.65) },
-    { day: 5, plannedTasks: Math.max(summary.totalTasks - 12, summary.completedTasks), completedTasks: summary.completedTasks },
-  ]
+  // Use burndown data from metrics API, fallback to mock if needed
+  const burndownData = metricsData?.burndownData || []
+  const mockBurndown: BurndownDataPoint[] = burndownData.length > 0
+    ? burndownData.map(point => ({
+      day: point.day,
+      plannedTasks: point.ideal,
+      completedTasks: point.actual,
+    }))
+    : [
+      { day: 1, plannedTasks: summary.totalTasks, completedTasks: Math.round(summary.totalTasks * 0.1) },
+      { day: 2, plannedTasks: summary.totalTasks - 2, completedTasks: Math.round(summary.totalTasks * 0.25) },
+      { day: 3, plannedTasks: summary.totalTasks - 5, completedTasks: Math.round(summary.totalTasks * 0.4) },
+      { day: 4, plannedTasks: summary.totalTasks - 8, completedTasks: Math.round(summary.totalTasks * 0.65) },
+      { day: 5, plannedTasks: Math.max(summary.totalTasks - 12, summary.completedTasks), completedTasks: summary.completedTasks },
+    ]
 
   // Convert agent workload to team capacity
   const mockTeamCapacity: TeamMember[] = (agentWorkload || []).map((agent) => ({
@@ -115,14 +122,6 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
     completedTasks: agent.completedCount,
     capacity: 5,
   }))
-
-  // Calculate metrics from hooks
-  const metrics = metricsData ? {
-    completionPercentage: metricsData.summary.completionPercentage,
-    tasksPerDay: 0,
-    averageCompletionTime: 0,
-    projectedCompletionDate: undefined,
-  } : null
 
   return (
     <div className="space-y-6">
@@ -194,42 +193,11 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
         isLoading={isLoading || metricsLoading}
       />
 
-      {/* Performance Metrics Grid */}
-      {metrics && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          <MetricCard
-            label="Completion Rate"
-            value={metrics.completionPercentage}
-            unit="%"
-            color="blue"
-            trend="up"
-            isLoading={metricsLoading}
-            hasError={!!metricsError}
-          />
-          <MetricCard
-            label="Remaining Tasks"
-            value={summary.remainingTasks}
-            unit="tasks"
-            color="yellow"
-            isLoading={metricsLoading}
-            hasError={!!metricsError}
-          />
-          <MetricCard
-            label="In Progress"
-            value={summary.inProgressTasks}
-            unit="tasks"
-            color="purple"
-            isLoading={metricsLoading}
-            hasError={!!metricsError}
-          />
-          <MetricCard
-            label="Team Velocity"
-            value={metricsLoading ? '—' : 'Tracking'}
-            color="green"
-            isLoading={metricsLoading}
-            hasError={!!metricsError}
-          />
-        </div>
+      {/* Performance Metrics Grid - Real-time polling every 30s */}
+      {selectedSprintId && (
+        <>
+          <SprintMetricsPanel sprintId={selectedSprintId} refetchInterval={30 * 1000} />
+        </>
       )}
 
       {/* Agent Filter Controls */}
