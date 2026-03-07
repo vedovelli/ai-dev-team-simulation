@@ -1,4 +1,5 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect } from 'react'
 import type { AgentManagement, AgentStats } from '../../types/agent'
 
 /**
@@ -21,6 +22,15 @@ interface AgentDetailResponse {
  * Query key structure: ['agents', agentId]
  */
 export function useAgent(agentId?: string) {
+  const queryClient = useQueryClient()
+
+  // Cancel pending requests when agentId becomes undefined
+  useEffect(() => {
+    if (!agentId) {
+      queryClient.cancelQueries({ queryKey: ['agents', agentId] })
+    }
+  }, [agentId, queryClient])
+
   return useQuery<AgentDetailResponse, Error>({
     queryKey: ['agents', agentId],
     queryFn: async () => {
