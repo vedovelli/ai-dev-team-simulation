@@ -51,3 +51,21 @@ export interface SprintHealthData {
   metrics: SprintMetrics
   burndownData: BurndownDataPoint[]
 }
+
+export interface TeamMemberCapacity {
+  id: string
+  name: string
+  role: string
+  allocatedPoints: number
+  maxCapacity: number
+  utilizationRate: number // 0-100
+  availability: 'available' | 'busy' | 'unavailable'
+}
+
+export interface TeamCapacity {
+  sprintId: string
+  members: TeamMemberCapacity[]
+  totalCapacity: number
+  allocatedCapacity: number
+  availableCapacity: number
+}
