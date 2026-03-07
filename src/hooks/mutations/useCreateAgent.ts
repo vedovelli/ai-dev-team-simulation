@@ -60,13 +60,18 @@ export const useCreateAgent = () => {
         updatedAt: new Date().toISOString(),
       }
 
-      // Optimistically add the new agent to the cache
-      previousAgents.forEach(([key]) => {
-        queryClient.setQueryData(key, (oldData: AgentManagement[] = []) => [
-          ...oldData,
-          optimisticAgent,
-        ])
-      })
+      // If no agents list exists in cache, initialize it with the optimistic agent
+      if (previousAgents.length === 0) {
+        queryClient.setQueryData(['agents'], [optimisticAgent])
+      } else {
+        // Optimistically add the new agent to existing cache entries
+        previousAgents.forEach(([key]) => {
+          queryClient.setQueryData(key, (oldData: AgentManagement[] = []) => [
+            ...oldData,
+            optimisticAgent,
+          ])
+        })
+      }
 
       return { previousAgents, optimisticAgent }
     },
