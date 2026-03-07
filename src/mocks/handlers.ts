@@ -18,6 +18,7 @@ import { sprintAnalyticsHandlers } from './handlers/sprintAnalytics'
 import { agentStatusHandlers } from './handlers/agentStatus'
 import { permissionHandlers } from './handlers/permissions'
 import { agentManagementHandlers } from './handlers/agents'
+import { notificationHandlers } from './handlers/notifications'
 
 interface Team {
   id: string
@@ -2346,4 +2347,5 @@ export const paginatedHandlers = [
   ...agentStatusHandlers,
   ...permissionHandlers,
   ...agentManagementHandlers,
+  ...notificationHandlers,
 ]
