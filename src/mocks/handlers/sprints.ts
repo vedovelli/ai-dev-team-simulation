@@ -394,4 +394,143 @@ export const sprintHandlers = [
 
     return HttpResponse.json<TeamCapacity>(capacity, { status: 200 })
   }),
+
+  /**
+   * POST /api/sprints
+   * Creates a new sprint
+   */
+  http.post('/api/sprints', async ({ request }) => {
+    try {
+      const body = await request.json() as {
+        name: string
+        startDate: string
+        endDate: string
+        teamAssignment: string
+      }
+
+      // Validate required fields
+      if (!body.name || !body.startDate || !body.endDate || !body.teamAssignment) {
+        return HttpResponse.json(
+          { error: 'Missing required fields' },
+          { status: 400 }
+        )
+      }
+
+      // Validate date range
+      const startDate = new Date(body.startDate)
+      const endDate = new Date(body.endDate)
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return HttpResponse.json(
+          { error: 'Invalid date format' },
+          { status: 400 }
+        )
+      }
+
+      if (endDate <= startDate) {
+        return HttpResponse.json(
+          { error: 'End date must be after start date' },
+          { status: 400 }
+        )
+      }
+
+      // Create new sprint
+      const newSprint: Sprint = {
+        id: `sprint-${Date.now()}`,
+        name: body.name,
+        status: 'planning',
+        goals: '',
+        tasks: [],
+        estimatedPoints: 0,
+        taskCount: 0,
+        completedCount: 0,
+        createdAt: new Date().toISOString(),
+        startDate: body.startDate,
+        endDate: body.endDate,
+      }
+
+      return HttpResponse.json(newSprint, { status: 201 })
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+  }),
+
+  /**
+   * PATCH /api/sprints/:id
+   * Updates an existing sprint
+   */
+  http.patch('/api/sprints/:id', async ({ params, request }) => {
+    try {
+      const { id } = params
+      const body = await request.json() as Partial<{
+        name: string
+        startDate: string
+        endDate: string
+        teamAssignment: string
+        status: string
+      }>
+
+      const sprints = generateSprints()
+      const sprint = sprints.find((s) => s.id === id)
+
+      if (!sprint) {
+        return HttpResponse.json(
+          { error: 'Sprint not found' },
+          { status: 404 }
+        )
+      }
+
+      // Prevent editing dates for closed sprints
+      if (sprint.status === 'completed') {
+        if (
+          (body.startDate && body.startDate !== sprint.startDate) ||
+          (body.endDate && body.endDate !== sprint.endDate)
+        ) {
+          return HttpResponse.json(
+            { error: 'Cannot edit dates for closed sprints' },
+            { status: 400 }
+          )
+        }
+      }
+
+      // Validate date range if provided
+      if (body.startDate || body.endDate) {
+        const startDate = new Date(body.startDate || sprint.startDate || '')
+        const endDate = new Date(body.endDate || sprint.endDate || '')
+
+        if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+          return HttpResponse.json(
+            { error: 'Invalid date format' },
+            { status: 400 }
+          )
+        }
+
+        if (endDate <= startDate) {
+          return HttpResponse.json(
+            { error: 'End date must be after start date' },
+            { status: 400 }
+          )
+        }
+      }
+
+      // Update sprint
+      const updatedSprint: Sprint = {
+        ...sprint,
+        name: body.name !== undefined ? body.name : sprint.name,
+        startDate: body.startDate || sprint.startDate,
+        endDate: body.endDate || sprint.endDate,
+        status: body.status as any || sprint.status,
+      }
+
+      return HttpResponse.json(updatedSprint, { status: 200 })
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+  }),
 ]
