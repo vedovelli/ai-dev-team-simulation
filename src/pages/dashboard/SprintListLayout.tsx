@@ -132,7 +132,14 @@ function SprintCard({ sprint }: SprintCardProps) {
             {sprint.completedCount} / {sprint.taskCount}
           </span>
         </div>
-        <div className="w-full h-2 bg-slate-700 rounded-full overflow-hidden">
+        <div
+          className="w-full h-2 bg-slate-700 rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label={`${sprint.name} completion progress`}
+        >
           <div
             className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
             style={{ width: `${progress}%` }}

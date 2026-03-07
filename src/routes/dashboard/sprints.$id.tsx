@@ -4,8 +4,6 @@ import { Suspense } from 'react'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
 
 function SprintDetailPage() {
-  const { id } = Route.useParams()
-
   return (
     <Suspense
       fallback={
@@ -14,7 +12,7 @@ function SprintDetailPage() {
         </div>
       }
     >
-      <SprintDetailLayout sprintId={id} />
+      <SprintDetailLayout />
     </Suspense>
   )
 }

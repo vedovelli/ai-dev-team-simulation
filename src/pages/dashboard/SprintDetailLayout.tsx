@@ -1,12 +1,8 @@
-import { Outlet } from '@tanstack/react-router'
-import { useSprintDetailsQuery } from '../../hooks/queries/useSprintDetailsQuery'
+import { Outlet, useParams } from '@tanstack/react-router'
+import { useSprintDetails } from '../../hooks/queries/sprints'
 import { Suspense } from 'react'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
 import type { Sprint } from '../../types/sprint'
-
-interface SprintDetailLayoutProps {
-  sprintId: string
-}
 
 /**
  * SprintDetailLayout - Individual sprint detail view
@@ -14,8 +10,9 @@ interface SprintDetailLayoutProps {
  * Displays a specific sprint's information with nested child routes
  * for tasks, health metrics, and dashboard views.
  */
-export function SprintDetailLayout({ sprintId }: SprintDetailLayoutProps) {
-  const { data: sprint, isLoading, error } = useSprintDetailsQuery(sprintId)
+export function SprintDetailLayout() {
+  const { id: sprintId } = useParams({ from: '/dashboard/sprints/$id' })
+  const { data: sprint, isLoading, error } = useSprintDetails(sprintId)
 
   if (error) {
     return <RouteErrorBoundary error={error} />
@@ -69,9 +66,10 @@ function SprintDetailHeader({ sprint }: SprintDetailHeaderProps) {
     completed: 'bg-slate-700 text-slate-300',
   }
 
-  const daysRemaining = sprint.endDate
-    ? Math.ceil((new Date(sprint.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
-    : 0
+  const daysRemaining =
+    sprint.endDate && sprint.endDate.trim() !== ''
+      ? Math.ceil((new Date(sprint.endDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24))
+      : null
 
   return (
     <div className="bg-slate-800 border border-slate-700 rounded-lg p-8">
@@ -105,7 +103,7 @@ function SprintDetailHeader({ sprint }: SprintDetailHeaderProps) {
         />
         <StatBox
           label="Days Remaining"
-          value={daysRemaining > 0 ? daysRemaining : 'Ended'}
+          value={daysRemaining !== null && daysRemaining > 0 ? daysRemaining : 'Ended'}
         />
         <StatBox
           label="Status"
@@ -121,7 +119,14 @@ function SprintDetailHeader({ sprint }: SprintDetailHeaderProps) {
             {sprint.completedCount} / {sprint.taskCount} tasks
           </span>
         </div>
-        <div className="w-full h-3 bg-slate-700 rounded-full overflow-hidden">
+        <div
+          className="w-full h-3 bg-slate-700 rounded-full overflow-hidden"
+          role="progressbar"
+          aria-valuenow={Math.round(progress)}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-label="Sprint completion progress"
+        >
           <div
             className="h-full bg-gradient-to-r from-green-500 to-emerald-500 transition-all duration-300"
             style={{ width: `${progress}%` }}
