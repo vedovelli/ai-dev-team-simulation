@@ -14,6 +14,7 @@ import { bulkOperationHandlers } from './handlers/bulk-operations'
 import { taskQueueHandlers } from './handlers/taskQueue'
 import { sprintHandlers } from './handlers/sprints'
 import { agentTaskQueueHandlers } from './handlers/agentTaskQueue'
+import { sprintAnalyticsHandlers } from './handlers/sprintAnalytics'
 
 interface Team {
   id: string
@@ -2233,4 +2234,5 @@ export const paginatedHandlers = [
   ...taskQueueHandlers,
   ...sprintHandlers,
   ...agentTaskQueueHandlers,
+  ...sprintAnalyticsHandlers,
 ]
