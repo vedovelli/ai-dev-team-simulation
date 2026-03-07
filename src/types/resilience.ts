@@ -11,6 +11,8 @@
 export interface CircuitBreakerState {
   /** Number of consecutive failures */
   failureCount: number
+  /** Total number of attempts (including successes) */
+  totalAttempts: number
   /** Timestamp of the last failure */
   lastFailureTime: number
   /** Whether the circuit breaker is currently open (tripped) */

@@ -34,8 +34,16 @@ import { DEFAULT_RETRY_CONFIG } from '@/types/resilience'
 /**
  * Global circuit breaker state storage
  * Maps query keys to their circuit breaker states
+ *
+ * Note: Entries are removed when all instances of a query are unmounted
+ * to prevent memory leaks in long-running applications.
  */
 const circuitBreakerStates = new Map<string, CircuitBreakerState>()
+
+/**
+ * Track reference counts for query keys to manage cleanup
+ */
+const queryKeyRefCounts = new Map<string, number>()
 
 /**
  * Convert query key to string for circuit breaker tracking
@@ -56,6 +64,7 @@ function getCircuitBreakerState(
   if (!circuitBreakerStates.has(key)) {
     circuitBreakerStates.set(key, {
       failureCount: 0,
+      totalAttempts: 0,
       lastFailureTime: 0,
       isOpen: false,
     })
@@ -64,10 +73,41 @@ function getCircuitBreakerState(
 }
 
 /**
+ * Register a component instance using this query key
+ * Used for reference counting to clean up state when no longer needed
+ */
+function registerQueryKey(queryKey: readonly unknown[]): void {
+  const key = serializeQueryKey(queryKey)
+  // Initialize state if needed
+  getCircuitBreakerState(queryKey)
+  // Increment reference count
+  queryKeyRefCounts.set(key, (queryKeyRefCounts.get(key) || 0) + 1)
+}
+
+/**
+ * Unregister a component instance for this query key
+ * Cleans up state when all instances are unmounted
+ */
+function unregisterQueryKey(queryKey: readonly unknown[]): void {
+  const key = serializeQueryKey(queryKey)
+  const refCount = (queryKeyRefCounts.get(key) || 1) - 1
+
+  if (refCount <= 0) {
+    // No more instances using this key, clean up
+    circuitBreakerStates.delete(key)
+    queryKeyRefCounts.delete(key)
+  } else {
+    // Still have instances using this key
+    queryKeyRefCounts.set(key, refCount)
+  }
+}
+
+/**
  * Update circuit breaker state after success
  */
 function recordSuccess(queryKey: readonly unknown[]): void {
   const state = getCircuitBreakerState(queryKey)
+  state.totalAttempts += 1
   state.failureCount = 0
   state.isOpen = false
 }
@@ -80,6 +120,7 @@ function recordFailure(
   config: RetryConfig,
 ): void {
   const state = getCircuitBreakerState(queryKey)
+  state.totalAttempts += 1
   state.failureCount += 1
   state.lastFailureTime = Date.now()
 
@@ -192,14 +233,24 @@ export function useResilientQuery<
     retryDelay: createRetryDelayFn(config),
   })
 
+  // Register this component instance on mount and clean up on unmount
+  // This prevents memory leaks by cleaning up global state when all instances are unmounted
+  useEffect(() => {
+    registerQueryKey(queryKey)
+
+    return () => {
+      unregisterQueryKey(queryKey)
+    }
+  }, [queryKey])
+
   // Track retry attempts from the query state
   useEffect(() => {
     // Query tracks attempts internally, we extract from the query state
     // When the query is being retried, its status will be 'pending' with isFetching true
     if (query.status === 'pending' && query.isFetching) {
-      // Get current attempt from circuit breaker state
+      // Get current attempt from circuit breaker state (total attempts, not just failures)
       const cbState = getCircuitBreakerState(queryKey)
-      setRetryAttempt(cbState.failureCount)
+      setRetryAttempt(cbState.totalAttempts)
     }
   }, [query.status, query.isFetching, queryKey])
 
@@ -219,12 +270,17 @@ export function useResilientQuery<
 
   // Manual retry function
   const retry = useCallback(() => {
+    // Atomically reset state and refetch to prevent race conditions
     const cbState = getCircuitBreakerState(queryKey)
-    // Reset circuit breaker and failure count for manual retry
     cbState.failureCount = 0
     cbState.isOpen = false
+    cbState.totalAttempts = 0
+
+    // Update local state synchronously before triggering refetch
     setRetryAttempt(0)
     setIsCircuitBreakerOpen(false)
+
+    // Now trigger the refetch
     query.refetch()
   }, [queryKey, query])
 
