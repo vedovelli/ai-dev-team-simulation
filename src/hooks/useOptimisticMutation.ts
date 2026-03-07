@@ -90,7 +90,7 @@ export function useOptimisticMutation<
   const { mutationFn, optimisticUpdate, queryKey, invalidateKeys, onError, onSuccess, ...mutationOptions } = options
   const queryClient = useQueryClient()
 
-  const mutation = useMutation<TData, TError, TVariables, TContext>({
+  const mutation = useMutation<TData, TError, TVariables, { previousData?: TData }>({
     ...mutationOptions,
     mutationFn,
     onMutate: async (variables) => {
@@ -105,9 +105,9 @@ export function useOptimisticMutation<
       queryClient.setQueryData(queryKey, optimisticData)
 
       // Return context for error handling and success callbacks
-      return { previousData } as TContext
+      return { previousData }
     },
-    onError: (err, variables, context) => {
+    onError: (err, variables, context, inlineOptions) => {
       // Rollback to previous state on error
       if (context?.previousData !== undefined) {
         queryClient.setQueryData(queryKey, context.previousData)
@@ -116,12 +116,16 @@ export function useOptimisticMutation<
         queryClient.invalidateQueries({ queryKey })
       }
 
-      // Call the user's onError handler if provided
+      // Compose error callbacks: hook-level first, then inline
       if (onError) {
         onError(err, variables, context)
       }
+      // Call inline error handler if provided
+      if (inlineOptions?.onError) {
+        inlineOptions.onError(err)
+      }
     },
-    onSuccess: (data, variables, context) => {
+    onSuccess: (data, variables, context, inlineOptions) => {
       // Ensure server data is reflected in cache
       queryClient.setQueryData(queryKey, data)
 
@@ -136,9 +140,13 @@ export function useOptimisticMutation<
         queryClient.invalidateQueries({ queryKey })
       }
 
-      // Call the user's onSuccess handler if provided
+      // Compose success callbacks: hook-level first, then inline
       if (onSuccess) {
         onSuccess(data, variables, context)
+      }
+      // Call inline success handler if provided
+      if (inlineOptions?.onSuccess) {
+        inlineOptions.onSuccess(data)
       }
     },
   })
