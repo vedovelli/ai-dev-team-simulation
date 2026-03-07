@@ -27,8 +27,8 @@ function calculateMetrics(data: SprintHealthData): SprintMetricsCalculated {
     : 0
 
   // Calculate average time to complete a task (in hours)
-  const sprintStartDate = new Date(data.sprint.startDate)
-  const sprintEndDate = new Date(data.sprint.endDate)
+  const sprintStartDate = new Date(data.sprint.startDate || new Date())
+  const sprintEndDate = new Date(data.sprint.endDate || new Date())
   const totalSprintDays = (sprintEndDate.getTime() - sprintStartDate.getTime()) / (1000 * 60 * 60 * 24)
 
   const elapsedDays = (new Date().getTime() - sprintStartDate.getTime()) / (1000 * 60 * 60 * 24)
@@ -66,22 +66,45 @@ function calculateMetrics(data: SprintHealthData): SprintMetricsCalculated {
 }
 
 /**
- * Fetch and calculate sprint-level metrics
- * Uses stale-while-revalidate strategy for better UX
+ * Fetch and calculate sprint-level metrics with real-time polling
+ *
+ * Features:
+ * - Automatic polling every 30 seconds (configurable)
+ * - Refetch on window focus for fresh data
+ * - Stale-while-revalidate strategy for better UX
+ * - Handles missing/incomplete data gracefully
+ * - Includes error handling and retry logic
  */
-export function useSprintMetrics(sprintId: string) {
+export interface UseSprintMetricsOptions {
+  /** Refetch interval in milliseconds (default: 30000 = 30s) */
+  refetchInterval?: number
+  /** Enable automatic refetch (default: true) */
+  refetchOnWindowFocus?: boolean
+}
+
+export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOptions = {}) {
+  const {
+    refetchInterval = 30 * 1000, // 30 seconds
+    refetchOnWindowFocus = true,
+  } = options
+
   const query = useQuery<SprintHealthData, Error>({
-    queryKey: ['sprintMetrics', sprintId],
+    queryKey: ['sprints', sprintId, 'metrics'],
     queryFn: async () => {
       const response = await fetch(`/api/sprints/${sprintId}/metrics`)
       if (!response.ok) {
-        throw new Error('Failed to fetch sprint metrics')
+        throw new Error(`Failed to fetch sprint metrics: ${response.statusText}`)
       }
-      return response.json()
+      return response.json() as Promise<SprintHealthData>
     },
     enabled: !!sprintId,
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes (was cacheTime in v4)
+    refetchInterval, // Polling configuration
+    refetchOnWindowFocus, // Refetch when window regains focus
+    refetchOnReconnect: true, // Refetch when connection is restored
+    retry: 3, // Retry failed requests up to 3 times
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   })
 
   const calculated = query.data ? calculateMetrics(query.data) : null
