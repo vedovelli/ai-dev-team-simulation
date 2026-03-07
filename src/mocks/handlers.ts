@@ -713,7 +713,24 @@ export const handlers = [
   }),
 
   http.get('/api/agents', () => {
-    return HttpResponse.json(agentsStore)
+    // Return agents with capacity information
+    const agentsWithCapacity = agentsStore.map((agent) => {
+      // Count current tasks for this agent
+      const currentTaskCount = tasksStore.filter(
+        (task) => task.assignee === agent.name && task.status !== 'done'
+      ).length
+      const maxCapacity = 8 // Max tasks per agent
+      const availableSlots = Math.max(0, maxCapacity - currentTaskCount)
+
+      return {
+        ...agent,
+        currentTaskCount,
+        maxCapacity,
+        availableSlots,
+      }
+    })
+
+    return HttpResponse.json(agentsWithCapacity)
   }),
 
   http.get('/api/agents/:id/history', ({ params }) => {
@@ -2065,6 +2082,94 @@ export const paginatedHandlers = [
 
     tasksStore[taskIndex] = updatedTask
     return HttpResponse.json(updatedTask, { status: 200 })
+  }),
+
+  // Batch task assignment endpoint
+  http.post('/api/tasks/assign-batch', async ({ request }) => {
+    await simulateDelay()
+
+    const body = (await request.json()) as {
+      taskIds: string[]
+      agentId: string
+      priority: number
+      estimatedHours?: number
+    }
+
+    const { taskIds, agentId, priority, estimatedHours } = body
+
+    // Validate input
+    if (!taskIds || taskIds.length === 0) {
+      return HttpResponse.json(
+        { error: 'At least one task must be selected' },
+        { status: 400 }
+      )
+    }
+
+    if (!agentId) {
+      return HttpResponse.json(
+        { error: 'Agent is required' },
+        { status: 400 }
+      )
+    }
+
+    // Find the agent to check capacity
+    const agent = agentsStore.find((a) => a.id === agentId || a.name === agentId)
+    if (!agent) {
+      return HttpResponse.json(
+        { error: 'Agent not found' },
+        { status: 404 }
+      )
+    }
+
+    // Check if agent can accept the tasks
+    const currentTaskCount = tasksStore.filter(
+      (task) => task.assignee === agent.name && task.status !== 'done'
+    ).length
+    const maxCapacity = 8
+    const availableSlots = maxCapacity - currentTaskCount
+
+    if (availableSlots < taskIds.length) {
+      return HttpResponse.json(
+        {
+          error: `Agent can only accept ${availableSlots} more task(s). Maximum capacity is ${maxCapacity} active tasks.`,
+        },
+        { status: 400 }
+      )
+    }
+
+    // Simulate 10% failure rate for testing error handling
+    if (shouldFailMutation('POST /api/tasks/assign-batch')) {
+      return HttpResponse.json(
+        { error: 'Failed to assign tasks. Please try again.' },
+        { status: 500 }
+      )
+    }
+
+    // Convert priority number to priority string
+    const priorityMap: Record<number, TaskPriority> = {
+      1: 'high',
+      2: 'medium',
+      3: 'low',
+    }
+
+    // Update all tasks
+    const updatedTasks: Task[] = []
+    taskIds.forEach((taskId) => {
+      const taskIndex = tasksStore.findIndex((task) => task.id === taskId)
+      if (taskIndex !== -1) {
+        const updatedTask: Task = {
+          ...tasksStore[taskIndex],
+          assignee: agent.name,
+          priority: priorityMap[priority] || 'low',
+          estimatedHours: estimatedHours,
+          updatedAt: new Date().toISOString(),
+        }
+        tasksStore[taskIndex] = updatedTask
+        updatedTasks.push(updatedTask)
+      }
+    })
+
+    return HttpResponse.json(updatedTasks, { status: 200 })
   }),
 
   // Priority update endpoint

@@ -1,29 +1,45 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import type { Task } from '../types/task'
 import type { Agent } from '../types/agent'
 import type { TaskAssignmentInput } from '../types/forms/taskAssignment'
 import { taskAssignmentSchema } from '../types/forms/taskAssignment'
+import type { BatchTaskAssignmentInput } from '../lib/validation'
+import { batchTaskAssignmentSchema } from '../lib/validation'
 import { useAssignTask } from '../hooks/mutations/useAssignTask'
+import { useTaskAssignment } from '../hooks/mutations/useTaskAssignment'
+import { useAgentCapacity, canAgentAcceptTasks } from '../hooks/useAgentCapacity'
 import { useToastApi } from '../hooks/useToastApi'
 
 interface TaskAssignmentModalProps {
-  task: Task
+  tasks: Task | Task[]
   agents: Agent[]
   isOpen: boolean
   onClose: () => void
 }
 
 export function TaskAssignmentModal({
-  task,
+  tasks,
   agents,
   isOpen,
   onClose,
 }: TaskAssignmentModalProps) {
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
   const { showSuccess, showError } = useToastApi()
+  const { data: agentsWithCapacity = [] } = useAgentCapacity()
+
+  // Normalize tasks to array
+  const taskArray = Array.isArray(tasks) ? tasks : [tasks]
+  const isBatchAssignment = taskArray.length > 1
+
+  // Single assignment hook
   const assignTaskMutation = useAssignTask()
+  // Batch assignment hook
+  const batchAssignMutation = useTaskAssignment()
+
+  // Use appropriate schema and form based on single/batch
+  const validationSchema = isBatchAssignment ? batchTaskAssignmentSchema : taskAssignmentSchema
 
   const {
     register,
@@ -31,32 +47,53 @@ export function TaskAssignmentModal({
     formState: { errors, isSubmitting },
     reset,
     watch,
-  } = useForm<TaskAssignmentInput>({
-    resolver: zodResolver(taskAssignmentSchema),
+  } = useForm<BatchTaskAssignmentInput>({
+    resolver: zodResolver(validationSchema),
     defaultValues: {
-      agent: task.assignee !== 'Unassigned' ? task.assignee : '',
-      priority: task.priority === 'high' ? 1 : task.priority === 'medium' ? 2 : 3,
-      estimatedHours: task.estimatedHours || undefined,
+      taskIds: taskArray.map((t) => t.id),
+      agentId: !isBatchAssignment && taskArray[0].assignee !== 'Unassigned' ? taskArray[0].assignee : '',
+      priority: !isBatchAssignment ? (taskArray[0].priority === 'high' ? 1 : taskArray[0].priority === 'medium' ? 2 : 3) : 2,
+      estimatedHours: !isBatchAssignment ? taskArray[0].estimatedHours : undefined,
     },
   })
 
-  const selectedAgent = watch('agent')
+  const selectedAgentId = watch('agentId')
+  const selectedAgent = agentsWithCapacity.find((a) => a.id === selectedAgentId || a.name === selectedAgentId)
+  const canAgentAccept = selectedAgent ? canAgentAcceptTasks(selectedAgent, taskArray.length) : false
 
-  const onSubmit = async (data: TaskAssignmentInput) => {
+  const onSubmit = async (data: BatchTaskAssignmentInput) => {
     setErrorMessage(null)
 
     try {
-      await assignTaskMutation.mutateAsync({
-        taskId: task.id,
-        data,
-      })
+      if (isBatchAssignment) {
+        // Batch assignment
+        await batchAssignMutation.mutateAsync({
+          taskIds: data.taskIds,
+          data: {
+            agentId: data.agentId,
+            priority: data.priority,
+            estimatedHours: data.estimatedHours,
+          },
+        })
+        showSuccess(`${taskArray.length} tasks assigned successfully`)
+      } else {
+        // Single assignment
+        await assignTaskMutation.mutateAsync({
+          taskId: taskArray[0].id,
+          data: {
+            agent: data.agentId,
+            priority: data.priority,
+            estimatedHours: data.estimatedHours,
+          },
+        })
+        showSuccess('Task assigned successfully')
+      }
 
-      showSuccess('Task assigned successfully')
       reset()
       onClose()
     } catch (err) {
       const message =
-        err instanceof Error ? err.message : 'Failed to assign task. Agent may be at capacity.'
+        err instanceof Error ? err.message : 'Failed to assign task(s). Agent may be at capacity.'
       setErrorMessage(message)
       showError(message)
     }
@@ -74,46 +111,66 @@ export function TaskAssignmentModal({
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg shadow-lg max-w-md w-full mx-4">
         <div className="p-6">
-          <h2 className="text-xl font-semibold mb-2">Assign Task</h2>
-          <p className="text-sm text-gray-600 mb-6">{task.title}</p>
+          <h2 className="text-xl font-semibold mb-2">Assign Task{isBatchAssignment ? 's' : ''}</h2>
+          {isBatchAssignment ? (
+            <p className="text-sm text-gray-600 mb-6">
+              Assign {taskArray.length} task{taskArray.length !== 1 ? 's' : ''} to an agent
+            </p>
+          ) : (
+            <p className="text-sm text-gray-600 mb-6">{taskArray[0].title}</p>
+          )}
 
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             {/* Agent Select */}
             <div>
-              <label htmlFor="agent" className="block text-sm font-medium text-gray-700 mb-2">
+              <label htmlFor="agentId" className="block text-sm font-medium text-gray-700 mb-2">
                 Agent
               </label>
               <select
-                id="agent"
-                {...register('agent')}
+                id="agentId"
+                {...register('agentId')}
                 className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                  errors.agent ? 'border-red-500' : 'border-gray-300'
+                  errors.agentId ? 'border-red-500' : 'border-gray-300'
                 }`}
               >
                 <option value="">Select an agent...</option>
-                {agents.map((agent) => (
-                  <option key={agent.id} value={agent.id}>
-                    {agent.name} ({agent.role})
+                {agentsWithCapacity.map((agent) => (
+                  <option
+                    key={agent.id}
+                    value={agent.id}
+                    disabled={agent.availableSlots < taskArray.length}
+                  >
+                    {agent.name} ({agent.role}) - {agent.availableSlots}/{agent.maxCapacity} slots
                   </option>
                 ))}
               </select>
-              {errors.agent && (
-                <p className="mt-1 text-sm text-red-600">{errors.agent.message}</p>
+              {errors.agentId && (
+                <p className="mt-1 text-sm text-red-600">{errors.agentId.message}</p>
               )}
               {selectedAgent && (
-                <p className="mt-2 text-xs text-gray-500">
-                  Selected: {agents.find((a) => a.id === selectedAgent)?.name}
-                </p>
+                <div className="mt-2 text-xs text-gray-500 space-y-1">
+                  <p>
+                    Selected: {selectedAgent.name} ({selectedAgent.role})
+                  </p>
+                  <p
+                    className={`${
+                      canAgentAccept ? 'text-green-600' : 'text-red-600'
+                    }`}
+                  >
+                    Capacity: {selectedAgent.availableSlots} of {selectedAgent.maxCapacity} slots available
+                    {!canAgentAccept && ` (needs ${taskArray.length})`}
+                  </p>
+                </div>
               )}
             </div>
 
             {/* Priority Select */}
             <div>
               <label htmlFor="priority" className="block text-sm font-medium text-gray-700 mb-2">
-                Priority (1-4)
+                Priority
               </label>
               <div className="flex gap-2">
-                {[1, 2, 3, 4].map((p) => (
+                {[1, 2, 3].map((p) => (
                   <label key={p} className="flex items-center gap-2 cursor-pointer">
                     <input
                       type="radio"
@@ -133,7 +190,7 @@ export function TaskAssignmentModal({
             {/* Estimated Hours */}
             <div>
               <label htmlFor="estimatedHours" className="block text-sm font-medium text-gray-700 mb-2">
-                Estimated Hours (optional)
+                Estimated Hours per Task (optional)
               </label>
               <input
                 id="estimatedHours"
@@ -170,10 +227,21 @@ export function TaskAssignmentModal({
               </button>
               <button
                 type="submit"
-                disabled={isSubmitting || assignTaskMutation.isPending}
+                disabled={
+                  isSubmitting ||
+                  assignTaskMutation.isPending ||
+                  batchAssignMutation.isPending ||
+                  !canAgentAccept
+                }
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 disabled:opacity-50"
               >
-                {assignTaskMutation.isPending ? 'Assigning...' : 'Assign Task'}
+                {isBatchAssignment
+                  ? batchAssignMutation.isPending
+                    ? 'Assigning...'
+                    : `Assign ${taskArray.length} Tasks`
+                  : assignTaskMutation.isPending
+                    ? 'Assigning...'
+                    : 'Assign Task'}
               </button>
             </div>
           </form>

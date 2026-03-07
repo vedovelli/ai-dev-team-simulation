@@ -35,3 +35,15 @@ export type CreateTaskResponse = z.infer<typeof createTaskResponseSchema>
 
 // Export as CreateTaskInput for consistency with form usage
 export type CreateTaskInput = CreateTaskRequest
+
+// Batch task assignment validation schema
+export const batchTaskAssignmentSchema = z.object({
+  taskIds: z
+    .array(z.string().min(1))
+    .min(1, 'At least one task must be selected'),
+  agentId: z.string().min(1, 'Agent is required'),
+  priority: z.number().min(1).max(3),
+  estimatedHours: z.number().min(0).optional(),
+})
+
+export type BatchTaskAssignmentInput = z.infer<typeof batchTaskAssignmentSchema>
