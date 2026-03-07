@@ -12,6 +12,7 @@ import { formSubmissionHandlers } from './formSubmissionHandlers'
 import { metricsHandlers } from './handlers/metrics'
 import { bulkOperationHandlers } from './handlers/bulk-operations'
 import { taskQueueHandlers } from './handlers/taskQueue'
+import { sprintHandlers } from './handlers/sprints'
 
 interface Team {
   id: string
@@ -2229,4 +2230,5 @@ export const paginatedHandlers = [
   ...metricsHandlers,
   ...bulkOperationHandlers,
   ...taskQueueHandlers,
+  ...sprintHandlers,
 ]
