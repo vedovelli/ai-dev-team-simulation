@@ -74,6 +74,50 @@ const { updateQueryData, invalidateQuery } = useWebSocketQueryIntegration({
 
 See [WebSocket Infrastructure Guide](../../docs/guides/WEBSOCKET_INFRASTRUCTURE.md)
 
+### useResilientQuery
+
+Production-ready query hook with exponential backoff and circuit breaker pattern.
+
+```typescript
+import { useResilientQuery } from '@/hooks'
+
+const { data, isLoading, error, isCircuitBreakerOpen, retry } = useResilientQuery({
+  queryKey: ['user', userId],
+  queryFn: () => fetchUser(userId),
+  retryConfig: {
+    maxAttempts: 3,
+    baseDelay: 1000,
+    maxDelay: 10000,
+    circuitBreakerThreshold: 5,
+  },
+  onError: (error) => console.error('Query failed:', error),
+})
+
+if (isCircuitBreakerOpen) {
+  return <ErrorBoundary message="Service temporarily unavailable" />
+}
+
+if (isLoading) return <Loader />
+if (error) return <ErrorDisplay error={error} onRetry={retry} />
+return <UserProfile user={data} />
+```
+
+**Features:**
+- Exponential backoff retry logic (delay grows exponentially)
+- Circuit breaker pattern (fails fast after threshold)
+- Configurable per-query retry policies
+- Full TypeScript generic support
+- Manual retry capability
+- Success/error callbacks
+
+**Configuration:**
+- `maxAttempts`: Max retry attempts (default: 3)
+- `baseDelay`: Initial retry delay in ms (default: 1000)
+- `maxDelay`: Maximum delay cap in ms (default: 30000)
+- `circuitBreakerThreshold`: Consecutive failures before breaker trips (default: 5)
+
+See [Resilience Framework Guide](../../docs/guides/RESILIENCE_FRAMEWORK.md)
+
 ## Hook Development Guidelines
 
 When creating new hooks:
