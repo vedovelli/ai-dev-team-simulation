@@ -249,6 +249,43 @@ export const taskQueueHandlers = [
       success: true,
       data: task,
       message: `Task assigned to ${agent.name}`,
+      timestamp: new Date().toISOString(),
+    })
+  }),
+
+  // POST /api/tasks/:id/unassign - Unassign task from agent
+  http.post('/api/tasks/:id/unassign', async ({ params }) => {
+    const { id } = params
+
+    // Find task
+    const task = mockTasks.find((t) => t.id === id)
+
+    if (!task) {
+      return HttpResponse.json({ success: false, error: 'Task not found' }, { status: 404 })
+    }
+
+    if (!task.assignee) {
+      return HttpResponse.json(
+        {
+          success: false,
+          error: 'Task is not assigned to any agent',
+        },
+        { status: 400 }
+      )
+    }
+
+    // Store previous assignee for context
+    const previousAssignee = task.assignee
+
+    // Unassign
+    task.assignee = ''
+    task.updatedAt = new Date().toISOString()
+
+    return HttpResponse.json({
+      success: true,
+      data: task,
+      message: `Task unassigned from agent ${previousAssignee}`,
+      timestamp: new Date().toISOString(),
     })
   }),
 
