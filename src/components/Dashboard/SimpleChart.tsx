@@ -1,8 +1,8 @@
 import React, { useMemo } from 'react'
-import type { TimeSeriesPoint } from '../../hooks/useMetrics'
+import type { TimeSeriesDataPoint } from '../../types/metrics'
 
 interface SimpleChartProps {
-  data: TimeSeriesPoint[]
+  data: TimeSeriesDataPoint[]
   title: string
   yAxisLabel?: string
 }

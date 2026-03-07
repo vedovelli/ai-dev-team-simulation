@@ -1,9 +1,8 @@
 /**
  * Agent Performance Metrics Hook
  *
- * Coordinates multiple TanStack Query endpoints to fetch comprehensive
- * performance metrics data. Handles loading/error states gracefully and
- * provides typed responses.
+ * Uses useQueries to parallelize metric endpoint fetching for optimal performance.
+ * Supports suspense boundaries for progressive loading of dashboard sections.
  *
  * @example
  * ```tsx
@@ -11,7 +10,7 @@
  * ```
  */
 
-import { useQuery } from '@tanstack/react-query'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
 import type {
   PerformanceSummary,
   TimeSeriesDataPoint,
@@ -25,90 +24,86 @@ interface UseMetricsResult {
   isLoading: boolean
   isError: boolean
   error: Error | null
-  refetch: () => void
+  refetch: () => Promise<void>
+}
+
+const METRICS_CACHE_CONFIG = {
+  staleTime: 30 * 1000, // 30 seconds
+  gcTime: 5 * 60 * 1000, // 5 minutes
 }
 
 /**
- * Hook for fetching and coordinating agent performance metrics
+ * Hook for fetching agent performance metrics in parallel
  *
- * Fetches three separate endpoints and coordinates their loading/error states:
+ * Uses TanStack Query's useQueries to fetch three endpoints simultaneously:
  * - GET /api/metrics/summary - aggregated performance stats
  * - GET /api/metrics/timeseries - time-series data for charts
  * - GET /api/agents/performance - per-agent performance breakdown
  *
- * Cache configuration:
- * - staleTime: 30 seconds - data is considered fresh for 30 seconds
- * - gcTime: 5 minutes - cached data persists for 5 minutes before garbage collection
+ * Supports suspense for progressive loading with boundaries.
  *
  * @returns Object containing metrics data and query state
  */
 export function useMetrics(): UseMetricsResult {
-  // Fetch performance summary
-  const summaryQuery = useQuery<PerformanceSummary, Error>({
-    queryKey: ['metrics', 'summary'],
-    queryFn: async () => {
-      const response = await fetch('/api/metrics/summary')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch metrics summary: ${response.status}`)
-      }
-      return response.json()
-    },
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
+  const queryClient = useQueryClient()
+
+  const queries = useQueries({
+    queries: [
+      {
+        queryKey: ['metrics', 'summary'],
+        queryFn: async () => {
+          const response = await fetch('/api/metrics/summary')
+          if (!response.ok) {
+            throw new Error(`Failed to fetch metrics summary: ${response.status}`)
+          }
+          return response.json() as Promise<PerformanceSummary>
+        },
+        ...METRICS_CACHE_CONFIG,
+      },
+      {
+        queryKey: ['metrics', 'timeseries'],
+        queryFn: async () => {
+          const response = await fetch('/api/metrics/timeseries')
+          if (!response.ok) {
+            throw new Error(`Failed to fetch time-series data: ${response.status}`)
+          }
+          return response.json() as Promise<TimeSeriesDataPoint[]>
+        },
+        ...METRICS_CACHE_CONFIG,
+      },
+      {
+        queryKey: ['agents', 'performance'],
+        queryFn: async () => {
+          const response = await fetch('/api/agents/performance')
+          if (!response.ok) {
+            throw new Error(`Failed to fetch agent performance: ${response.status}`)
+          }
+          return response.json() as Promise<AgentMetrics[]>
+        },
+        ...METRICS_CACHE_CONFIG,
+      },
+    ],
   })
 
-  // Fetch time-series data
-  const timeSeriesQuery = useQuery<TimeSeriesDataPoint[], Error>({
-    queryKey: ['metrics', 'timeseries'],
-    queryFn: async () => {
-      const response = await fetch('/api/metrics/timeseries')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch time-series data: ${response.status}`)
-      }
-      return response.json()
-    },
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
-  })
+  const [summaryQuery, timeSeriesQuery, agentPerformanceQuery] = queries
 
-  // Fetch agent performance data
-  const agentPerformanceQuery = useQuery<AgentMetrics[], Error>({
-    queryKey: ['agents', 'performance'],
-    queryFn: async () => {
-      const response = await fetch('/api/agents/performance')
-      if (!response.ok) {
-        throw new Error(`Failed to fetch agent performance: ${response.status}`)
-      }
-      return response.json()
-    },
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes
-  })
+  // Determine overall loading state
+  const isLoading = queries.some((query) => query.isLoading)
 
-  // Determine overall loading state (loading if any query is loading)
-  const isLoading =
-    summaryQuery.isLoading ||
-    timeSeriesQuery.isLoading ||
-    agentPerformanceQuery.isLoading
-
-  // Determine overall error state (error if any query has an error)
-  const isError =
-    summaryQuery.isError ||
-    timeSeriesQuery.isError ||
-    agentPerformanceQuery.isError
+  // Determine overall error state
+  const isError = queries.some((query) => query.isError)
 
   // Get first error encountered
   const error =
-    summaryQuery.error ||
-    timeSeriesQuery.error ||
-    agentPerformanceQuery.error ||
-    null
+    queries.find((query) => query.error)?.error || null
 
-  // Combined refetch function
-  const refetch = () => {
-    summaryQuery.refetch()
-    timeSeriesQuery.refetch()
-    agentPerformanceQuery.refetch()
+  // Combined refetch function that waits for all queries
+  const refetch = async () => {
+    await Promise.all([
+      summaryQuery.refetch(),
+      timeSeriesQuery.refetch(),
+      agentPerformanceQuery.refetch(),
+    ])
   }
 
   return {
@@ -123,9 +118,10 @@ export function useMetrics(): UseMetricsResult {
 }
 
 /**
- * Cache Invalidation Pattern
+ * Cache Invalidation Pattern for Real-Time Updates
  *
- * To invalidate metrics after mutations, use TanStack Query's invalidateQueries:
+ * Use TanStack Query's invalidateQueries to refresh metrics after mutations
+ * or external data changes (e.g., WebSocket updates).
  *
  * @example
  * ```tsx
@@ -133,7 +129,7 @@ export function useMetrics(): UseMetricsResult {
  *
  * const queryClient = useQueryClient()
  *
- * // Invalidate all metrics queries
+ * // Invalidate all metrics queries (summary + timeseries)
  * queryClient.invalidateQueries({ queryKey: ['metrics'] })
  *
  * // Invalidate all agent performance queries
@@ -141,11 +137,24 @@ export function useMetrics(): UseMetricsResult {
  *
  * // Invalidate specific metric endpoint
  * queryClient.invalidateQueries({ queryKey: ['metrics', 'summary'] })
+ *
+ * // Real-time WebSocket example
+ * useEffect(() => {
+ *   const socket = io('/metrics')
+ *   socket.on('update', (event) => {
+ *     // Refetch metrics when WebSocket sends updates
+ *     if (event.type === 'agent_completed_task') {
+ *       queryClient.invalidateQueries({ queryKey: ['agents', 'performance'] })
+ *     }
+ *   })
+ *   return () => socket.close()
+ * }, [])
  * ```
  *
- * Common use cases:
+ * Common invalidation triggers:
  * - After task completion/failure
- * - After agent status change
- * - After task assignment changes
- * - On manual refresh
+ * - After agent status changes
+ * - After task assignment/reassignment
+ * - On manual refresh/refetch
+ * - WebSocket real-time metric updates
  */

@@ -1,6 +1,6 @@
-import React, { useMemo } from 'react'
+import React from 'react'
 import { useTable } from '../../hooks/useTable'
-import type { AgentMetrics } from '../../hooks/useMetrics'
+import type { AgentMetrics } from '../../types/metrics'
 
 interface AgentPerformanceTableProps {
   data: AgentMetrics[]
@@ -11,17 +11,19 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
   const { sortedAndFilteredData, handleSort, handleFilter, sortKey, sortOrder, filterValue } =
     useTable({
       data,
-      initialSortKey: 'tasksCompleted',
+      initialSortKey: 'completedTasks',
       initialSortOrder: 'desc',
     })
 
   const performanceBadgeClass = (tier: string) => {
     switch (tier) {
-      case 'High':
+      case 'excellent':
         return 'bg-green-900/40 text-green-300 border border-green-700'
-      case 'Medium':
+      case 'good':
+        return 'bg-blue-900/40 text-blue-300 border border-blue-700'
+      case 'average':
         return 'bg-yellow-900/40 text-yellow-300 border border-yellow-700'
-      case 'Low':
+      case 'below-average':
         return 'bg-red-900/40 text-red-300 border border-red-700'
       default:
         return 'bg-slate-900/40 text-slate-300'
@@ -57,21 +59,27 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
             <tr>
               <th
                 className="px-6 py-3 text-left text-xs font-semibold text-slate-300 cursor-pointer hover:text-slate-100"
-                onClick={() => handleSort('name')}
+                onClick={() => handleSort('agentName')}
               >
-                Agent Name {sortKey === 'name' && (sortOrder === 'asc' ? '↑' : '↓')}
+                Agent Name {sortKey === 'agentName' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
               <th
                 className="px-6 py-3 text-left text-xs font-semibold text-slate-300 cursor-pointer hover:text-slate-100"
-                onClick={() => handleSort('tasksCompleted')}
+                onClick={() => handleSort('completedTasks')}
               >
-                Tasks Completed {sortKey === 'tasksCompleted' && (sortOrder === 'asc' ? '↑' : '↓')}
+                Tasks Completed {sortKey === 'completedTasks' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
               <th
                 className="px-6 py-3 text-left text-xs font-semibold text-slate-300 cursor-pointer hover:text-slate-100"
-                onClick={() => handleSort('avgTime')}
+                onClick={() => handleSort('successRate')}
               >
-                Avg Time (min) {sortKey === 'avgTime' && (sortOrder === 'asc' ? '↑' : '↓')}
+                Success Rate {sortKey === 'successRate' && (sortOrder === 'asc' ? '↑' : '↓')}
+              </th>
+              <th
+                className="px-6 py-3 text-left text-xs font-semibold text-slate-300 cursor-pointer hover:text-slate-100"
+                onClick={() => handleSort('averageTimeToComplete')}
+              >
+                Avg Time (min) {sortKey === 'averageTimeToComplete' && (sortOrder === 'asc' ? '↑' : '↓')}
               </th>
               <th className="px-6 py-3 text-left text-xs font-semibold text-slate-300">
                 Performance Tier
@@ -81,16 +89,17 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
           <tbody className="divide-y divide-slate-700">
             {sortedAndFilteredData.length === 0 ? (
               <tr>
-                <td colSpan={4} className="px-6 py-8 text-center text-slate-400">
+                <td colSpan={5} className="px-6 py-8 text-center text-slate-400">
                   No agents found
                 </td>
               </tr>
             ) : (
               sortedAndFilteredData.map((agent) => (
-                <tr key={agent.id} className="hover:bg-slate-800/50 transition-colors">
-                  <td className="px-6 py-3 text-sm text-slate-200">{agent.name}</td>
-                  <td className="px-6 py-3 text-sm text-slate-200">{agent.tasksCompleted}</td>
-                  <td className="px-6 py-3 text-sm text-slate-200">{agent.avgTime}</td>
+                <tr key={agent.agentId} className="hover:bg-slate-800/50 transition-colors">
+                  <td className="px-6 py-3 text-sm text-slate-200">{agent.agentName}</td>
+                  <td className="px-6 py-3 text-sm text-slate-200">{agent.completedTasks}</td>
+                  <td className="px-6 py-3 text-sm text-slate-200">{agent.successRate}%</td>
+                  <td className="px-6 py-3 text-sm text-slate-200">{agent.averageTimeToComplete}</td>
                   <td className="px-6 py-3 text-sm">
                     <span
                       className={`inline-block px-3 py-1 rounded text-xs font-medium ${performanceBadgeClass(agent.performanceTier)}`}

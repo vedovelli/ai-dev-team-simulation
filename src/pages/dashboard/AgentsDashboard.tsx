@@ -6,7 +6,7 @@ import { SimpleChart } from '../../components/Dashboard/SimpleChart'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
 
 export function AgentsDashboard() {
-  const { agentMetrics, aggregateMetrics, isLoading, error } = useMetrics()
+  const { summary, timeSeriesData, agentMetrics, isLoading, error } = useMetrics()
 
   const icons = useMemo(
     () => ({
@@ -63,19 +63,19 @@ export function AgentsDashboard() {
         <StatsCard
           icon={icons.tasks}
           label="Total Tasks"
-          value={aggregateMetrics.totalTasks}
+          value={summary?.totalTasks || 0}
           subtitle="Completed across all agents"
         />
         <StatsCard
           icon={icons.time}
           label="Avg Completion Time"
-          value={`${aggregateMetrics.avgCompletionTime}m`}
+          value={`${summary?.averageCompletionTime || 0}m`}
           subtitle="Average time per task"
         />
         <StatsCard
           icon={icons.agents}
           label="Active Agents"
-          value={aggregateMetrics.activeAgents}
+          value={summary?.activeAgents || 0}
           subtitle="Currently available agents"
         />
       </div>
@@ -83,7 +83,7 @@ export function AgentsDashboard() {
       {/* Performance Chart */}
       <ErrorBoundary>
         <SimpleChart
-          data={aggregateMetrics.timeSeries}
+          data={timeSeriesData || []}
           title="Task Completion Trend (Last 24 Hours)"
           yAxisLabel="Tasks"
         />
@@ -91,7 +91,7 @@ export function AgentsDashboard() {
 
       {/* Agent Table */}
       <ErrorBoundary>
-        <AgentPerformanceTable data={agentMetrics} isLoading={isLoading} />
+        <AgentPerformanceTable data={agentMetrics || []} isLoading={isLoading} />
       </ErrorBoundary>
     </div>
   )
