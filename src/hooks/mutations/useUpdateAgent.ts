@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query'
-import type { AgentManagement } from '../../types/agent'
+import type { AgentManagement, AgentTaskStatus } from '../../types/agent'
 import { useMutationWithRetry } from '../useMutationWithRetry'
 
 /**
@@ -8,7 +8,7 @@ import { useMutationWithRetry } from '../useMutationWithRetry'
 interface UpdateAgentInput {
   name?: string
   capabilities?: string[]
-  status?: 'active' | 'idle' | 'busy' | 'offline'
+  status?: AgentTaskStatus
   rateLimit?: { requestsPerMinute: number }
   taskCount?: number
   successRate?: number
