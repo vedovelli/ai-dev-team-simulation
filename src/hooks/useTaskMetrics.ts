@@ -9,12 +9,14 @@
  */
 
 import { useQueries } from '@tanstack/react-query'
-import type { Task } from '../types/task'
+import type { Task, TaskStatus } from '../types/task'
+
+export type TaskMetricStatus = 'backlog' | 'in-progress' | 'completed' | 'in-review'
 
 export interface TaskMetric {
   id: string
   title: string
-  status: string
+  status: TaskMetricStatus
   assignedAgent: string
   priority: string
   createdAt: string
@@ -57,16 +59,29 @@ export function useTaskMetrics(): UseTaskMetricsResult {
           }
           const tasks = (await response.json()) as Task[]
 
-          // Transform Task to TaskMetric
-          return tasks.map((task) => ({
-            id: task.id,
-            title: task.title,
-            status: task.status === 'done' ? 'completed' : task.status === 'in-review' ? 'in-progress' : task.status,
-            assignedAgent: task.assignee || 'unassigned',
-            priority: task.priority,
-            createdAt: task.createdAt,
-            duration: task.estimatedHours ? Math.round(task.estimatedHours * 60) : 0,
-          })) as TaskMetric[]
+          // Transform Task to TaskMetric with type-safe status mapping
+          const STATUS_MAP: Record<TaskStatus, TaskMetricStatus> = {
+            'done': 'completed',
+            'in-review': 'in-review',
+            'in-progress': 'in-progress',
+            'backlog': 'backlog',
+          }
+
+          return tasks.map((task) => {
+            const mappedStatus = STATUS_MAP[task.status]
+            if (!mappedStatus) {
+              throw new Error(`Unknown task status: ${task.status}`)
+            }
+            return {
+              id: task.id,
+              title: task.title,
+              status: mappedStatus,
+              assignedAgent: task.assignee || 'unassigned',
+              priority: task.priority,
+              createdAt: task.createdAt,
+              duration: task.estimatedHours ? Math.round(task.estimatedHours * 60) : 0,
+            }
+          }) as TaskMetric[]
         },
         ...TASK_CACHE_CONFIG,
       },

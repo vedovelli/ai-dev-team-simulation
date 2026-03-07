@@ -7,6 +7,8 @@ interface AgentPerformanceTableProps {
   isLoading?: boolean
 }
 
+const PERFORMANCE_TIERS = ['excellent', 'good', 'average', 'below-average'] as const
+
 export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTableProps) {
   const { sortedAndFilteredData, handleSort, handleFilter, sortKey, sortOrder, filterValue } =
     useTable({
@@ -16,6 +18,12 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
     })
 
   const performanceBadgeClass = (tier: string) => {
+    // Runtime validation: ensure tier is a valid performance tier
+    if (!PERFORMANCE_TIERS.includes(tier as typeof PERFORMANCE_TIERS[number])) {
+      console.warn(`Unexpected performance tier from API: "${tier}". Falling back to default styling.`)
+      return 'bg-slate-900/40 text-slate-300 border border-slate-700'
+    }
+
     switch (tier) {
       case 'excellent':
         return 'bg-green-900/40 text-green-300 border border-green-700'
@@ -26,7 +34,7 @@ export function AgentPerformanceTable({ data, isLoading }: AgentPerformanceTable
       case 'below-average':
         return 'bg-red-900/40 text-red-300 border border-red-700'
       default:
-        return 'bg-slate-900/40 text-slate-300'
+        return 'bg-slate-900/40 text-slate-300 border border-slate-700'
     }
   }
 
