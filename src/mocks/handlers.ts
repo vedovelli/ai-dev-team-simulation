@@ -2136,6 +2136,95 @@ export const paginatedHandlers = [
     return HttpResponse.json(updatedTask, { status: 200 })
   }),
 
+  // Sprint Dashboard endpoints
+  http.get('/api/sprints/:id/summary', ({ params }) => {
+    const { id } = params
+    const sprint = sprintsStore.find((s) => s.id === id)
+
+    if (!sprint) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get tasks for this sprint
+    const sprintTasks = tasksStore.filter((task) => task.sprint === id)
+
+    // Calculate summary stats
+    const totalTasks = sprintTasks.length
+    const completedTasks = sprintTasks.filter((task) => task.status === 'done').length
+    const inProgressTasks = sprintTasks.filter((task) => task.status === 'in-progress').length
+
+    return HttpResponse.json({
+      sprintId: id,
+      totalTasks,
+      completedTasks,
+      inProgressTasks,
+      remainingTasks: totalTasks - completedTasks,
+      completionPercentage: totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0,
+    })
+  }),
+
+  http.get('/api/sprints/:id/tasks/summary', ({ params }) => {
+    const { id } = params
+    const sprint = sprintsStore.find((s) => s.id === id)
+
+    if (!sprint) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get tasks grouped by status
+    const sprintTasks = tasksStore.filter((task) => task.sprint === id)
+
+    const tasksByStatus = {
+      backlog: sprintTasks.filter((task) => task.status === 'backlog'),
+      'in-progress': sprintTasks.filter((task) => task.status === 'in-progress'),
+      'in-review': sprintTasks.filter((task) => task.status === 'in-review'),
+      done: sprintTasks.filter((task) => task.status === 'done'),
+    }
+
+    return HttpResponse.json(tasksByStatus)
+  }),
+
+  http.get('/api/sprints/:id/agents/workload', ({ params }) => {
+    const { id } = params
+    const sprint = sprintsStore.find((s) => s.id === id)
+
+    if (!sprint) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    // Get tasks for this sprint and group by assignee
+    const sprintTasks = tasksStore.filter((task) => task.sprint === id)
+
+    const workloadMap: Record<string, { agent: string; taskCount: number; completedCount: number }> = {}
+
+    sprintTasks.forEach((task) => {
+      if (!workloadMap[task.assignee]) {
+        workloadMap[task.assignee] = {
+          agent: task.assignee,
+          taskCount: 0,
+          completedCount: 0,
+        }
+      }
+      workloadMap[task.assignee].taskCount++
+      if (task.status === 'done') {
+        workloadMap[task.assignee].completedCount++
+      }
+    })
+
+    const workload = Object.values(workloadMap).sort((a, b) => b.taskCount - a.taskCount)
+
+    return HttpResponse.json(workload)
+  }),
+
   ...metricsHandlers,
   ...bulkOperationHandlers,
 ]
