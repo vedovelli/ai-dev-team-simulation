@@ -21,8 +21,8 @@ export interface UseTableReturn<T> {
 }
 
 /**
- * Custom hook for managing table state with client-side sorting and filtering.
- * Provides a simple API for sorting by column and filtering across all columns.
+ * Custom hook for managing table state with client-side sorting and advanced filtering.
+ * Provides a simple API for sorting by column, text filtering, and advanced field-based filters.
  *
  * @template T - The type of data in the table
  * @param options - Configuration for the hook
@@ -30,9 +30,21 @@ export interface UseTableReturn<T> {
  *
  * @example
  * ```tsx
- * const { sortedAndFilteredData, sortKey, sortOrder, handleSort, handleFilter } = useTable({
+ * // Basic usage with sorting and text filtering
+ * const { sortedAndFilteredData, handleSort, handleFilter } = useTable({
  *   data: users,
  *   initialSortKey: 'name',
+ * })
+ *
+ * // Advanced usage with URL-synced filters
+ * const searchParams = useSearch()
+ * const { setFilter, filters } = useTable({
+ *   data: tasks,
+ *   filters: {
+ *     status: searchParams.status,
+ *     assignee: searchParams.assignee,
+ *   },
+ *   onFilterChange: (filters) => navigate({ search: filters })
  * })
  * ```
  */
