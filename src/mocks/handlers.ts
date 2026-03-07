@@ -16,6 +16,7 @@ import { sprintHandlers } from './handlers/sprints'
 import { agentTaskQueueHandlers } from './handlers/agentTaskQueue'
 import { sprintAnalyticsHandlers } from './handlers/sprintAnalytics'
 import { agentStatusHandlers } from './handlers/agentStatus'
+import { permissionHandlers } from './handlers/permissions'
 
 interface Team {
   id: string
@@ -2342,4 +2343,5 @@ export const paginatedHandlers = [
   ...agentTaskQueueHandlers,
   ...sprintAnalyticsHandlers,
   ...agentStatusHandlers,
+  ...permissionHandlers,
 ]
