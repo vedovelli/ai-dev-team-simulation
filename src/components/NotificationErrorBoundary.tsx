@@ -2,17 +2,20 @@ import { ReactNode, Component, ErrorInfo } from 'react'
 
 interface Props {
   children: ReactNode
+  /** Optional WebSocket connection status to show UI degradation */
+  wsConnected?: boolean
 }
 
 interface State {
   hasError: boolean
   error: Error | null
-  wsConnected: boolean
+  networkOnline: boolean
 }
 
 /**
- * Error boundary component specifically for handling WebSocket connection failures
+ * Error boundary component for handling WebSocket and network connection failures
  * Gracefully degrades to polling when WebSocket is unavailable
+ * Monitors both network status and WebSocket connection state
  */
 export class NotificationErrorBoundary extends Component<Props, State> {
   constructor(props: Props) {
@@ -20,15 +23,14 @@ export class NotificationErrorBoundary extends Component<Props, State> {
     this.state = {
       hasError: false,
       error: null,
-      wsConnected: false,
+      networkOnline: typeof navigator !== 'undefined' ? navigator.onLine : true,
     }
   }
 
-  static getDerivedStateFromError(error: Error): State {
+  static getDerivedStateFromError(error: Error): Partial<State> {
     return {
       hasError: true,
       error,
-      wsConnected: false,
     }
   }
 
@@ -48,24 +50,53 @@ export class NotificationErrorBoundary extends Component<Props, State> {
   }
 
   handleOnline = () => {
-    // Connection restored - reset error state
-    this.setState({ hasError: false, error: null })
+    // Network connection restored - reset error if no other error
+    this.setState({ networkOnline: true })
+    if (this.state.hasError && !this.state.error) {
+      this.setState({ hasError: false })
+    }
   }
 
   handleOffline = () => {
-    // Connection lost
-    this.setState({
-      hasError: true,
-      error: new Error('Network connection lost'),
-    })
+    // Network connection lost
+    this.setState({ networkOnline: false, hasError: true, error: new Error('Network connection lost') })
   }
 
   resetError = () => {
     this.setState({ hasError: false, error: null })
   }
 
+  /**
+   * Determine if we should show error UI based on network/WebSocket status
+   */
+  shouldShowError(): boolean {
+    const { wsConnected } = this.props
+    const { hasError, networkOnline } = this.state
+
+    // Show if explicit error occurred
+    if (hasError) return true
+
+    // Show if network is offline
+    if (!networkOnline) return true
+
+    // Show if WebSocket is provided and disconnected (UI degradation warning)
+    if (wsConnected === false) return true
+
+    return false
+  }
+
+  getErrorMessage(): string {
+    const { wsConnected } = this.props
+    const { networkOnline, error } = this.state
+
+    if (error?.message) return error.message
+    if (!networkOnline) return 'Network connection lost'
+    if (wsConnected === false) return 'Real-time connection unavailable'
+    return 'Notification service temporarily unavailable'
+  }
+
   render() {
-    if (this.state.hasError) {
+    if (this.shouldShowError()) {
       return (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-4">
           <div className="flex items-start gap-3">
@@ -87,7 +118,7 @@ export class NotificationErrorBoundary extends Component<Props, State> {
                 Notification Service Temporarily Unavailable
               </h3>
               <p className="mt-1 text-sm text-amber-700">
-                {this.state.error?.message || 'WebSocket connection failed'}
+                {this.getErrorMessage()}
               </p>
               <p className="mt-2 text-xs text-amber-600">
                 Notifications will be fetched via polling as a fallback. Auto-refresh every 30 seconds.

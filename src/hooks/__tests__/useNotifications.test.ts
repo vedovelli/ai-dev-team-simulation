@@ -1,6 +1,7 @@
 import { renderHook, waitFor, act } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ReactNode } from 'react'
+import { vi } from 'vitest'
 import { useNotifications } from '../useNotifications'
 import { setupServer } from 'msw/node'
 import { notificationHandlers } from '../../mocks/handlers/notifications'

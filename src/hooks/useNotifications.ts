@@ -101,14 +101,30 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         // Update existing notification in cache
         queryClient.setQueryData(queryKey, (old: NotificationsResponse | undefined) => {
           if (!old) return old
+
+          // Calculate new unread count based on read status change
+          const notification = old.data.find(n => n.id === message.payload.id)
+          let newUnreadCount = old.unreadCount
+
+          if (notification) {
+            const wasUnread = !notification.read
+            const nowUnread = message.payload.read === false
+
+            if (wasUnread && !nowUnread) {
+              // Changed from unread to read
+              newUnreadCount = Math.max(0, old.unreadCount - 1)
+            } else if (!wasUnread && nowUnread) {
+              // Changed from read to unread
+              newUnreadCount = old.unreadCount + 1
+            }
+          }
+
           return {
             ...old,
             data: old.data.map((n) =>
               n.id === message.payload.id ? { ...n, ...message.payload } : n
             ),
-            unreadCount: old.data.some(n => n.id === message.payload.id && !n.read && message.payload.read)
-              ? Math.max(0, old.unreadCount - 1)
-              : old.unreadCount,
+            unreadCount: newUnreadCount,
           }
         })
       } else if (message.type === 'notification:dismissed') {
