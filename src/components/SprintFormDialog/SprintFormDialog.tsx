@@ -1,6 +1,7 @@
 import { useForm } from '@tanstack/react-form'
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import type { Sprint } from '../../types/sprint'
+import { useSprintForm, type AgentWithLoad } from '../../hooks/useSprintForm'
 
 interface SprintFormData {
   name: string
@@ -9,6 +10,7 @@ interface SprintFormData {
   estimatedPoints: number
   startDate?: string
   endDate?: string
+  assignedAgents: string[]
 }
 
 interface SprintFormDialogProps {
@@ -28,6 +30,12 @@ export function SprintFormDialog({
 }: SprintFormDialogProps) {
   const [apiError, setApiError] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [availableAgents, setAvailableAgents] = useState<AgentWithLoad[]>([])
+  const [loadingAgents, setLoadingAgents] = useState(false)
+  const [capacityWarning, setCapacityWarning] = useState<string | null>(null)
+  const [dateError, setDateError] = useState<string | null>(null)
+
+  const sprintForm = useSprintForm()
 
   const form = useForm<SprintFormData>({
     defaultValues: {
@@ -37,6 +45,7 @@ export function SprintFormDialog({
       estimatedPoints: sprint?.estimatedPoints || 0,
       startDate: sprint?.startDate || '',
       endDate: sprint?.endDate || '',
+      assignedAgents: [],
     },
     onSubmit: async ({ value }) => {
       setApiError(null)
@@ -54,6 +63,51 @@ export function SprintFormDialog({
       }
     },
   })
+
+  // Load available agents on mount
+  useEffect(() => {
+    if (isOpen && availableAgents.length === 0) {
+      setLoadingAgents(true)
+      sprintForm.getAvailableAgents().then((agents) => {
+        setAvailableAgents(agents)
+        setLoadingAgents(false)
+      })
+    }
+  }, [isOpen])
+
+  // Validate date range on date change
+  const validateDates = useCallback(async () => {
+    const startDate = form.getFieldValue('startDate')
+    const endDate = form.getFieldValue('endDate')
+
+    const error = sprintForm.validateDateRange(startDate, endDate)
+    setDateError(error || null)
+
+    // Check capacity if agents are assigned and dates are valid
+    if (!error && form.getFieldValue('assignedAgents').length > 0) {
+      const capacityResult = await sprintForm.validateTeamCapacity(
+        form.getFieldValue('assignedAgents'),
+        form.getFieldValue('estimatedPoints')
+      )
+      setCapacityWarning(capacityResult.message || null)
+    }
+  }, [form, sprintForm])
+
+  // Validate capacity when agents or points change
+  const validateCapacity = useCallback(async () => {
+    const agentIds = form.getFieldValue('assignedAgents')
+    const estimatedPoints = form.getFieldValue('estimatedPoints')
+
+    if (agentIds.length > 0) {
+      const capacityResult = await sprintForm.validateTeamCapacity(
+        agentIds,
+        estimatedPoints
+      )
+      setCapacityWarning(capacityResult.message || null)
+    } else {
+      setCapacityWarning(null)
+    }
+  }, [form, sprintForm])
 
   // Reset form when sprint changes
   useEffect(() => {
@@ -308,9 +362,10 @@ export function SprintFormDialog({
                     id="sprint-points"
                     type="number"
                     value={field.state.value}
-                    onChange={(e) =>
+                    onChange={(e) => {
                       field.setValue(parseInt(e.target.value, 10) || 0)
-                    }
+                      validateCapacity()
+                    }}
                     onBlur={field.handleBlur}
                     placeholder="0"
                     min="0"
@@ -359,7 +414,10 @@ export function SprintFormDialog({
                     id="sprint-start-date"
                     type="date"
                     value={field.state.value}
-                    onChange={(e) => field.setValue(e.target.value)}
+                    onChange={(e) => {
+                      field.setValue(e.target.value)
+                      validateDates()
+                    }}
                     onBlur={field.handleBlur}
                     disabled={isSubmitting}
                     className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
@@ -406,7 +464,10 @@ export function SprintFormDialog({
                     id="sprint-end-date"
                     type="date"
                     value={field.state.value}
-                    onChange={(e) => field.setValue(e.target.value)}
+                    onChange={(e) => {
+                      field.setValue(e.target.value)
+                      validateDates()
+                    }}
                     onBlur={field.handleBlur}
                     disabled={isSubmitting}
                     className={`w-full px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
@@ -428,6 +489,72 @@ export function SprintFormDialog({
                 </div>
               )}
             </form.Field>
+
+            {/* Date Range Validation Error */}
+            {dateError && (
+              <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+                <p className="text-sm text-red-700">{dateError}</p>
+              </div>
+            )}
+
+            {/* Team Assignment Field */}
+            <form.Field
+              name="assignedAgents"
+              validators={{
+                onBlur: ({ value }) => {
+                  return undefined
+                },
+              }}
+            >
+              {(field) => (
+                <div>
+                  <label
+                    htmlFor="sprint-agents"
+                    className="block text-sm font-medium text-gray-700 mb-2"
+                  >
+                    Assign Team Members
+                  </label>
+                  {loadingAgents ? (
+                    <p className="text-sm text-gray-500">Loading team members...</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {availableAgents.length > 0 ? (
+                        <select
+                          id="sprint-agents"
+                          multiple
+                          value={field.state.value}
+                          onChange={(e) => {
+                            const selected = Array.from(e.target.selectedOptions, (opt) => opt.value)
+                            field.setValue(selected)
+                            validateCapacity()
+                          }}
+                          disabled={isSubmitting}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                        >
+                          {availableAgents.map((agent) => (
+                            <option key={agent.id} value={agent.id}>
+                              {agent.name} (Load: {agent.utilizationRate.toFixed(0)}%)
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <p className="text-sm text-gray-500">No available team members</p>
+                      )}
+                      <p className="text-xs text-gray-500">
+                        Hold Ctrl/Cmd to select multiple team members
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+            </form.Field>
+
+            {/* Capacity Warning */}
+            {capacityWarning && (
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+                <p className="text-sm text-yellow-700">⚠ {capacityWarning}</p>
+              </div>
+            )}
 
             {/* Action Buttons */}
             <div className="flex gap-3 justify-end pt-4">
