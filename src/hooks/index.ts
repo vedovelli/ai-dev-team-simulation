@@ -32,6 +32,8 @@ export type { Notification } from '../types/notification'
 export { useNotification } from './useNotification'
 export type { UseNotificationOptions, NotificationType } from './useNotification'
 export { useTaskWithNotifications } from './useTaskWithNotifications'
+export { useAppNotifications } from './useAppNotifications'
+export type { UseAppNotificationsOptions, AppNotification } from './useAppNotifications'
 export { useTaskAssignment } from './useTaskAssignment'
 export type {
   AssignmentResult,
