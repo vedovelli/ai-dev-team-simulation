@@ -63,7 +63,7 @@ export interface FilterBarProps {
 
 /**
  * Reusable filter bar component
- * Supports multiple filter types: search, select, multiselect
+ * Supports multiple filter types: search, select
  *
  * @example
  * ```tsx
