@@ -44,6 +44,11 @@ export const AgentsSearchParamSchema = z.object({
   filter: z.string().optional(),
   sort: z.enum(['name', 'status', 'role']).optional(),
   sortOrder: z.enum(['asc', 'desc']).optional(),
+  // Advanced filtering parameters
+  search: z.string().optional(),
+  status: z.enum(['active', 'idle', 'busy', 'offline']).optional(),
+  sortBy: z.enum(['name', 'status', 'taskCount', 'successRate', 'createdAt', 'updatedAt']).optional(),
+  order: z.enum(['asc', 'desc']).optional(),
 })
 export type AgentsSearchParams = z.infer<typeof AgentsSearchParamSchema>
 
@@ -94,6 +99,11 @@ export const serializeAgentsSearchParams = (params: AgentsSearchParams): Record<
   if (params.filter) result.filter = params.filter
   if (params.sort) result.sort = params.sort
   if (params.sortOrder) result.sortOrder = params.sortOrder
+  // Advanced filtering fields
+  if (params.search) result.search = params.search
+  if (params.status) result.status = params.status
+  if (params.sortBy) result.sortBy = params.sortBy
+  if (params.order) result.order = params.order
   return result
 }
 
