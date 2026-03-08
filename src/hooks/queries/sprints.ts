@@ -4,6 +4,8 @@ import type {
   SprintTask,
   BurndownDataPoint,
   TeamCapacity,
+  SprintReport,
+  SprintReportRequest,
 } from '../../types/sprint'
 
 /**
@@ -26,6 +28,9 @@ export const sprintKeys = {
   capacity: () => [...sprintKeys.all, 'capacity'] as const,
   capacityData: (sprintId: string) =>
     [...sprintKeys.capacity(), sprintId] as const,
+  reports: () => [...sprintKeys.all, 'report'] as const,
+  report: (sprintId: string, filters?: Record<string, unknown>) =>
+    [...sprintKeys.reports(), sprintId, { ...filters }] as const,
 }
 
 interface SprintsListResponse {
@@ -216,6 +221,54 @@ export function useTeamCapacity(sprintId: string | null | undefined) {
     staleTime: 1000 * 60 * 5, // 5 minutes (capacity changes less frequently)
     gcTime: 1000 * 60 * 10, // 10 minutes
     refetchOnWindowFocus: true,
+    retry: 2,
+    enabled: !!sprintId, // Dependent query
+  })
+}
+
+/**
+ * Fetch sprint performance report with historical metrics and trends.
+ * Aggregates metrics data over a date range for reports and analysis.
+ * Uses 1-hour stale time as business reports don't change frequently.
+ *
+ * @param sprintId - The sprint ID (can be null/undefined)
+ * @param filters - Report filters including startDate and endDate (ISO 8601 format)
+ * @returns SprintReport object with trends, aggregations, and raw data points
+ *
+ * @example
+ * ```tsx
+ * const { data: report, isLoading } = useSprintReport(sprintId, {
+ *   startDate: '2026-02-15',
+ *   endDate: '2026-02-28',
+ * })
+ * ```
+ */
+export function useSprintReport(
+  sprintId: string | null | undefined,
+  filters?: Record<string, unknown>
+) {
+  return useQuery<SprintReport>({
+    queryKey: sprintId ? sprintKeys.report(sprintId, filters) : [],
+    queryFn: async () => {
+      const params = new URLSearchParams()
+      if (filters?.startDate) {
+        params.append('startDate', String(filters.startDate))
+      }
+      if (filters?.endDate) {
+        params.append('endDate', String(filters.endDate))
+      }
+
+      const response = await fetch(
+        `/api/sprints/${sprintId}/report?${params.toString()}`
+      )
+      if (!response.ok) {
+        throw new Error(`Failed to fetch report for sprint ${sprintId}`)
+      }
+      return response.json()
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour (business reports don't change often)
+    gcTime: 1000 * 60 * 60 * 2, // 2 hours
+    refetchOnWindowFocus: false,
     retry: 2,
     enabled: !!sprintId, // Dependent query
   })

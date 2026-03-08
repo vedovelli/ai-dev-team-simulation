@@ -69,3 +69,41 @@ export interface TeamCapacity {
   allocatedCapacity: number
   availableCapacity: number
 }
+
+/**
+ * Historical data point for sprint report trends
+ */
+export interface SprintReportDataPoint {
+  date: string // ISO 8601 timestamp
+  velocity: number
+  completionRate: number // 0-100 percentage
+  tasksCompleted: number
+  tasksInProgress: number
+  capacityUtilization: number // 0-100 percentage
+}
+
+/**
+ * Sprint performance report with trends and aggregations
+ */
+export interface SprintReport {
+  sprintId: string
+  sprintName: string
+  startDate: string
+  endDate: string
+  dataPoints: SprintReportDataPoint[]
+  summary: {
+    averageVelocity: number
+    averageCompletionRate: number
+    totalTasksCompleted: number
+    peakCapacityUtilization: number
+    lowCapacityUtilization: number
+  }
+}
+
+/**
+ * Request payload for sprint report generation with filters
+ */
+export interface SprintReportRequest {
+  startDate: string // ISO 8601 date
+  endDate: string // ISO 8601 date
+}
