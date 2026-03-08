@@ -1,8 +1,9 @@
 import { createFileRoute, useNavigate } from '@tanstack/react-router'
-import { Suspense } from 'react'
+import { Suspense, useState, useCallback } from 'react'
 import { useSprintDetail } from '../../hooks/useSprintDetail'
 import { useSprintTasks } from '../../hooks/useSprintTasks'
 import { SprintTaskTable } from '../../components/SprintTaskTable'
+import { BulkActionToolbar } from '../../components/BulkActionToolbar'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
 import type { Sprint } from '../../types/sprint'
 
@@ -20,8 +21,23 @@ const STATUS_LABELS: Record<Sprint['status'], string> = {
 
 function SprintDetailContent({ id }: { id: string }) {
   const navigate = useNavigate()
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(new Set())
   const { data: sprint, isLoading: sprintLoading, error: sprintError } = useSprintDetail(id)
   const { data: tasks = [], isLoading: tasksLoading, error: tasksError } = useSprintTasks(id)
+
+  const handleSelectionChange = useCallback((newSelection: Set<string>) => {
+    setSelectedTaskIds(newSelection)
+  }, [])
+
+  const handleBulkComplete = useCallback(() => {
+    // Clear selection after successful bulk update
+    setSelectedTaskIds(new Set())
+  }, [])
+
+  const handleBulkCancel = useCallback(() => {
+    // Clear selection when canceling
+    setSelectedTaskIds(new Set())
+  }, [])
 
   if (sprintError) {
     return (
@@ -111,7 +127,22 @@ function SprintDetailContent({ id }: { id: string }) {
             View all
           </button>
         </div>
-        <SprintTaskTable tasks={tasks} isLoading={tasksLoading} />
+        <div className="border border-slate-700 rounded-lg overflow-hidden bg-slate-900">
+          <SprintTaskTable
+            tasks={tasks}
+            isLoading={tasksLoading}
+            enableBulkSelect={true}
+            selectedTaskIds={selectedTaskIds}
+            onSelectionChange={handleSelectionChange}
+          />
+          {selectedTaskIds.size > 0 && (
+            <BulkActionToolbar
+              selectedTaskIds={selectedTaskIds}
+              onComplete={handleBulkComplete}
+              onCancel={handleBulkCancel}
+            />
+          )}
+        </div>
       </div>
     </div>
   )
