@@ -51,10 +51,17 @@ export function AgentsList() {
       )
     }
 
+    // Status filter
+    if (filters.status) {
+      predicates.push(
+        createPredicate<string>('status', 'equals', filters.status as string)
+      )
+    }
+
     // Note: In production, prefer server-side filtering via MSW handlers
     // This demonstrates client-side filtering capability
     return applyFilters(agents, predicates)
-  }, [agents, search, applyFilters, createPredicate])
+  }, [agents, search, filters.status, applyFilters, createPredicate])
 
   // Filter configuration
   const filterConfig: FilterBarConfig[] = [
