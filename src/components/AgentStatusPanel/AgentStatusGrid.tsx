@@ -1,8 +1,37 @@
-import { useState } from 'react'
 import { useAgentStatus } from '../../hooks/useAgentStatus'
 import type { AgentAvailability } from '../../types/agent'
 import { AgentStatusSkeletons } from './AgentStatusSkeletons'
 import { AgentStatusIndicator } from './AgentStatusIndicator'
+
+type AgentStatus = 'idle' | 'active' | 'busy' | 'offline'
+
+interface StatusColors {
+  card: string
+  dot: string
+}
+
+const STATUS_COLORS: Record<AgentStatus | 'default', StatusColors> = {
+  idle: {
+    card: 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200',
+    dot: 'bg-emerald-500',
+  },
+  active: {
+    card: 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-200',
+    dot: 'bg-blue-500',
+  },
+  busy: {
+    card: 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-200',
+    dot: 'bg-yellow-500',
+  },
+  offline: {
+    card: 'bg-slate-100 border-slate-300 text-slate-700 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300',
+    dot: 'bg-slate-400',
+  },
+  default: {
+    card: 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400',
+    dot: 'bg-slate-500',
+  },
+}
 
 interface AgentStatusGridProps {
   /** Custom polling interval in milliseconds (default: 10000) */
@@ -25,10 +54,9 @@ interface AgentStatusGridProps {
  */
 export function AgentStatusGrid({ refetchInterval = 10 * 1000, onAgentClick }: AgentStatusGridProps) {
   const { agents, isLoading, error, isFetching } = useAgentStatus({ refetchInterval })
-  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null)
 
   // Error state with no data
-  if (error && !agents || (agents && agents.length === 0)) {
+  if ((error && !agents) || agents?.length === 0) {
     return (
       <div className="bg-red-900 border border-red-700 rounded-lg p-6 text-red-200">
         <p className="font-semibold mb-2">Error loading agent statuses</p>
@@ -43,7 +71,7 @@ export function AgentStatusGrid({ refetchInterval = 10 * 1000, onAgentClick }: A
   }
 
   // No agents found
-  if (!agents || agents.length === 0) {
+  if (!agents?.length) {
     return (
       <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center text-slate-400">
         <p className="text-lg">No agents available</p>
@@ -54,39 +82,11 @@ export function AgentStatusGrid({ refetchInterval = 10 * 1000, onAgentClick }: A
   const isUpdating = isFetching && !!agents
 
   const handleAgentClick = (agent: AgentAvailability) => {
-    setSelectedAgentId(agent.id)
     onAgentClick?.(agent)
   }
 
-  // Status color mapping
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'idle':
-        return 'bg-emerald-50 border-emerald-200 text-emerald-700 dark:bg-emerald-900/30 dark:border-emerald-700 dark:text-emerald-200'
-      case 'active':
-        return 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/30 dark:border-blue-700 dark:text-blue-200'
-      case 'busy':
-        return 'bg-yellow-50 border-yellow-200 text-yellow-700 dark:bg-yellow-900/30 dark:border-yellow-700 dark:text-yellow-200'
-      case 'offline':
-        return 'bg-slate-100 border-slate-300 text-slate-700 dark:bg-slate-700 dark:border-slate-600 dark:text-slate-300'
-      default:
-        return 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-400'
-    }
-  }
-
-  const getStatusDotColor = (status: string) => {
-    switch (status) {
-      case 'idle':
-        return 'bg-emerald-500'
-      case 'active':
-        return 'bg-blue-500'
-      case 'busy':
-        return 'bg-yellow-500'
-      case 'offline':
-        return 'bg-slate-400'
-      default:
-        return 'bg-slate-500'
-    }
+  const getStatusColors = (status: AgentStatus): StatusColors => {
+    return STATUS_COLORS[status] || STATUS_COLORS.default
   }
 
   return (
@@ -108,11 +108,7 @@ export function AgentStatusGrid({ refetchInterval = 10 * 1000, onAgentClick }: A
           <button
             key={agent.id}
             onClick={() => handleAgentClick(agent)}
-            className={`text-left rounded-lg border-2 p-4 transition-all hover:shadow-lg ${
-              selectedAgentId === agent.id
-                ? 'border-blue-500 bg-slate-700/50'
-                : 'border-slate-700 bg-slate-800 hover:border-slate-600'
-            }`}
+            className="text-left rounded-lg border-2 border-slate-700 bg-slate-800 p-4 transition-all hover:border-slate-600 hover:shadow-lg"
             title={`Click to view ${agent.name}'s task details`}
           >
             {/* Agent Header */}
@@ -124,10 +120,15 @@ export function AgentStatusGrid({ refetchInterval = 10 * 1000, onAgentClick }: A
             </div>
 
             {/* Status Badge */}
-            <div className={`inline-flex items-center gap-2 px-2 py-1 rounded border mb-3 text-xs font-medium ${getStatusColor(agent.status)}`}>
-              <span className={`w-2 h-2 rounded-full ${getStatusDotColor(agent.status)}`} />
-              <span className="capitalize">{agent.status}</span>
-            </div>
+            {(() => {
+              const colors = getStatusColors(agent.status as AgentStatus)
+              return (
+                <div className={`inline-flex items-center gap-2 px-2 py-1 rounded border mb-3 text-xs font-medium ${colors.card}`}>
+                  <span className={`w-2 h-2 rounded-full ${colors.dot}`} />
+                  <span className="capitalize">{agent.status}</span>
+                </div>
+              )
+            })()}
 
             {/* Metrics Grid */}
             <div className="space-y-2 text-sm mb-3">
@@ -155,7 +156,10 @@ export function AgentStatusGrid({ refetchInterval = 10 * 1000, onAgentClick }: A
             {/* Last Activity */}
             <div className="text-xs text-slate-500 border-t border-slate-700 pt-3">
               <p>
-                Last active: {new Date(agent.metadata.lastActivityAt).toLocaleTimeString()}
+                Last active:{' '}
+                {agent.metadata.lastActivityAt
+                  ? new Date(agent.metadata.lastActivityAt).toLocaleTimeString()
+                  : 'Never'}
               </p>
             </div>
           </button>
