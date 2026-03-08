@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useEffect } from 'react'
 import { useAgents } from '../../hooks/useAgents'
 import { useFilters, type FilterState } from '../../hooks/useFilters'
 import { FilterBar, type FilterBarConfig } from '../../components/FilterBar'
@@ -34,6 +34,21 @@ export function AgentsList() {
     sortBy: filters.sortBy as any,
     order: filters.order as any,
   })
+
+  // Track if data is stale (search changed but agents data hasn't updated yet)
+  const prevFiltersRef = useRef({ search: filters.search, status: filters.status })
+  const isStale = useMemo(() => {
+    const searchChanged = prevFiltersRef.current.search !== filters.search
+    const statusChanged = prevFiltersRef.current.status !== filters.status
+    return (searchChanged || statusChanged) && isLoading
+  }, [filters.search, filters.status, isLoading])
+
+  // Update ref when data loads
+  useEffect(() => {
+    if (!isLoading) {
+      prevFiltersRef.current = { search: filters.search, status: filters.status }
+    }
+  }, [isLoading, filters.search, filters.status])
 
   // Get filter context for client-side filtering
   const { applyFilters, createPredicate } = useFilterContext()
@@ -112,7 +127,7 @@ export function AgentsList() {
 
       {/* Results */}
       <div className="space-y-4">
-        {isLoading ? (
+        {isLoading || isStale ? (
           <div className="text-center py-12">
             <p className="text-gray-500">Loading agents...</p>
           </div>
