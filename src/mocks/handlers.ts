@@ -19,6 +19,7 @@ import { agentStatusHandlers } from './handlers/agentStatus'
 import { permissionHandlers } from './handlers/permissions'
 import { agentManagementHandlers } from './handlers/agents'
 import { notificationHandlers } from './handlers/notifications'
+import { taskExecutionHandlers } from './handlers/taskExecution'
 
 interface Team {
   id: string
@@ -2348,4 +2349,5 @@ export const paginatedHandlers = [
   ...permissionHandlers,
   ...agentManagementHandlers,
   ...notificationHandlers,
+  ...taskExecutionHandlers,
 ]

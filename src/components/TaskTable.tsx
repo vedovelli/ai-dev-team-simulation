@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { Link } from '@tanstack/react-router'
 import {
   useReactTable,
   getCoreRowModel,
@@ -27,7 +28,18 @@ const columns: ColumnDef<Task>[] = [
         <SortIcon isSorted={column.getIsSorted()} />
       </button>
     ),
-    cell: (info) => <span className="font-medium">{info.getValue()}</span>,
+    cell: (info) => {
+      const task = info.row.original
+      return (
+        <Link
+          to="/tasks/$taskId"
+          params={{ taskId: task.id }}
+          className="font-medium text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          {info.getValue()}
+        </Link>
+      )
+    },
     enableColumnFilter: true,
     filterFn: 'includesString',
   },
