@@ -15,6 +15,7 @@ import type {
   BurndownDataPoint,
   TeamCapacity,
   TeamMemberCapacity,
+  SprintReport,
 } from '../../types/sprint'
 
 interface SprintsListResponse {
@@ -640,5 +641,98 @@ export const sprintHandlers = [
     }
 
     return HttpResponse.json(capacity, { status: 200 })
+  }),
+
+  /**
+   * GET /api/sprints/:id/report
+   * Returns sprint performance report with historical metrics and trends
+   */
+  http.get('/api/sprints/:id/report', ({ params, request }) => {
+    const { id } = params
+    const url = new URL(request.url)
+    const startDate = url.searchParams.get('startDate')
+    const endDate = url.searchParams.get('endDate')
+
+    const sprints = generateSprints()
+    const sprint = sprints.find((s) => s.id === id)
+
+    if (!sprint) {
+      return HttpResponse.json(
+        { error: 'Sprint not found' },
+        { status: 404 }
+      )
+    }
+
+    // Parse dates for filtering
+    const reportStartDate = startDate ? new Date(startDate) : new Date(sprint.startDate || '')
+    const reportEndDate = endDate ? new Date(endDate) : new Date(sprint.endDate || '')
+
+    // Generate historical data points
+    const dataPoints = []
+    const currentDate = new Date(reportStartDate)
+    const daysDiff = Math.ceil((reportEndDate.getTime() - reportStartDate.getTime()) / (1000 * 60 * 60 * 24))
+
+    // Generate realistic trends
+    let velocity = 8
+    let completionRate = 10
+    let tasksCompleted = 0
+    let capacityUtilization = 45
+
+    for (let day = 0; day <= daysDiff; day++) {
+      // Simulate velocity variations
+      velocity = Math.max(5, Math.min(15, velocity + (Math.random() - 0.5) * 3))
+
+      // Completion rate increases over time
+      completionRate = Math.min(100, completionRate + Math.random() * 8)
+
+      // Tasks completed accumulates
+      tasksCompleted = Math.floor((completionRate / 100) * sprint.taskCount)
+
+      // Capacity utilization grows initially then stabilizes
+      capacityUtilization = Math.max(40, Math.min(90, capacityUtilization + (Math.random() - 0.3) * 5))
+
+      dataPoints.push({
+        date: currentDate.toISOString().split('T')[0],
+        velocity: Math.round(velocity * 10) / 10,
+        completionRate: Math.round(completionRate),
+        tasksCompleted,
+        tasksInProgress: Math.max(0, sprint.taskCount - tasksCompleted - Math.floor(sprint.taskCount * 0.2)),
+        capacityUtilization: Math.round(capacityUtilization),
+      })
+
+      currentDate.setDate(currentDate.getDate() + 1)
+    }
+
+    // Calculate summary metrics
+    const averageVelocity = dataPoints.length > 0
+      ? Math.round((dataPoints.reduce((sum, p) => sum + p.velocity, 0) / dataPoints.length) * 10) / 10
+      : 0
+
+    const averageCompletionRate = dataPoints.length > 0
+      ? Math.round(dataPoints.reduce((sum, p) => sum + p.completionRate, 0) / dataPoints.length)
+      : 0
+
+    const totalTasksCompleted = dataPoints[dataPoints.length - 1]?.tasksCompleted || 0
+
+    const capacityUtilizationValues = dataPoints.map((p) => p.capacityUtilization)
+    const peakCapacityUtilization = Math.max(...capacityUtilizationValues, 0)
+    const lowCapacityUtilization = Math.min(...capacityUtilizationValues, 100)
+
+    const report: SprintReport = {
+      sprintId: sprint.id,
+      sprintName: sprint.name,
+      startDate: sprint.startDate || reportStartDate.toISOString().split('T')[0],
+      endDate: sprint.endDate || reportEndDate.toISOString().split('T')[0],
+      dataPoints,
+      summary: {
+        averageVelocity,
+        averageCompletionRate,
+        totalTasksCompleted,
+        peakCapacityUtilization,
+        lowCapacityUtilization,
+      },
+    }
+
+    return HttpResponse.json<SprintReport>(report, { status: 200 })
   }),
 ]
