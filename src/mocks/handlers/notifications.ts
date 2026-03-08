@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { Notification } from '../../types/notification'
+import type { Notification, NotificationType } from '../../types/notification'
 
 /**
  * Generate realistic notification data with various types
@@ -56,6 +56,12 @@ function generateMockNotifications(): Notification[] {
 
 // In-memory store for notifications
 const notificationsStore: Notification[] = generateMockNotifications()
+
+/**
+ * WebSocket clients store - simulates connected WebSocket clients
+ * In production, this would be handled by the actual WebSocket server
+ */
+const webSocketClients = new Set<string>()
 
 export const notificationHandlers = [
   /**
@@ -144,4 +150,43 @@ export const notificationHandlers = [
 
     return HttpResponse.json(updated)
   }),
+
+  /**
+   * PATCH /api/notifications/:id/dismiss
+   * Dismiss (remove) a notification from the list
+   * Simulates real-time WebSocket event broadcast
+   */
+  http.patch('/api/notifications/:id/dismiss', ({ params }) => {
+    const { id } = params
+    const notifIndex = notificationsStore.findIndex((n) => n.id === id)
+
+    if (notifIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 }
+      )
+    }
+
+    // Remove from store
+    notificationsStore.splice(notifIndex, 1)
+
+    // Simulate broadcasting to WebSocket clients
+    // In production, this would send a real WebSocket message
+    broadcastToClients({
+      type: 'notification:dismissed',
+      payload: { id },
+    })
+
+    return HttpResponse.json({ success: true })
+  }),
 ]
+
+/**
+ * Simulate broadcasting WebSocket messages to connected clients
+ * In production, this would use the actual WebSocket server implementation
+ */
+function broadcastToClients(message: { type: string; payload: any }) {
+  // This is a placeholder for the actual WebSocket broadcast logic
+  // In a real implementation, this would send messages to all connected WS clients
+  console.debug('Broadcasting to WebSocket clients:', message)
+}
