@@ -1,221 +1,230 @@
-import { useForm, FormState } from '@tanstack/react-form'
-import { zodValidator } from '@tanstack/zod-form-adapter'
-import { z } from 'zod'
-import { useState } from 'react'
-import type { Sprint } from '../types/sprint'
+import { useQueryClient } from '@tanstack/react-query'
+import type { Agent } from '../types/agent'
+import type { TeamCapacity } from '../types/sprint'
 
 /**
- * Sprint form mode type
- */
-export type SprintFormMode = 'create' | 'update'
-
-/**
- * Sprint form data structure
+ * Form data for sprint planning with capacity awareness
  */
 export interface SprintFormData {
   name: string
+  goals: string
+  status: 'planning' | 'active' | 'completed'
+  estimatedPoints: number
   startDate: string
   endDate: string
-  teamAssignment: string
+  assignedAgents: string[]
 }
 
 /**
- * Sprint form submission result
+ * Capacity validation result
  */
-export interface SprintFormResult {
-  success: boolean
-  error?: string
-  data?: Sprint
+export interface CapacityValidation {
+  isValid: boolean
+  message?: string
+  utilizationRate?: number
+  availableCapacity?: number
 }
 
 /**
- * Options for useSprintForm hook
+ * Agent with load information
  */
-interface UseSprintFormOptions {
-  /** Initial sprint data for edit mode */
-  initialData?: Sprint
-  /** Form submission callback */
-  onSubmit: (
-    data: SprintFormData,
-    mode: SprintFormMode
-  ) => Promise<SprintFormResult>
-  /** Form mode: create or update */
-  mode?: SprintFormMode
+export interface AgentWithLoad extends Agent {
+  currentLoad: number
+  maxCapacity: number
+  utilizationRate: number
 }
 
 /**
- * Validation schema for sprint form
+ * Custom hook for sprint form logic with capacity calculations
+ *
+ * Features:
+ * - Cross-field validation (date ranges, capacity constraints)
+ * - Real-time capacity calculations
+ * - Agent load visibility
+ * - Over-capacity warnings
  */
-const sprintFormSchema = z
-  .object({
-    name: z
-      .string()
-      .min(3, 'Sprint name must be at least 3 characters')
-      .max(50, 'Sprint name must not exceed 50 characters'),
-    startDate: z
-      .string()
-      .refine(
-        (date) => {
-          // Valid ISO date format
-          try {
-            new Date(date).toISOString()
-            return !isNaN(Date.parse(date))
-          } catch {
-            return false
-          }
-        },
-        'Start date must be a valid ISO date'
-      ),
-    endDate: z
-      .string()
-      .refine(
-        (date) => {
-          try {
-            new Date(date).toISOString()
-            return !isNaN(Date.parse(date))
-          } catch {
-            return false
-          }
-        },
-        'End date must be a valid ISO date'
-      ),
-    teamAssignment: z
-      .string()
-      .min(1, 'Team assignment is required')
-      .refine(
-        (id) => id.length > 0,
-        'Team assignment must be a valid team ID'
-      ),
-  })
-  .refine(
-    (data) => new Date(data.endDate) > new Date(data.startDate),
-    {
-      message: 'End date must be after start date',
-      path: ['endDate'],
+export const useSprintForm = () => {
+  const queryClient = useQueryClient()
+
+  /**
+   * Validates date range (end date must be after start date)
+   */
+  const validateDateRange = (startDate: string, endDate: string): string | undefined => {
+    if (!startDate || !endDate) {
+      return undefined
     }
-  )
 
-/**
- * Custom hook for sprint form management with TanStack Form validation
- *
- * Handles sprint creation and editing with comprehensive validation.
- * Prevents editing start/end dates for closed sprints.
- *
- * @example
- * ```tsx
- * function SprintForm({ sprint }: { sprint?: Sprint }) {
- *   const form = useSprintForm({
- *     initialData: sprint,
- *     mode: sprint ? 'update' : 'create',
- *     onSubmit: async (data, mode) => {
- *       const endpoint = mode === 'create' ? '/api/sprints' : `/api/sprints/${sprint?.id}`
- *       const method = mode === 'create' ? 'POST' : 'PATCH'
- *       const response = await fetch(endpoint, {
- *         method,
- *         body: JSON.stringify(data),
- *       })
- *       return response.ok
- *         ? { success: true, data: await response.json() }
- *         : { success: false, error: 'Submission failed' }
- *     },
- *   })
- *
- *   return (
- *     <form
- *       onSubmit={(e) => {
- *         e.preventDefault()
- *         form.handleSubmit()
- *       }}
- *     >
- *       <input
- *         type="text"
- *         value={form.state.values.name}
- *         onChange={(e) => form.setFieldValue('name', e.target.value)}
- *       />
- *       <button type="submit" disabled={form.state.isSubmitting}>
- *         {form.mode === 'create' ? 'Create Sprint' : 'Update Sprint'}
- *       </button>
- *     </form>
- *   )
- * }
- * ```
- */
-export function useSprintForm({
-  initialData,
-  onSubmit,
-  mode: initialMode = 'create',
-}: UseSprintFormOptions) {
-  const [mode, setMode] = useState<SprintFormMode>(initialMode)
-  const [submitError, setSubmitError] = useState<string | null>(null)
-  const [isClosedSprint, setIsClosedSprint] = useState(
-    initialData?.status === 'completed'
-  )
+    const start = new Date(startDate)
+    const end = new Date(endDate)
 
-  // Default values for create mode
-  const defaultValues: SprintFormData = {
-    name: initialData?.name || '',
-    startDate: initialData?.startDate || '',
-    endDate: initialData?.endDate || '',
-    teamAssignment: initialData?.id || '',
+    if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+      return 'Invalid date format'
+    }
+
+    if (end <= start) {
+      return 'End date must be after start date'
+    }
+
+    return undefined
   }
 
-  const form = useForm({
-    defaultValues,
-    onSubmit: async ({ value }) => {
-      setSubmitError(null)
+  /**
+   * Calculate sprint duration in days
+   */
+  const calculateSprintDuration = (startDate: string, endDate: string): number => {
+    if (!startDate || !endDate) return 0
+    const start = new Date(startDate)
+    const end = new Date(endDate)
+    const diffMs = end.getTime() - start.getTime()
+    return Math.ceil(diffMs / (1000 * 60 * 60 * 24))
+  }
 
-      // Prevent editing dates for closed sprints
-      if (mode === 'update' && isClosedSprint) {
-        if (
-          initialData &&
-          (value.startDate !== initialData.startDate ||
-            value.endDate !== initialData.endDate)
-        ) {
-          setSubmitError('Cannot edit dates for closed sprints')
-          return
+  /**
+   * Check agent capacity constraints
+   * Max 10 tasks per agent per sprint
+   */
+  const checkAgentCapacity = async (agentId: string): Promise<CapacityValidation> => {
+    try {
+      const response = await fetch(`/api/agents/${agentId}/capacity`)
+      if (!response.ok) {
+        return {
+          isValid: false,
+          message: 'Unable to check agent capacity',
         }
       }
 
-      try {
-        const result = await onSubmit(value, mode)
-        if (!result.success) {
-          setSubmitError(result.error || 'Submission failed')
-        }
-      } catch (error) {
-        setSubmitError(
-          error instanceof Error ? error.message : 'An error occurred'
-        )
+      const data = (await response.json()) as {
+        currentLoad: number
+        maxCapacity: number
       }
-    },
-    validatorAdapter: zodValidator(),
-    validators: {
-      onChange: sprintFormSchema,
-      onBlur: sprintFormSchema,
-    },
-  })
 
-  // Track dirty state (fields modified from initial values)
-  const isDirty =
-    JSON.stringify(form.state.values) !== JSON.stringify(defaultValues)
+      const utilizationRate = (data.currentLoad / data.maxCapacity) * 100
+      const isOverCapacity = data.currentLoad >= data.maxCapacity
 
-  // Extend form state with custom properties
-  const extendedFormState = {
-    ...form.state,
-    mode,
-    isDirty,
-    isClosed: isClosedSprint,
-    submitError,
+      return {
+        isValid: !isOverCapacity,
+        message: isOverCapacity ? 'Agent is at maximum capacity' : undefined,
+        utilizationRate,
+        availableCapacity: Math.max(0, data.maxCapacity - data.currentLoad),
+      }
+    } catch {
+      return {
+        isValid: true, // Allow on network error
+        message: undefined,
+      }
+    }
+  }
+
+  /**
+   * Validate team capacity for assigned agents
+   */
+  const validateTeamCapacity = async (
+    agentIds: string[],
+    estimatedPoints: number
+  ): Promise<CapacityValidation> => {
+    if (agentIds.length === 0) {
+      return {
+        isValid: true,
+      }
+    }
+
+    try {
+      const response = await fetch('/api/sprints/capacity/check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          agentIds,
+          estimatedPoints,
+        }),
+      })
+
+      if (!response.ok) {
+        return {
+          isValid: true, // Allow on error
+        }
+      }
+
+      const data = (await response.json()) as {
+        isValid: boolean
+        utilizationRate: number
+        message?: string
+      }
+
+      return {
+        isValid: data.isValid,
+        utilizationRate: data.utilizationRate,
+        message: data.message,
+      }
+    } catch {
+      return {
+        isValid: true, // Allow on network error
+      }
+    }
+  }
+
+  /**
+   * Get available agents for team assignment
+   */
+  const getAvailableAgents = async (): Promise<AgentWithLoad[]> => {
+    try {
+      const response = await fetch('/api/agents?status=idle,available')
+      if (!response.ok) {
+        return []
+      }
+
+      const agents = (await response.json()) as Agent[]
+      return agents.map((agent) => ({
+        ...agent,
+        currentLoad: 0,
+        maxCapacity: 10,
+        utilizationRate: 0,
+      }))
+    } catch {
+      return []
+    }
+  }
+
+  /**
+   * Cross-field validation for sprint form
+   */
+  const validateForm = async (data: SprintFormData): Promise<Record<string, string>> => {
+    const errors: Record<string, string> = {}
+
+    // Date validation
+    const dateError = validateDateRange(data.startDate, data.endDate)
+    if (dateError) {
+      errors.dateRange = dateError
+    }
+
+    // Capacity validation for assigned agents
+    if (data.assignedAgents.length > 0) {
+      const capacityResult = await validateTeamCapacity(
+        data.assignedAgents,
+        data.estimatedPoints
+      )
+      if (!capacityResult.isValid && capacityResult.message) {
+        errors.capacity = capacityResult.message
+      }
+    }
+
+    // Sprint name validation
+    if (!data.name || data.name.trim() === '') {
+      errors.name = 'Sprint name is required'
+    } else if (data.name.length < 2) {
+      errors.name = 'Name must be at least 2 characters'
+    } else if (data.name.length > 100) {
+      errors.name = 'Name must not exceed 100 characters'
+    }
+
+    return errors
   }
 
   return {
-    ...form,
-    state: extendedFormState,
-    mode,
-    setMode,
-    isDirty,
-    submitError,
-    clearError: () => setSubmitError(null),
+    validateDateRange,
+    calculateSprintDuration,
+    checkAgentCapacity,
+    validateTeamCapacity,
+    getAvailableAgents,
+    validateForm,
   }
 }
-
-export type UseSprintFormReturn = ReturnType<typeof useSprintForm>

@@ -306,6 +306,50 @@ function generateTeamCapacity(sprintId: string): TeamCapacity {
 }
 
 /**
+ * Check team capacity for sprint planning
+ */
+function checkTeamCapacity(agentIds: string[], estimatedPoints: number) {
+  const maxCapacityPerAgent = 10
+  const maxAgentLoad = 85 // Warn at 85% utilization
+
+  // Simulate agent loads
+  const agentLoads: Record<string, number> = {
+    alice: 65,
+    bob: 55,
+    carol: 53,
+    david: 40,
+    eve: 39,
+  }
+
+  let totalAvailableCapacity = 0
+  let overCapacityAgents = 0
+
+  agentIds.forEach((agentId) => {
+    const currentLoad = agentLoads[agentId] || 0
+    const available = Math.max(0, maxCapacityPerAgent - (currentLoad / 100) * maxCapacityPerAgent)
+    totalAvailableCapacity += available
+
+    if (currentLoad > maxAgentLoad) {
+      overCapacityAgents += 1
+    }
+  })
+
+  const totalRequired = estimatedPoints
+  const canAssign = totalAvailableCapacity >= totalRequired
+  const avgUtilization = (agentIds.reduce((sum, id) => sum + (agentLoads[id] || 0), 0) / agentIds.length)
+
+  return {
+    isValid: canAssign && overCapacityAgents === 0,
+    message: !canAssign
+      ? `Insufficient capacity. Required: ${totalRequired}, Available: ${totalAvailableCapacity.toFixed(1)}`
+      : overCapacityAgents > 0
+        ? `${overCapacityAgents} agent(s) are near maximum capacity`
+        : undefined,
+    utilizationRate: avgUtilization,
+  }
+}
+
+/**
  * MSW handlers for sprint endpoints
  */
 export const sprintHandlers = [
@@ -532,5 +576,69 @@ export const sprintHandlers = [
         { status: 400 }
       )
     }
+  }),
+
+  /**
+   * POST /api/sprints/capacity/check
+   * Validates team capacity for sprint planning
+   */
+  http.post('/api/sprints/capacity/check', async ({ request }) => {
+    try {
+      const body = await request.json() as {
+        agentIds: string[]
+        estimatedPoints: number
+      }
+
+      if (!body.agentIds || !Array.isArray(body.agentIds)) {
+        return HttpResponse.json(
+          { error: 'Invalid agent IDs' },
+          { status: 400 }
+        )
+      }
+
+      if (typeof body.estimatedPoints !== 'number' || body.estimatedPoints < 0) {
+        return HttpResponse.json(
+          { error: 'Invalid estimated points' },
+          { status: 400 }
+        )
+      }
+
+      const capacityCheck = checkTeamCapacity(body.agentIds, body.estimatedPoints)
+
+      return HttpResponse.json(capacityCheck, { status: 200 })
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Failed to check capacity' },
+        { status: 500 }
+      )
+    }
+  }),
+
+  /**
+   * GET /api/agents/:id/capacity
+   * Returns agent capacity information
+   */
+  http.get('/api/agents/:id/capacity', ({ params }) => {
+    const { id } = params
+
+    // Mock agent capacity data
+    const agentCapacity: Record<string, { currentLoad: number; maxCapacity: number }> = {
+      alice: { currentLoad: 6.5, maxCapacity: 10 },
+      bob: { currentLoad: 5.5, maxCapacity: 10 },
+      carol: { currentLoad: 5.3, maxCapacity: 10 },
+      david: { currentLoad: 4.0, maxCapacity: 10 },
+      eve: { currentLoad: 3.9, maxCapacity: 10 },
+    }
+
+    const capacity = agentCapacity[id as string]
+
+    if (!capacity) {
+      return HttpResponse.json(
+        { error: 'Agent not found' },
+        { status: 404 }
+      )
+    }
+
+    return HttpResponse.json(capacity, { status: 200 })
   }),
 ]
