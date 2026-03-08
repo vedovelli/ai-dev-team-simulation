@@ -3,6 +3,7 @@ export type AgentStatus = 'idle' | 'working' | 'blocked' | 'completed'
 export type AgentAvailabilityStatus = 'idle' | 'active' | 'busy' | 'offline'
 export type AgentTaskStatus = 'active' | 'idle' | 'busy' | 'offline'
 export type TaskHistoryStatus = 'completed' | 'failed' | 'cancelled'
+export type AgentPresenceStatus = 'online' | 'away' | 'offline' | 'busy'
 
 export interface Agent {
   id: string
@@ -65,4 +66,17 @@ export interface AgentStats {
   completedTasks: number
   successRate: number
   avgCompletionTime: number
+}
+
+/**
+ * Real-time presence information for agents
+ * Tracks online/offline status with timestamps
+ */
+export interface AgentPresence {
+  id: string
+  name: string
+  role: AgentRole
+  presence: AgentPresenceStatus
+  lastSeenAt: string
+  statusChangeReason?: 'timeout' | 'user-action' | 'manual' | 'task-assignment'
 }
