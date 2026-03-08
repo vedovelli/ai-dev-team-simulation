@@ -766,7 +766,11 @@ export const handlers = [
 
   http.get('/api/tasks', ({ request }) => {
     const url = new URL(request.url)
-    const status = url.searchParams.get('status')
+
+    // Parse single and multi-value parameters
+    const statusParam = url.searchParams.get('status')
+    const statusValues = statusParam ? statusParam.split(',').filter(Boolean) : []
+
     const priority = url.searchParams.get('priority')
     const search = url.searchParams.get('search')
     const team = url.searchParams.get('team')
@@ -781,19 +785,25 @@ export const handlers = [
 
     let filteredTasks = [...tasksStore]
 
-    if (status) {
-      filteredTasks = filteredTasks.filter((task) => task.status === status)
+    // Multi-status filtering
+    if (statusValues.length > 0) {
+      filteredTasks = filteredTasks.filter((task) =>
+        statusValues.includes(task.status)
+      )
     }
 
     if (priority) {
       filteredTasks = filteredTasks.filter((task) => task.priority === priority)
     }
 
+    // Full-text search across title and description
     if (search) {
       const searchLower = search.toLowerCase()
-      filteredTasks = filteredTasks.filter((task) =>
-        task.title.toLowerCase().includes(searchLower)
-      )
+      filteredTasks = filteredTasks.filter((task) => {
+        const titleMatch = task.title.toLowerCase().includes(searchLower)
+        // Search can be extended for description field when added to Task type
+        return titleMatch
+      })
     }
 
     if (team) {
@@ -850,8 +860,10 @@ export const handlers = [
     return HttpResponse.json({
       data: paginatedTasks,
       total: filteredTasks.length,
+      page: pageIndex + 1,
       pageIndex,
       pageSize,
+      totalPages: Math.ceil(filteredTasks.length / pageSize),
     })
   }),
 

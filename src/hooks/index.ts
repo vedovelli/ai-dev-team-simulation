@@ -45,3 +45,9 @@ export type {
 export { useWorkloadAnalytics, useAgentWorkloadAnalytics } from './useWorkloadAnalytics'
 export type { WorkloadAnalytics, WorkloadAnalyticsFilters } from './useWorkloadAnalytics'
 export { useReassignTask } from './mutations/useReassignTask'
+export { useAdvancedTaskFilters } from './useAdvancedTaskFilters'
+export type {
+  AdvancedTaskFilterState,
+  FilteredTasksResponse,
+  UseAdvancedTaskFiltersOptions,
+} from './useAdvancedTaskFilters'
