@@ -58,12 +58,12 @@ export function AgentSettingsModal({
     },
   })
 
-  // Reset form when settings change
+  // Reset form when settings change - FIX #1: Added form to dependency array
   useEffect(() => {
     if (currentSettings) {
       form.reset()
     }
-  }, [currentSettings])
+  }, [currentSettings, form])
 
   const handleClose = () => {
     form.reset()
@@ -85,7 +85,6 @@ export function AgentSettingsModal({
 
   if (!isOpen) return null
 
-  const autoAssignmentValue = form.getFieldValue('autoAssignmentEnabled')
   const isSubmitting = updateMutation.isPending
 
   return (
@@ -219,10 +218,12 @@ export function AgentSettingsModal({
               <form.Field
                 name="maxConcurrentTasks"
                 validators={{
-                  onBlur: ({ value }) => {
+                  onBlur: ({ value, formApi }) => {
                     if (typeof value !== 'number' || value < 1 || value > 10) {
                       return 'Must be between 1 and 10'
                     }
+                    // FIX #2: Get current form value instead of snapshot
+                    const autoAssignmentValue = formApi.getFieldValue('autoAssignmentEnabled')
                     if (autoAssignmentValue && !value) {
                       return 'Required when auto-assignment is enabled'
                     }
@@ -230,42 +231,46 @@ export function AgentSettingsModal({
                   },
                 }}
               >
-                {(field) => (
-                  <div>
-                    <label
-                      htmlFor="max-tasks"
-                      className="block text-sm font-medium text-gray-700 mb-2"
-                    >
-                      Max Concurrent Tasks
-                      {autoAssignmentValue && <span className="text-red-500"> *</span>}
-                    </label>
-                    <div className="flex items-center space-x-2">
-                      <input
-                        id="max-tasks"
-                        type="number"
-                        min="1"
-                        max="10"
-                        value={field.state.value}
-                        onChange={(e) => field.setValue(parseInt(e.target.value))}
-                        onBlur={field.handleBlur}
-                        disabled={isSubmitting}
-                        className={`flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
-                          field.state.meta.errors && field.state.meta.errors.length
-                            ? 'border-red-500'
-                            : 'border-gray-300'
-                        }`}
-                      />
-                      <span className="text-sm text-gray-600">tasks</span>
+                {(field) => {
+                  // FIX #2: Get current form value for reactive display
+                  const autoAssignmentValue = form.getFieldValue('autoAssignmentEnabled')
+                  return (
+                    <div>
+                      <label
+                        htmlFor="max-tasks"
+                        className="block text-sm font-medium text-gray-700 mb-2"
+                      >
+                        Max Concurrent Tasks
+                        {autoAssignmentValue && <span className="text-red-500"> *</span>}
+                      </label>
+                      <div className="flex items-center space-x-2">
+                        <input
+                          id="max-tasks"
+                          type="number"
+                          min="1"
+                          max="10"
+                          value={field.state.value}
+                          onChange={(e) => field.setValue(parseInt(e.target.value))}
+                          onBlur={field.handleBlur}
+                          disabled={isSubmitting}
+                          className={`flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100 ${
+                            field.state.meta.errors && field.state.meta.errors.length
+                              ? 'border-red-500'
+                              : 'border-gray-300'
+                          }`}
+                        />
+                        <span className="text-sm text-gray-600">tasks</span>
+                      </div>
+                      {field.state.meta.errors && field.state.meta.errors.length
+                        ? field.state.meta.errors.map((error) => (
+                            <p key={error} className="mt-1 text-sm text-red-600">
+                              {error}
+                            </p>
+                          ))
+                        : null}
                     </div>
-                    {field.state.meta.errors && field.state.meta.errors.length
-                      ? field.state.meta.errors.map((error) => (
-                          <p key={error} className="mt-1 text-sm text-red-600">
-                            {error}
-                          </p>
-                        ))
-                      : null}
-                  </div>
-                )}
+                  )
+                }}
               </form.Field>
 
               {/* Notification Preferences */}
@@ -275,7 +280,20 @@ export function AgentSettingsModal({
                 </legend>
 
                 {/* On Task Assigned */}
-                <form.Field name="notificationPreferences">
+                <form.Field
+                  name="notificationPreferences"
+                  validators={{
+                    onBlur: ({ value }) => {
+                      // FIX #3: Add constraint validation for at least one notification enabled
+                      const hasAnyEnabled =
+                        value.onTaskAssigned || value.onTaskCompleted || value.dailyDigest
+                      if (!hasAnyEnabled) {
+                        return 'At least one notification preference must be enabled'
+                      }
+                      return undefined
+                    },
+                  }}
+                >
                   {(field) => {
                     const prefs = field.state.value
                     return (

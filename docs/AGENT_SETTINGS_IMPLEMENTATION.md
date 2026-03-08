@@ -299,6 +299,49 @@ When settings are updated:
 2. Agent list cache is invalidated (settings affect agent behavior)
 3. Activity feed is invalidated (settings may affect task assignments)
 
+## Review Fixes Applied
+
+### Fix #1: Missing Form Dependency (Line 437)
+**Issue:** `useEffect` for form reset was missing `form` in dependency array
+**Fix:** Added `form` to dependency array to prevent stale closures
+```typescript
+useEffect(() => {
+  if (currentSettings) {
+    form.reset()
+  }
+}, [currentSettings, form])  // Added form
+```
+
+### Fix #2: Cross-Field Validation Bug (Line 601)
+**Issue:** `autoAssignmentValue` was a snapshot, not reactive to field changes
+**Fix:** Use `form.getFieldValue()` to get current reactive value instead of snapshot
+```typescript
+// OLD: const autoAssignmentValue = form.getFieldValue('autoAssignmentEnabled')
+// This was called outside the field renderer, so it was stale
+
+// NEW: Get value reactively within field validators and within render
+const autoAssignmentValue = form.getFieldValue('autoAssignmentEnabled')
+// Also updated maxConcurrentTasks validator to get fresh value via formApi parameter
+```
+
+### Fix #3: Missing Notification Preference Constraint (Form Submission)
+**Issue:** Form could submit with all notifications disabled, violating schema
+**Fix:** Added validation to notificationPreferences field that ensures at least one is enabled
+```typescript
+form.Field
+  name="notificationPreferences"
+  validators={{
+    onBlur: ({ value }) => {
+      const hasAnyEnabled =
+        value.onTaskAssigned || value.onTaskCompleted || value.dailyDigest
+      if (!hasAnyEnabled) {
+        return 'At least one notification preference must be enabled'
+      }
+      return undefined
+    },
+  }}
+```
+
 ## Testing
 
 ### Unit Tests (Recommended)
