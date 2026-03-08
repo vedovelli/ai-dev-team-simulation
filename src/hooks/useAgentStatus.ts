@@ -34,19 +34,21 @@ export interface UseAgentStatusOptions {
  * Fetch all agents with parallel queries
  *
  * Uses parallel queries pattern:
- * - ['agents', 'list'] - List of all agents
- * - ['agents', agentId, 'status'] - Individual agent status (parallel for each agent)
+ * - ['agents', 'status'] - All agents' status (primary query key per spec)
+ * - Individual agent status fetches in parallel
  *
  * Features:
- * - Auto-refresh every 15 seconds (configurable)
+ * - Auto-refresh every 10 seconds (configurable)
+ * - 5s stale time per spec
  * - Refetch on window focus for fresh data
  * - Stale-while-revalidate strategy
  * - Status aggregation (idle/working/waiting counts)
  * - Exponential backoff retry on failure
+ * - Graceful error handling
  */
 export function useAgentStatus(options: UseAgentStatusOptions = {}) {
   const {
-    refetchInterval = 15 * 1000, // 15 seconds
+    refetchInterval = 10 * 1000, // 10 seconds per spec
     refetchOnWindowFocus = true,
   } = options
 
@@ -62,7 +64,7 @@ export function useAgentStatus(options: UseAgentStatusOptions = {}) {
       // Handle both array and object responses
       return Array.isArray(data) ? data : data.agents || []
     },
-    staleTime: 15 * 1000, // 15 seconds
+    staleTime: 5 * 1000, // 5 seconds per spec
     gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchOnWindowFocus,
@@ -74,7 +76,7 @@ export function useAgentStatus(options: UseAgentStatusOptions = {}) {
   // Second query: Get individual agent status for each agent
   // This runs in parallel with the list query
   const agentStatusesQuery = useQuery({
-    queryKey: ['agents', 'statuses'],
+    queryKey: ['agents', 'status'],
     queryFn: async () => {
       if (!agentsListQuery.data || agentsListQuery.data.length === 0) {
         return []
@@ -95,8 +97,8 @@ export function useAgentStatus(options: UseAgentStatusOptions = {}) {
       return statuses.filter((status) => status !== null) as AgentAvailability[]
     },
     enabled: agentsListQuery.isSuccess && (agentsListQuery.data?.length ?? 0) > 0,
-    staleTime: 15 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 5 * 1000, // 5 seconds per spec
+    gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchOnWindowFocus,
     refetchOnReconnect: true,
@@ -141,7 +143,7 @@ export function useAgentStatus(options: UseAgentStatusOptions = {}) {
  */
 export function useAgentStatusSingle(agentId: string, options: UseAgentStatusOptions = {}) {
   const {
-    refetchInterval = 15 * 1000,
+    refetchInterval = 10 * 1000, // 10 seconds per spec
     refetchOnWindowFocus = true,
   } = options
 
@@ -154,8 +156,8 @@ export function useAgentStatusSingle(agentId: string, options: UseAgentStatusOpt
       }
       return response.json() as Promise<AgentAvailability>
     },
-    staleTime: 15 * 1000,
-    gcTime: 5 * 60 * 1000,
+    staleTime: 5 * 1000, // 5 seconds per spec
+    gcTime: 5 * 60 * 1000, // 5 minutes
     refetchInterval,
     refetchOnWindowFocus,
     refetchOnReconnect: true,
