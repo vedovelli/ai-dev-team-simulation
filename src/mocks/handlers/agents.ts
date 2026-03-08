@@ -96,7 +96,76 @@ function generateAgentStats(agent: AgentManagement): AgentStats {
   }
 }
 
+/**
+ * Generate workload analytics for agents
+ */
+function generateWorkloadAnalytics(agent: AgentManagement) {
+  const completionRate = agent.successRate || 75
+  const completedTasks7d = Math.floor(Math.random() * 15) + 5
+  const completedTasks30d = Math.floor(Math.random() * 60) + 20
+  const avgCompletionHours = Math.floor(Math.random() * 6) + 2
+
+  return {
+    agentId: agent.id,
+    name: agent.name,
+    activeTasksCount: agent.taskCount || 0,
+    completedTasks: completedTasks30d,
+    averageCompletionTime: avgCompletionHours,
+    capacityUtilization: Math.min(100, (agent.taskCount || 0) * 12),
+    skillTags: agent.capabilities || [],
+    completionTrend: (Math.random() - 0.3) * 30,
+    status:
+      agent.taskCount && agent.taskCount > 8
+        ? 'overloaded'
+        : agent.taskCount && agent.taskCount > 5
+          ? 'busy'
+          : 'available',
+  }
+}
+
 export const agentManagementHandlers = [
+  /**
+   * GET /api/agents/workload
+   * Get workload analytics for all agents
+   */
+  http.get('/api/agents/workload', ({ request }) => {
+    const url = new URL(request.url)
+    const skillTag = url.searchParams.get('skillTag')
+    const status = url.searchParams.get('status')
+
+    let agents = getActiveAgents()
+
+    // Filter by skill tag if provided
+    if (skillTag) {
+      agents = agents.filter((agent) => agent.capabilities.includes(skillTag))
+    }
+
+    const workloadData = agents.map(generateWorkloadAnalytics)
+
+    // Filter by status if provided
+    let result = workloadData
+    if (status) {
+      result = workloadData.filter((w) => w.status === status)
+    }
+
+    return HttpResponse.json(result)
+  }),
+
+  /**
+   * GET /api/agents/:id/workload
+   * Get workload analytics for a single agent
+   */
+  http.get('/api/agents/:id/workload', ({ params }) => {
+    const { id } = params
+    const agent = agentsStore.get(id as string)
+
+    if (!agent || agent.deletedAt) {
+      return HttpResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    return HttpResponse.json(generateWorkloadAnalytics(agent))
+  }),
+
   /**
    * GET /api/agents
    * List all agents with query support

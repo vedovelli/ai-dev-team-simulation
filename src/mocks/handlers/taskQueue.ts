@@ -333,6 +333,46 @@ export const taskQueueHandlers = [
     })
   }),
 
+  // POST /api/tasks/:taskId/reassign - Reassign task between agents
+  http.post('/api/tasks/:taskId/reassign', async ({ params, request }) => {
+    const { taskId } = params
+    const body = (await request.json()) as {
+      fromAgentId: string
+      toAgentId: string
+    }
+
+    const task = mockTasks.find((t) => t.id === taskId as string)
+    if (!task) {
+      return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+
+    // Validate from agent
+    if (task.assignee !== body.fromAgentId) {
+      return HttpResponse.json(
+        { error: 'Task is not assigned to the from agent' },
+        { status: 400 }
+      )
+    }
+
+    // Check capacity of target agent
+    const targetAgentTasks = mockTasks.filter(
+      (t) => t.assignee === body.toAgentId && t.status !== 'done'
+    )
+
+    if (targetAgentTasks.length >= 10) {
+      return HttpResponse.json(
+        { error: 'Target agent is at maximum capacity (10 tasks)' },
+        { status: 400 }
+      )
+    }
+
+    // Reassign the task
+    task.assignee = body.toAgentId
+    task.updatedAt = new Date().toISOString()
+
+    return HttpResponse.json(task)
+  }),
+
   // GET /api/agents/availability - Check agent workload
   http.get('/api/agents/availability', () => {
     const availability: AvailabilityResponse = {}

@@ -32,3 +32,16 @@ export type { Notification } from '../types/notification'
 export { useNotification } from './useNotification'
 export type { UseNotificationOptions, NotificationType } from './useNotification'
 export { useTaskWithNotifications } from './useTaskWithNotifications'
+export { useTaskAssignment } from './useTaskAssignment'
+export type {
+  AssignmentResult,
+  UnassignmentResult,
+  AssignmentError,
+  AgentCapacityInfo,
+  AssignTaskVariables,
+  UnassignTaskVariables,
+  UseTaskAssignmentOptions,
+} from './useTaskAssignment'
+export { useWorkloadAnalytics, useAgentWorkloadAnalytics } from './useWorkloadAnalytics'
+export type { WorkloadAnalytics, WorkloadAnalyticsFilters } from './useWorkloadAnalytics'
+export { useReassignTask } from './mutations/useReassignTask'
