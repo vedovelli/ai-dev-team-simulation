@@ -84,6 +84,8 @@ export const useUpdateAgent = (agentId: string) => {
       // Refetch to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['agents', agentId] })
       queryClient.invalidateQueries({ queryKey: ['agents'] })
+      // Invalidate activity feed since agent status changed
+      queryClient.invalidateQueries({ queryKey: ['activity', 'feed'] })
     },
   })
 }

@@ -22,6 +22,7 @@ import { notificationHandlers } from './handlers/notifications'
 import { taskExecutionHandlers } from './handlers/taskExecution'
 import { agentPresenceHandlers } from './handlers/agentPresence'
 import { workloadHandlers } from './handlers/workload'
+import { activityHandlers } from './handlers/activity'
 
 interface Team {
   id: string
@@ -2354,4 +2355,5 @@ export const paginatedHandlers = [
   ...taskExecutionHandlers,
   ...agentPresenceHandlers,
   ...workloadHandlers,
+  ...activityHandlers,
 ]

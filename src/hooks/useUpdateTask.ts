@@ -57,6 +57,8 @@ export function useUpdateTask() {
     onSuccess: () => {
       // Refetch tasks to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      // Invalidate activity feed since task state changed
+      queryClient.invalidateQueries({ queryKey: ['activity', 'feed'] })
     },
   })
 }
