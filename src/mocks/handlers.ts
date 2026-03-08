@@ -11,6 +11,7 @@ import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
 import { formSubmissionHandlers } from './formSubmissionHandlers'
 import { metricsHandlers } from './handlers/metrics'
 import { bulkOperationHandlers } from './handlers/bulk-operations'
+import { agentCapacityHandlers } from './handlers/agentCapacity'
 import { taskQueueHandlers } from './handlers/taskQueue'
 import { sprintHandlers } from './handlers/sprints'
 import { agentTaskQueueHandlers } from './handlers/agentTaskQueue'
@@ -2062,12 +2063,12 @@ export const paginatedHandlers = [
     return HttpResponse.json(monitored)
   }),
 
-  // Task assignment endpoints
+  // Task assignment endpoints (both formats supported)
   http.post('/api/tasks/:id/assign', async ({ request, params }) => {
     await simulateDelay()
 
     const { id } = params
-    const body = (await request.json()) as { agent: string; priority: number; estimatedHours?: number }
+    const body = (await request.json()) as { agentId?: string; agent?: string; priority?: number; estimatedHours?: number }
 
     // Simulate 10% failure rate for testing error handling
     if (shouldFailMutation(`POST /api/tasks/${id}/assign`)) {
@@ -2085,7 +2086,20 @@ export const paginatedHandlers = [
       )
     }
 
-    // Convert priority number to priority string
+    // Support both agentId and agent formats
+    const agentId = body.agentId || body.agent
+    if (!agentId) {
+      return HttpResponse.json(
+        { error: 'Agent ID or agent name is required' },
+        { status: 400 }
+      )
+    }
+
+    // Find agent to get name for assignee field
+    const agent = agentsStore.find((a) => a.id === agentId || a.name === agentId)
+    const assigneeName = agent ? agent.name : agentId
+
+    // Convert priority number to priority string (optional)
     const priorityMap: Record<number, TaskPriority> = {
       1: 'high',
       2: 'medium',
@@ -2095,14 +2109,66 @@ export const paginatedHandlers = [
 
     const updatedTask: Task = {
       ...tasksStore[taskIndex],
-      assignee: body.agent,
-      priority: priorityMap[body.priority] || 'low',
-      estimatedHours: body.estimatedHours,
+      assignee: assigneeName,
+      ...(body.priority && { priority: priorityMap[body.priority] || 'low' }),
+      ...(body.estimatedHours && { estimatedHours: body.estimatedHours }),
       updatedAt: new Date().toISOString(),
     }
 
     tasksStore[taskIndex] = updatedTask
-    return HttpResponse.json(updatedTask, { status: 200 })
+
+    // Return in the format expected by useTaskAssignment
+    return HttpResponse.json(
+      {
+        success: true,
+        data: updatedTask,
+        message: `Task assigned to ${assigneeName}`,
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200 }
+    )
+  }),
+
+  // Task unassignment endpoint
+  http.post('/api/tasks/:id/unassign', async ({ request, params }) => {
+    await simulateDelay()
+
+    const { id } = params
+
+    // Simulate 10% failure rate for testing error handling
+    if (shouldFailMutation(`POST /api/tasks/${id}/unassign`)) {
+      return HttpResponse.json(
+        { error: 'Failed to unassign task.' },
+        { status: 500 }
+      )
+    }
+
+    const taskIndex = tasksStore.findIndex((task) => task.id === id)
+    if (taskIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    const updatedTask: Task = {
+      ...tasksStore[taskIndex],
+      assignee: '',
+      updatedAt: new Date().toISOString(),
+    }
+
+    tasksStore[taskIndex] = updatedTask
+
+    // Return in the format expected by useTaskAssignment
+    return HttpResponse.json(
+      {
+        success: true,
+        data: updatedTask,
+        message: 'Task unassigned',
+        timestamp: new Date().toISOString(),
+      },
+      { status: 200 }
+    )
   }),
 
   // Batch task assignment endpoint
@@ -2492,6 +2558,7 @@ export const paginatedHandlers = [
 
   ...metricsHandlers,
   ...bulkOperationHandlers,
+  ...agentCapacityHandlers,
   ...taskQueueHandlers,
   ...sprintHandlers,
   ...agentTaskQueueHandlers,
