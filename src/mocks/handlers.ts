@@ -2265,6 +2265,141 @@ export const paginatedHandlers = [
     return HttpResponse.json(updatedTask, { status: 200 })
   }),
 
+  // Task History endpoints
+  http.get('/api/tasks/:id/history', ({ params }) => {
+    const { id } = params
+
+    // Check if task exists
+    const task = tasksStore.find((t) => t.id === id)
+    if (!task) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    // Generate mock history entries
+    const history = [
+      {
+        id: `history-${id}-1`,
+        taskId: id,
+        actor: 'Alice',
+        field: 'status',
+        previousValue: 'backlog',
+        newValue: 'in-progress',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: `history-${id}-2`,
+        taskId: id,
+        actor: 'Bob',
+        field: 'priority',
+        previousValue: 'normal',
+        newValue: 'high',
+        createdAt: new Date(Date.now() - 1800000).toISOString(),
+      },
+      {
+        id: `history-${id}-3`,
+        taskId: id,
+        actor: 'Alice',
+        field: 'assignee',
+        previousValue: 'Bob',
+        newValue: 'Carol',
+        createdAt: new Date(Date.now() - 900000).toISOString(),
+      },
+    ]
+
+    return HttpResponse.json(history)
+  }),
+
+  // Task Comments endpoints
+  http.get('/api/tasks/:id/comments', ({ params }) => {
+    const { id } = params
+
+    // Check if task exists
+    const task = tasksStore.find((t) => t.id === id)
+    if (!task) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    // Generate mock comments
+    const comments = [
+      {
+        id: `comment-${id}-1`,
+        taskId: id,
+        author: 'Alice',
+        content: 'This task looks straightforward. I can start on it tomorrow.',
+        createdAt: new Date(Date.now() - 7200000).toISOString(),
+        updatedAt: new Date(Date.now() - 7200000).toISOString(),
+      },
+      {
+        id: `comment-${id}-2`,
+        taskId: id,
+        author: 'Bob',
+        content: 'Please make sure to test it thoroughly before marking it as done. The *edge cases* are tricky here.',
+        createdAt: new Date(Date.now() - 3600000).toISOString(),
+        updatedAt: new Date(Date.now() - 3600000).toISOString(),
+      },
+      {
+        id: `comment-${id}-3`,
+        taskId: id,
+        author: 'Carol',
+        content: 'I\`ve added the needed documentation. Let me know if anything is unclear!',
+        createdAt: new Date(Date.now() - 1800000).toISOString(),
+        updatedAt: new Date(Date.now() - 1800000).toISOString(),
+      },
+    ]
+
+    return HttpResponse.json(comments)
+  }),
+
+  http.post('/api/tasks/:id/comments', async ({ request, params }) => {
+    await simulateDelay()
+
+    const { id } = params
+    const { content } = (await request.json()) as { content: string }
+
+    // Check if task exists
+    const task = tasksStore.find((t) => t.id === id)
+    if (!task) {
+      return HttpResponse.json(
+        { error: 'Task not found' },
+        { status: 404 }
+      )
+    }
+
+    // Validate content
+    if (!content || content.trim() === '') {
+      return HttpResponse.json(
+        { error: 'Comment content is required' },
+        { status: 400 }
+      )
+    }
+
+    // Simulate 5% failure rate
+    if (shouldFailMutation(`POST /api/tasks/${id}/comments`)) {
+      return HttpResponse.json(
+        { error: 'Failed to add comment' },
+        { status: 500 }
+      )
+    }
+
+    // Create new comment
+    const newComment = {
+      id: `comment-${Date.now()}`,
+      taskId: id,
+      author: 'Current User',
+      content,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    return HttpResponse.json(newComment, { status: 201 })
+  }),
+
   // Sprint Dashboard endpoints
   http.get('/api/sprints/:id/summary', ({ params }) => {
     const { id } = params

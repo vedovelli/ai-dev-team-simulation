@@ -28,4 +28,25 @@ export interface UpdateTaskInput {
   estimatedHours?: number
   order?: number
   dependsOn?: string[]
+  description?: string
+  deadline?: string
+}
+
+export interface TaskHistoryEntry {
+  id: string
+  taskId: string
+  actor: string
+  field: string
+  previousValue: unknown
+  newValue: unknown
+  createdAt: string
+}
+
+export interface TaskComment {
+  id: string
+  taskId: string
+  author: string
+  content: string
+  createdAt: string
+  updatedAt: string
 }
