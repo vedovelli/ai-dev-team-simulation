@@ -1,7 +1,8 @@
 import { Outlet, useParams } from '@tanstack/react-router'
 import { useSprintDetails } from '../../hooks/queries/sprints'
-import { Suspense } from 'react'
+import { Suspense, useState } from 'react'
 import { RouteErrorBoundary } from '../../components/RouteErrorBoundary'
+import { SprintReportModal } from '../../components/SprintReportModal'
 import type { Sprint } from '../../types/sprint'
 
 /**
@@ -13,6 +14,7 @@ import type { Sprint } from '../../types/sprint'
 export function SprintDetailLayout() {
   const { id: sprintId } = useParams({ from: '/dashboard/sprints/$id' })
   const { data: sprint, isLoading, error } = useSprintDetails(sprintId)
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
 
   if (error) {
     return <RouteErrorBoundary error={error} />
@@ -37,7 +39,15 @@ export function SprintDetailLayout() {
   return (
     <div className="space-y-6">
       {/* Sprint Header */}
-      <SprintDetailHeader sprint={sprint} />
+      <SprintDetailHeader sprint={sprint} onOpenReport={() => setIsReportModalOpen(true)} />
+
+      {/* Sprint Report Modal */}
+      <SprintReportModal
+        sprintId={sprintId}
+        sprintName={sprint.name}
+        isOpen={isReportModalOpen}
+        onClose={() => setIsReportModalOpen(false)}
+      />
 
       {/* Nested Content */}
       <Suspense
@@ -55,9 +65,10 @@ export function SprintDetailLayout() {
 
 interface SprintDetailHeaderProps {
   sprint: Sprint
+  onOpenReport: () => void
 }
 
-function SprintDetailHeader({ sprint }: SprintDetailHeaderProps) {
+function SprintDetailHeader({ sprint, onOpenReport }: SprintDetailHeaderProps) {
   const progress = sprint.taskCount > 0 ? (sprint.completedCount / sprint.taskCount) * 100 : 0
 
   const statusColors: Record<string, string> = {
@@ -80,9 +91,17 @@ function SprintDetailHeader({ sprint }: SprintDetailHeaderProps) {
             {sprint.status}
           </span>
         </div>
-        <div className="text-right">
-          <div className="text-2xl font-bold text-slate-100">{sprint.estimatedPoints}</div>
-          <p className="text-sm text-slate-400">Story Points</p>
+        <div className="text-right space-y-3">
+          <div>
+            <div className="text-2xl font-bold text-slate-100">{sprint.estimatedPoints}</div>
+            <p className="text-sm text-slate-400">Story Points</p>
+          </div>
+          <button
+            onClick={onOpenReport}
+            className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+          >
+            📊 View Report
+          </button>
         </div>
       </div>
 
