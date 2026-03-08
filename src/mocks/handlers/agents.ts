@@ -353,4 +353,145 @@ export const agentManagementHandlers = [
 
     return HttpResponse.json({ success: true, message: 'Agent deleted' })
   }),
+
+  /**
+   * GET /api/agents/:id/settings
+   * Fetch current agent settings
+   */
+  http.get('/api/agents/:id/settings', ({ params }) => {
+    const { id } = params
+    const agent = agentsStore.get(id as string)
+
+    if (!agent || agent.deletedAt) {
+      return HttpResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    return HttpResponse.json({
+      agentId: agent.id,
+      taskPriorityFilter: 'all',
+      autoAssignmentEnabled: false,
+      maxConcurrentTasks: 5,
+      notificationPreferences: {
+        onTaskAssigned: true,
+        onTaskCompleted: true,
+        dailyDigest: false,
+      },
+    })
+  }),
+
+  /**
+   * PUT /api/agents/:id/settings
+   * Update agent settings with optimistic updates
+   */
+  http.put('/api/agents/:id/settings', async ({ params, request }) => {
+    const { id } = params
+    const agent = agentsStore.get(id as string)
+
+    if (!agent || agent.deletedAt) {
+      return HttpResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    const body = await request.json()
+
+    // Validate required fields
+    if (!body.taskPriorityFilter || !['all', 'high', 'medium', 'low'].includes(body.taskPriorityFilter)) {
+      return HttpResponse.json(
+        { error: 'Invalid task priority filter' },
+        { status: 400 }
+      )
+    }
+
+    if (typeof body.autoAssignmentEnabled !== 'boolean') {
+      return HttpResponse.json(
+        { error: 'Auto-assignment enabled must be a boolean' },
+        { status: 400 }
+      )
+    }
+
+    if (typeof body.maxConcurrentTasks !== 'number' || body.maxConcurrentTasks < 1 || body.maxConcurrentTasks > 10) {
+      return HttpResponse.json(
+        { error: 'Max concurrent tasks must be between 1 and 10' },
+        { status: 400 }
+      )
+    }
+
+    // Validate notification preferences
+    if (!body.notificationPreferences || typeof body.notificationPreferences !== 'object') {
+      return HttpResponse.json(
+        { error: 'Notification preferences are required' },
+        { status: 400 }
+      )
+    }
+
+    const { onTaskAssigned, onTaskCompleted, dailyDigest } = body.notificationPreferences
+    if (typeof onTaskAssigned !== 'boolean' || typeof onTaskCompleted !== 'boolean' || typeof dailyDigest !== 'boolean') {
+      return HttpResponse.json(
+        { error: 'All notification preferences must be boolean values' },
+        { status: 400 }
+      )
+    }
+
+    // At least one notification preference must be enabled
+    if (!onTaskAssigned && !onTaskCompleted && !dailyDigest) {
+      return HttpResponse.json(
+        { error: 'At least one notification preference must be enabled' },
+        { status: 400 }
+      )
+    }
+
+    // Cross-field validation: if auto-assignment enabled, maxConcurrentTasks must be set
+    if (body.autoAssignmentEnabled && !body.maxConcurrentTasks) {
+      return HttpResponse.json(
+        { error: 'Max concurrent tasks is required when auto-assignment is enabled' },
+        { status: 400 }
+      )
+    }
+
+    // Return updated settings
+    return HttpResponse.json({
+      agentId: agent.id,
+      taskPriorityFilter: body.taskPriorityFilter,
+      autoAssignmentEnabled: body.autoAssignmentEnabled,
+      maxConcurrentTasks: body.maxConcurrentTasks,
+      notificationPreferences: body.notificationPreferences,
+    })
+  }),
+
+  /**
+   * POST /api/agents/validate-settings
+   * Async validation endpoint for checking conflicts
+   */
+  http.post('/api/agents/validate-settings', async ({ request }) => {
+    const body = await request.json()
+
+    // Simulate async validation with a small delay
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const { agentId, autoAssignmentEnabled } = body
+
+    if (!agentId) {
+      return HttpResponse.json(
+        { error: 'Agent ID is required' },
+        { status: 400 }
+      )
+    }
+
+    const agent = agentsStore.get(agentId)
+    if (!agent || agent.deletedAt) {
+      return HttpResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    // Check for conflicts: simulate checking if enabling auto-assignment would conflict
+    // with other agents' rules (in this mock, we always say it's valid)
+    if (autoAssignmentEnabled) {
+      return HttpResponse.json({
+        isValid: true,
+        message: 'Auto-assignment configuration is valid',
+      })
+    }
+
+    return HttpResponse.json({
+      isValid: true,
+    })
+  }),
 ]

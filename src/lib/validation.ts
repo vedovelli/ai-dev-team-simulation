@@ -47,3 +47,45 @@ export const batchTaskAssignmentSchema = z.object({
 })
 
 export type BatchTaskAssignmentInput = z.infer<typeof batchTaskAssignmentSchema>
+
+// Agent settings validation schema
+export const agentSettingsSchema = z.object({
+  agentId: z.string().min(1, 'Agent ID is required'),
+  taskPriorityFilter: z.enum(['all', 'high', 'medium', 'low']),
+  autoAssignmentEnabled: z.boolean(),
+  maxConcurrentTasks: z
+    .number()
+    .min(1, 'Must be at least 1')
+    .max(10, 'Cannot exceed 10 tasks'),
+  notificationPreferences: z.object({
+    onTaskAssigned: z.boolean(),
+    onTaskCompleted: z.boolean(),
+    dailyDigest: z.boolean(),
+  }),
+})
+  .refine(
+    (data) => {
+      // At least one notification preference must be enabled
+      const prefs = data.notificationPreferences
+      return prefs.onTaskAssigned || prefs.onTaskCompleted || prefs.dailyDigest
+    },
+    {
+      message: 'At least one notification preference must be enabled',
+      path: ['notificationPreferences'],
+    }
+  )
+  .refine(
+    (data) => {
+      // If auto-assignment enabled, maxConcurrentTasks must be set
+      if (data.autoAssignmentEnabled && !data.maxConcurrentTasks) {
+        return false
+      }
+      return true
+    },
+    {
+      message: 'Max concurrent tasks is required when auto-assignment is enabled',
+      path: ['maxConcurrentTasks'],
+    }
+  )
+
+export type AgentSettings = z.infer<typeof agentSettingsSchema>
