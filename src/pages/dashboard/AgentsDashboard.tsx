@@ -3,6 +3,7 @@ import { useMetrics } from '../../hooks/useMetrics'
 import { StatsCard } from '../../components/Dashboard/StatsCard'
 import { AgentPerformanceTable } from '../../components/Dashboard/AgentPerformanceTable'
 import { SimpleChart } from '../../components/Dashboard/SimpleChart'
+import { AgentStatusGrid } from '../../components/AgentStatusPanel/AgentStatusGrid'
 import { ErrorBoundary } from '../../components/ErrorBoundary'
 
 export function AgentsDashboard() {
@@ -79,6 +80,11 @@ export function AgentsDashboard() {
           subtitle="Currently available agents"
         />
       </div>
+
+      {/* Agent Status Grid - Real-time Status Dashboard */}
+      <ErrorBoundary>
+        <AgentStatusGrid />
+      </ErrorBoundary>
 
       {/* Performance Chart */}
       <ErrorBoundary>
