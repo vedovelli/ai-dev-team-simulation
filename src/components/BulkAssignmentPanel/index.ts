@@ -1,0 +1,1 @@
+export { BulkAssignmentPanel } from './BulkAssignmentPanel'
