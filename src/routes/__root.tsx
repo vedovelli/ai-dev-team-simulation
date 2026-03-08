@@ -2,6 +2,7 @@ import { createRootRouteWithContext, Outlet, Link, isRouterError } from '@tansta
 import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import { ToastProvider } from '../components/Toast'
+import { NotificationCenter, ToastContainer } from '../components/NotificationCenter'
 import { Sidebar } from '../components/Sidebar'
 import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
 import { PermissionProvider } from '../contexts/PermissionContext'
@@ -84,9 +85,11 @@ function RootLayout() {
                     </Link>
                   </div>
                 </div>
+                <NotificationCenter />
               </div>
             </div>
           </nav>
+          <ToastContainer />
           <main className="flex-1">
             <Outlet />
           </main>
