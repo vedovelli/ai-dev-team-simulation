@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useCallback } from 'react'
 import type { SprintTask, TaskStatus, TaskPriority } from '../types/sprint'
 import { useTable } from '../hooks/useTable'
 
@@ -24,21 +24,57 @@ const PRIORITY_LABELS: Record<TaskPriority, string> = {
 export interface SprintTaskTableProps {
   tasks: SprintTask[]
   isLoading?: boolean
+  enableBulkSelect?: boolean
+  selectedTaskIds?: Set<string>
+  onSelectionChange?: (selectedIds: Set<string>) => void
 }
 
-export function SprintTaskTable({ tasks, isLoading }: SprintTaskTableProps) {
+export function SprintTaskTable({
+  tasks,
+  isLoading,
+  enableBulkSelect = false,
+  selectedTaskIds = new Set(),
+  onSelectionChange,
+}: SprintTaskTableProps) {
   const { sortedAndFilteredData, handleSort, handleFilter, filterValue, sortKey, sortOrder } =
     useTable({
       data: tasks,
       initialSortKey: 'title',
     })
 
-  const columns = useMemo(() => [
-    { key: 'title' as const, label: 'Title' },
-    { key: 'status' as const, label: 'Status' },
-    { key: 'assignee' as const, label: 'Assignee' },
-    { key: 'priority' as const, label: 'Priority' },
-  ], [])
+  const handleTaskToggle = useCallback(
+    (taskId: string) => {
+      const newSelection = new Set(selectedTaskIds)
+      if (newSelection.has(taskId)) {
+        newSelection.delete(taskId)
+      } else {
+        newSelection.add(taskId)
+      }
+      onSelectionChange?.(newSelection)
+    },
+    [selectedTaskIds, onSelectionChange]
+  )
+
+  const handleSelectAll = useCallback(() => {
+    if (selectedTaskIds.size === sortedAndFilteredData.length && selectedTaskIds.size > 0) {
+      // Deselect all if all currently visible tasks are selected
+      onSelectionChange?.(new Set())
+    } else {
+      // Select all visible (filtered) tasks
+      const allTaskIds = new Set(sortedAndFilteredData.map((t) => t.id))
+      onSelectionChange?.(allTaskIds)
+    }
+  }, [selectedTaskIds, sortedAndFilteredData, onSelectionChange])
+
+  const columns = useMemo(() => {
+    const baseColumns = [
+      { key: 'title' as const, label: 'Title' },
+      { key: 'status' as const, label: 'Status' },
+      { key: 'assignee' as const, label: 'Assignee' },
+      { key: 'priority' as const, label: 'Priority' },
+    ]
+    return baseColumns
+  }, [])
 
   if (isLoading) {
     return (
@@ -76,6 +112,18 @@ export function SprintTaskTable({ tasks, isLoading }: SprintTaskTableProps) {
         <table className="w-full text-sm">
           <thead className="bg-slate-900 border-b border-slate-700">
             <tr>
+              {enableBulkSelect && (
+                <th key="select" className="px-4 py-3 text-left w-10">
+                  <input
+                    type="checkbox"
+                    aria-label="Select all tasks"
+                    checked={selectedTaskIds.size > 0 && selectedTaskIds.size === sortedAndFilteredData.length}
+                    indeterminate={selectedTaskIds.size > 0 && selectedTaskIds.size < sortedAndFilteredData.length}
+                    onChange={handleSelectAll}
+                    className="w-4 h-4 cursor-pointer"
+                  />
+                </th>
+              )}
               {columns.map((column) => (
                 <th key={column.key} className="px-4 py-3 text-left">
                   <button
@@ -95,8 +143,21 @@ export function SprintTaskTable({ tasks, isLoading }: SprintTaskTableProps) {
             {sortedAndFilteredData.map((task) => (
               <tr
                 key={task.id}
-                className="hover:bg-slate-800/50 transition-colors"
+                className={`hover:bg-slate-800/50 transition-colors ${
+                  selectedTaskIds.has(task.id) ? 'bg-slate-800/30' : ''
+                }`}
               >
+                {enableBulkSelect && (
+                  <td className="px-4 py-3 w-10">
+                    <input
+                      type="checkbox"
+                      aria-label={`Select task ${task.title}`}
+                      checked={selectedTaskIds.has(task.id)}
+                      onChange={() => handleTaskToggle(task.id)}
+                      className="w-4 h-4 cursor-pointer"
+                    />
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <span className="text-white">{task.title}</span>
                 </td>
