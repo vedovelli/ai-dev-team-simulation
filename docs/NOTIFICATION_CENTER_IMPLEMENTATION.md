@@ -1,253 +1,253 @@
-# Notification Center Implementation (FAB-119)
+# Notification Center & Toast Integration Implementation (FAB-156)
 
 ## Overview
 
-Real-time notification center system using TanStack Query polling capabilities. Supports agent task events, sprint changes, and performance alerts with optimistic updates and unread count tracking.
+This document describes the implementation of the Notification Center UI component with integrated toast notifications. The system provides real-time visual feedback to users about system events, sprint updates, and performance alerts.
 
 ## Architecture
 
-### Core Components
+### Components
 
-#### `useNotifications` Hook
-- **Location**: `src/hooks/useNotifications.ts`
-- **Query Key**: `['notifications', { type, unreadOnly, pageIndex, pageSize }]`
-- **Polling**: 30 seconds (configurable)
-- **Cache Strategy**: Stale-while-revalidate (30s stale, 5min gc)
-- **Retry**: Exponential backoff (3 attempts)
+#### NotificationCenter
+Main dropdown component displaying notifications with:
+- **Badge count indicator** - Shows number of unread notifications
+- **Dropdown panel** - Scrollable list of notifications
+- **Mark as read actions** - Individual and batch mark-as-read
+- **Empty state** - Shows when no notifications exist
+- **Loading state** - Displays during data fetch
+- **Keyboard navigation** - Escape key closes dropdown
+- **Click outside detection** - Closes dropdown when clicking outside
 
-### API Endpoints
+**Location:** `src/components/NotificationCenter/NotificationCenter.tsx`
 
-#### GET /api/notifications
-Fetch notifications with optional filtering.
+**Features:**
+- 30-second polling interval (configurable)
+- 20 notifications per page
+- Optimistic UI updates
+- Error handling with fallback
 
-**Query Parameters**:
-- `unread=true` - Only fetch unread notifications
-- `type=agent_event|sprint_change|performance_alert` - Filter by type
-- `pageIndex=0` - Pagination offset
-- `pageSize=20` - Results per page
+#### NotificationItem
+Individual notification card component showing:
+- **Category icon** - Visual indicator for notification type
+- **Category badge** - Agent, Sprint, or Performance label
+- **Message** - Truncated to 2 lines
+- **Relative timestamp** - "2 minutes ago" format
+- **Unread indicator** - Blue dot for unread notifications
+- **Mark as read button** - Quick action for individual notifications
 
-**Response**:
-```json
-{
-  "data": [
-    {
-      "id": "notif-1",
-      "type": "agent_event",
-      "message": "Agent Alice completed task: Authentication module",
-      "timestamp": "2026-03-07T20:00:00Z",
-      "read": false,
-      "metadata": { "source": "system", "priority": "normal" }
-    }
-  ],
-  "total": 42,
-  "unreadCount": 5
-}
+**Location:** `src/components/NotificationCenter/NotificationItem.tsx`
+
+**Features:**
+- Category-specific colors
+- Smart icons for each notification type
+- Optimistic UI feedback
+
+#### ToastContainer
+Overlay container that displays toast notifications for new unread notifications:
+- **Auto-dismiss** - 5 seconds (configurable)
+- **Toast variants** - Success, info, warning, error
+- **Multiple stacking** - Shows multiple toasts simultaneously
+- **Click to dismiss** - Immediate close on click
+
+**Location:** `src/components/NotificationCenter/ToastContainer.tsx`
+
+**Features:**
+- Listens to notification cache changes
+- Filters for unread notifications only
+- Maps notification types to toast types
+- Tracks displayed notifications to avoid duplicates
+
+## Hooks
+
+### useNotifications
+Server-side notification fetching and management hook.
+
+**Features:**
+- 30-second automatic polling
+- Refetch on window focus
+- Unread count tracking
+- Mark as read (single and batch)
+- Pagination support
+- Error retry logic with exponential backoff
+
+**API Endpoints Used:**
+- `GET /api/notifications` - Fetch notifications
+- `PATCH /api/notifications/:id/read` - Mark single as read
+- `PATCH /api/notifications/read-batch` - Mark multiple as read
+
+**Query Key Structure:**
+```typescript
+['notifications', { type, unreadOnly, pageIndex, pageSize }]
 ```
 
-#### PATCH /api/notifications/:id/read
-Mark a single notification as read (supports optimistic updates).
-
-**Request**:
-```
-PATCH /api/notifications/notif-1/read
-```
-
-**Response**:
-```json
-{
-  "id": "notif-1",
-  "type": "agent_event",
-  "message": "Agent Alice completed task...",
-  "timestamp": "2026-03-07T20:00:00Z",
-  "read": true,
-  "metadata": { "source": "system", "priority": "normal" }
-}
-```
-
-#### PATCH /api/notifications/read-batch
-Mark multiple notifications as read.
-
-**Request**:
-```json
-{
-  "ids": ["notif-1", "notif-2", "notif-3"]
-}
-```
-
-**Response**: Array of updated notifications
-
-## Usage Examples
-
-### Basic Usage with Auto-Polling
-
-```tsx
-import { useNotifications } from '@/hooks'
-
-export function NotificationCenter() {
-  const { data, unreadCount, isLoading, markAsRead } = useNotifications()
-
-  if (isLoading) return <div>Loading...</div>
-
-  return (
-    <div className="notification-center">
-      <h2>Unread: {unreadCount}</h2>
-      {data.map(notif => (
-        <div
-          key={notif.id}
-          className={notif.read ? 'read' : 'unread'}
-          onClick={() => markAsRead.mutate(notif.id)}
-        >
-          <p>{notif.message}</p>
-          <time>{new Date(notif.timestamp).toLocaleTimeString()}</time>
-        </div>
-      ))}
-    </div>
-  )
-}
-```
-
-### Filtering by Type
-
-```tsx
-// Only show performance alerts
-const { data: alerts } = useNotifications({
-  type: 'performance_alert',
-  refetchInterval: 60000, // 1 minute
-})
-```
-
-### Showing Only Unread
-
-```tsx
-// Only fetch unread notifications
-const { data: unread, unreadCount } = useNotifications({
-  unreadOnly: true,
-})
-```
-
-### Batch Mark as Read
-
-```tsx
-const { markAsReadBatch } = useNotifications()
-
-function clearAll(notificationIds: string[]) {
-  markAsReadBatch.mutate(notificationIds)
-}
-```
-
-### Custom Polling Interval
-
-```tsx
-const { data, refetch, isRefetching } = useNotifications({
-  refetchInterval: 15000, // Poll every 15 seconds
-  refetchOnWindowFocus: true, // Refetch when window regains focus
-})
-```
+**Stale Time:** 30 seconds  
+**GC Time:** 5 minutes  
+**Retry:** 3 attempts with exponential backoff
 
 ## Data Types
 
+### Notification
 ```typescript
-export type NotificationType = 'agent_event' | 'sprint_change' | 'performance_alert'
-
-export interface Notification {
+interface Notification {
   id: string
-  type: NotificationType
+  type: 'agent_event' | 'sprint_change' | 'performance_alert'
   message: string
   timestamp: string
   read: boolean
   metadata?: Record<string, unknown>
 }
+```
 
-export interface NotificationsResponse {
+### NotificationsResponse
+```typescript
+interface NotificationsResponse {
   data: Notification[]
   total: number
   unreadCount: number
 }
 ```
 
-## Features
+## Notification Categories
 
-### ✅ Real-time Polling
-- Automatic 30-second polling interval
-- Configurable polling frequency
-- Refetch on window focus for fresh data
+### Agent Event
+- **Icon:** User group icon
+- **Color:** Blue
+- **Examples:** Agent completed task, agent started working, code submitted
 
-### ✅ Optimistic Updates
-- Mark as read mutations with optimistic cache updates
-- Instant UI feedback without waiting for server response
-- Automatic rollback on mutation failure
+### Sprint Change
+- **Icon:** Calendar/schedule icon
+- **Color:** Purple
+- **Examples:** Sprint velocity updated, sprint backlog refinement, sprint completed
 
-### ✅ Type Filtering
-- Filter notifications by type: `agent_event`, `sprint_change`, `performance_alert`
-- Separate query cache per filter combination
+### Performance Alert
+- **Icon:** Alert circle icon
+- **Color:** Orange
+- **Examples:** Agent performance metrics, team velocity trending, sprint burndown
 
-### ✅ Unread Tracking
-- Real-time unread count calculation
-- Optimistic count updates when marking as read
-- Automatic count restoration on error
+## Integration in Root Layout
 
-### ✅ Pagination
-- Offset-based pagination with configurable page size
-- Separate cache entries for each page
-- Total count in response for UI awareness
+Components integrated into `src/routes/__root.tsx`:
 
-### ✅ Error Handling
-- Exponential backoff retry (3 attempts)
-- Max delay capped at 30 seconds
-- Graceful error state exposure
+```typescript
+// Imports
+import { NotificationCenter, ToastContainer } from '../components/NotificationCenter'
 
-### ✅ Cache Management
-- Stale-while-revalidate strategy (30s stale time)
-- 5-minute garbage collection period
-- Proper cache invalidation on mutations
+// In navbar right section
+<NotificationCenter />
 
-## Query Key Structure
-
-The hook uses structured query keys for proper cache management:
-
-```
-['notifications', { type, unreadOnly, pageIndex, pageSize }]
+// Below nav, before main outlet
+<ToastContainer />
 ```
 
-This ensures:
-- Separate cache entries for different filter combinations
-- Proper cache invalidation on mutations
-- Ability to target specific queries for refetch/invalidation
+## Usage
 
-## Integration with Other Hooks
+### NotificationCenter Dropdown
+1. Click bell icon to open dropdown
+2. View notifications sorted by newest first
+3. Unread notifications highlighted in blue
+4. Click checkmark to mark individual as read
+5. Click "Mark all as read" for batch operation
+6. Press Escape or click outside to close
 
-This notification system works seamlessly with other TanStack Query patterns:
+### ToastContainer
+Toast notifications appear automatically:
+1. New unread notifications trigger toast display
+2. Auto-dismiss after 5 seconds
+3. Click to dismiss immediately
+4. Multiple toasts stack vertically in bottom-right
 
-```tsx
-// Combine with other hooks
-const { data: tasks } = useTasks()
-const { data: notifications, unreadCount } = useNotifications()
-const { data: sprints } = useSprints()
+## Styling
 
-// All share the same QueryClient and cache management
-```
+All components use **Tailwind CSS**:
 
-## Testing
+### NotificationCenter
+- Dark theme with gray colors
+- Blue badge (red-600) for unread count
+- 96 width (384px) dropdown
+- Scrollable at 600px max height
 
-The MSW handler generates realistic notification data including:
-- Agent completion events
-- Sprint updates and burndown changes
-- Performance alerts and metrics
+### NotificationItem
+- Category-specific background colors
+- Blue unread indicator dot
+- Hover effects for interactivity
+- Two-line text truncation
+- Relative timestamps in gray
 
-Mock data includes proper timestamps, metadata, and a mix of read/unread notifications.
+### ToastContainer
+- Fixed bottom-right position
+- Uses NotificationToast styling
+- Z-index 40 for layering
+- Vertical stacking with gaps
 
-## Performance Considerations
+## Accessibility
 
-- **Polling Overhead**: 30-second interval balances freshness with network load
-- **Cache Efficiency**: Structured query keys prevent cache duplication
-- **Optimistic Updates**: Provide instant feedback without round-trip latency
-- **Window Focus**: Smart refetch only when user returns to tab
+### ARIA Attributes
+- `aria-label` on bell button with unread count
+- `aria-expanded` showing dropdown state
+- `aria-haspopup="true"` on button
+- `role="menu"` on dropdown
+- `aria-live="polite"` on toast container
+- All buttons have accessible labels
 
-## Next Steps
+### Keyboard Support
+- **Escape** - Close dropdown, dismiss toasts
+- **Tab** - Navigate notifications
+- **Enter/Space** - Mark as read, dismiss
+- **Click outside** - Close dropdown
 
-This foundation enables:
-1. Notification UI components (toast, center, badge count)
-2. Notification preferences and filtering
-3. Web socket integration for instant delivery (replacing polling)
-4. Notification history and archival
-5. Push notifications when tab is closed
+### Screen Readers
+- Bell button announces unread count
+- Each notification reads: type, message, timestamp
+- Toasts use assertive announcements
+- All interactive elements labeled
+
+## Performance
+
+### Query Optimization
+- 30-second polling balances freshness vs. load
+- 20 notifications per page limits initial data
+- Stale-while-revalidate strategy for smooth UX
+- Optimistic updates for instant feedback
+
+### Component Rendering
+- Dropdown only renders when open
+- Toast container renders on demand
+- List items keyed by notification ID
+- Effect cleanup for event listeners
+
+## Mock Data
+
+MSW handlers in `src/mocks/handlers/notifications.ts` provide:
+
+### GET /api/notifications
+- 12 pre-generated notifications
+- 4 unread, 8 read
+- Realistic messages for each type
+- Full pagination support
+- Filtering by type and unread status
+
+### PATCH /api/notifications/:id/read
+Marks single notification as read.
+
+### PATCH /api/notifications/read-batch
+Marks multiple notifications as read.
+
+## Files Created
+
+- `src/components/NotificationCenter/NotificationCenter.tsx`
+- `src/components/NotificationCenter/NotificationItem.tsx`
+- `src/components/NotificationCenter/ToastContainer.tsx`
+- `src/components/NotificationCenter/index.ts`
+- `src/lib/utils.ts` (with getRelativeTime utility)
+
+## Files Modified
+
+- `src/routes/__root.tsx` - Added imports and components to layout
+
+## Files Reused
+
+- `src/hooks/useNotifications.ts` - Existing notification hook
+- `src/types/notification.ts` - Existing types
+- `src/mocks/handlers/notifications.ts` - Existing MSW handlers
+- `src/components/Toast.tsx` - Existing toast provider
+- `src/components/NotificationToast/NotificationToast.tsx` - Reused in ToastContainer
