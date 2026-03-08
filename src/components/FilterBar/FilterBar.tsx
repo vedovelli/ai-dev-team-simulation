@@ -19,9 +19,9 @@ export interface FilterBarConfig {
   /**
    * Type of filter
    */
-  type: 'select' | 'multiselect' | 'search'
+  type: 'select' | 'search'
   /**
-   * Options for select/multiselect
+   * Options for select filters
    */
   options?: FilterOption[]
   /**

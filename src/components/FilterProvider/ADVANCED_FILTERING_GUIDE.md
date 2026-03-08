@@ -81,10 +81,10 @@ const filtered = applyFilters(agents, predicates)
 ```
 
 #### 3. `FilterBar` Component
-Pre-built UI for managing filters with search, select, and multiselect inputs.
+Pre-built UI for managing filters with search and select inputs.
 
 **Features:**
-- Multiple filter types: search, select, multiselect
+- Multiple filter types: search, select
 - Debounced search with clear button
 - "Clear Filters" button when filters are active
 - Configurable options
@@ -323,8 +323,8 @@ interface UseFiltersReturn<T> {
 interface FilterBarConfig {
   label: string
   key: string
-  type: 'select' | 'multiselect' | 'search'
-  options?: FilterOption[] // For select/multiselect
+  type: 'select' | 'search'
+  options?: FilterOption[] // For select
   placeholder?: string
 }
 
