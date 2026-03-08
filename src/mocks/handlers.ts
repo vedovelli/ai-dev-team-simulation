@@ -26,6 +26,7 @@ import { workloadHandlers } from './handlers/workload'
 import { activityHandlers } from './handlers/activity'
 import { agentAnalyticsHandlers } from './handlers/agentAnalytics'
 import { templateHandlers } from './handlers/templates'
+import { analyticsHandlers } from './handlers/analytics'
 
 interface Team {
   id: string
@@ -2574,4 +2575,5 @@ export const paginatedHandlers = [
   ...activityHandlers,
   ...agentAnalyticsHandlers,
   ...templateHandlers,
+  ...analyticsHandlers,
 ]

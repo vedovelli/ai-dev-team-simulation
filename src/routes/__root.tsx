@@ -65,6 +65,15 @@ function RootLayout() {
                       Activity Feed
                     </Link>
                     <Link
+                      to="/analytics-dashboard"
+                      className="text-sm hover:text-slate-300 transition-colors"
+                      activeProps={{
+                        className: 'text-blue-400 font-semibold',
+                      }}
+                    >
+                      Analytics
+                    </Link>
+                    <Link
                       to="/create"
                       className="text-sm hover:text-slate-300 transition-colors"
                       activeProps={{
