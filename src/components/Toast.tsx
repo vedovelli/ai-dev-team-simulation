@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useState, useRef, useEffect } from 'react'
+import React from 'react'
 
 interface ToastMessage {
   id: string
@@ -49,6 +50,7 @@ const toastAnimationStyles = `
 export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   const [toasts, setToasts] = useState<ToastMessage[]>([])
   const [exitingToasts, setExitingToasts] = useState<Set<string>>(new Set())
+  const timeoutRefs = React.useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
     const id = `toast-${Date.now()}`
@@ -56,10 +58,12 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
     setExitingToasts((prev) => new Set(prev))
 
     // Auto-remove after 5 seconds
-    setTimeout(() => {
+    const timeoutId = setTimeout(() => {
       setExitingToasts((prev) => new Set(prev).add(id))
-      setTimeout(() => removeToast(id), 300)
+      const removeTimeoutId = setTimeout(() => removeToast(id), 300)
+      timeoutRefs.current.set(id, removeTimeoutId)
     }, 5000)
+    timeoutRefs.current.set(id, timeoutId)
   }
 
   const removeToast = (id: string) => {
@@ -69,7 +73,32 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
       next.delete(id)
       return next
     })
+    const timeout = timeoutRefs.current.get(id)
+    if (timeout) {
+      clearTimeout(timeout)
+      timeoutRefs.current.delete(id)
+    }
   }
+
+  // Handle Escape key to dismiss all toasts
+  React.useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && toasts.length > 0) {
+        // Dismiss all toasts
+        toasts.forEach((toast) => {
+          setExitingToasts((prev) => new Set(prev).add(toast.id))
+        })
+        setTimeout(() => {
+          setToasts([])
+          timeoutRefs.current.forEach((timeout) => clearTimeout(timeout))
+          timeoutRefs.current.clear()
+        }, 300)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [toasts])
 
   return (
     <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
@@ -91,10 +120,20 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
                 colorClasses[toast.type]
               } ${
                 exitingToasts.has(toast.id) ? 'toast-exit' : 'toast-enter'
-              } transition-all duration-300`}
+              } transition-all duration-300 cursor-pointer hover:shadow-lg`}
               role="alert"
+              onClick={() => removeToast(toast.id)}
+              tabIndex={0}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  removeToast(toast.id)
+                }
+              }}
             >
-              {toast.message}
+              <div className="flex items-center justify-between gap-2">
+                <span>{toast.message}</span>
+                <span className="text-xs opacity-60">Press Escape to dismiss all</span>
+              </div>
             </div>
           )
         })}
