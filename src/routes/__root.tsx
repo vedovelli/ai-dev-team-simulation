@@ -3,6 +3,7 @@ import { TanStackRouterDevtools } from '@tanstack/router-devtools'
 import type { QueryClient } from '@tanstack/react-query'
 import { ToastProvider } from '../components/Toast'
 import { NotificationCenter, ToastContainer } from '../components/NotificationCenter'
+import { AppNotificationCenter } from '../components/AppNotificationCenter'
 import { Sidebar } from '../components/Sidebar'
 import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
 import { PermissionProvider } from '../contexts/PermissionContext'
@@ -17,6 +18,7 @@ function RootLayout() {
       <ToastProvider>
         <div className="flex min-h-screen bg-slate-950 text-white">
         <Sidebar />
+        <AppNotificationCenter />
         <div className="flex-1 flex flex-col">
           <nav className="bg-slate-900 border-b border-slate-800">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
