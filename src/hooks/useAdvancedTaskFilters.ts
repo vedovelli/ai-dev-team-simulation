@@ -94,6 +94,7 @@ export function useAdvancedTaskFilters(
 
   // Debounce search with cleanup
   const searchTimeoutRef = useRef<NodeJS.Timeout>()
+  const previousSearchRef = useRef<string>('')
 
   useEffect(() => {
     if (searchTimeoutRef.current) {
@@ -102,10 +103,6 @@ export function useAdvancedTaskFilters(
 
     searchTimeoutRef.current = setTimeout(() => {
       setDebouncedSearch(localSearch)
-      // Reset to page 1 when search changes
-      if (localSearch !== debouncedSearch) {
-        setPage(1)
-      }
     }, searchDebounceMs)
 
     return () => {
@@ -113,7 +110,15 @@ export function useAdvancedTaskFilters(
         clearTimeout(searchTimeoutRef.current)
       }
     }
-  }, [localSearch, searchDebounceMs, debouncedSearch])
+  }, [localSearch, searchDebounceMs])
+
+  // Separate effect to detect when debounced search changes and reset pagination
+  useEffect(() => {
+    if (debouncedSearch !== previousSearchRef.current) {
+      setPage(1)
+      previousSearchRef.current = debouncedSearch
+    }
+  }, [debouncedSearch])
 
   /**
    * Generate stable filter hash for query key

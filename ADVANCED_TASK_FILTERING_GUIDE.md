@@ -81,7 +81,9 @@ function TaskList() {
 
       <select
         value={filters.priority || ''}
-        onChange={(e) => filters.setPriorityFilter(e.target.value as any)}
+        onChange={(e) => filters.setPriorityFilter(
+          (e.target.value || null) as TaskPriority | null
+        )}
       >
         <option value="">All Priorities</option>
         <option value="low">Low</option>
@@ -115,6 +117,75 @@ function TaskList() {
 }
 ```
 
+### Error Handling Example
+
+```typescript
+function TaskListWithErrorHandling() {
+  const filters = useAdvancedTaskFilters()
+
+  const { data, isLoading, error, isError } = useQuery({
+    queryKey: filters.queryKey,
+    queryFn: async () => {
+      const params = new URLSearchParams()
+
+      if (filters.state.priority) {
+        params.append('priority', filters.state.priority)
+      }
+
+      if (filters.state.status.length > 0) {
+        params.append('status', filters.state.status.join(','))
+      }
+
+      const response = await fetch(`/api/tasks?${params}`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tasks: ${response.statusText}`)
+      }
+      return response.json()
+    },
+    ...filters.queryOptions,
+    onError: (error: Error) => {
+      console.error('Failed to load filtered tasks:', error)
+      // Optionally show toast or error notification
+    },
+  })
+
+  return (
+    <div>
+      {/* Filters */}
+      <input
+        type="text"
+        value={filters.localSearch}
+        onChange={(e) => filters.setSearchFilter(e.target.value)}
+        placeholder="Search tasks..."
+      />
+
+      {/* Loading State */}
+      {isLoading && <div className="spinner">Loading tasks...</div>}
+
+      {/* Error State */}
+      {isError && (
+        <div className="error-alert">
+          <p>Failed to load tasks: {error?.message}</p>
+          <button onClick={() => window.location.reload()}>
+            Retry
+          </button>
+        </div>
+      )}
+
+      {/* Success State */}
+      {!isError && data?.data && (
+        <>
+          <div>Showing {data.data.length} of {data.total} tasks</div>
+          {data.data.map((task) => (
+            <div key={task.id}>{task.title}</div>
+          ))}
+        </>
+      )}
+    </div>
+  )
+}
+```
+
 ### Advanced Multi-Filter Example
 
 ```typescript
@@ -138,7 +209,9 @@ function AdvancedTaskFilters() {
       <label>Priority:</label>
       <select
         value={filters.priority || ''}
-        onChange={(e) => filters.setPriorityFilter(e.target.value as any)}
+        onChange={(e) => filters.setPriorityFilter(
+          (e.target.value || null) as TaskPriority | null
+        )}
       >
         <option value="">All</option>
         <option value="high">High</option>
@@ -149,12 +222,12 @@ function AdvancedTaskFilters() {
       {/* Status Multi-Select */}
       <label>Status:</label>
       <div>
-        {['backlog', 'in-progress', 'in-review', 'done'].map((status) => (
+        {(['backlog', 'in-progress', 'in-review', 'done'] as const).map((status) => (
           <label key={status}>
             <input
               type="checkbox"
-              checked={filters.status.includes(status as any)}
-              onChange={() => filters.toggleStatus(status as any)}
+              checked={filters.status.includes(status)}
+              onChange={() => filters.toggleStatus(status)}
             />
             {status}
           </label>
@@ -316,7 +389,9 @@ export function TaskFilterPanel() {
         <legend>Priority</legend>
         <select
           value={filters.priority || ''}
-          onChange={(e) => filters.setPriorityFilter(e.target.value as any)}
+          onChange={(e) => filters.setPriorityFilter(
+            (e.target.value || null) as TaskPriority | null
+          )}
         >
           <option value="">Any</option>
           <option value="high">High</option>
@@ -327,12 +402,12 @@ export function TaskFilterPanel() {
 
       <fieldset>
         <legend>Status (multi-select)</legend>
-        {['backlog', 'in-progress', 'in-review', 'done'].map((s) => (
+        {(['backlog', 'in-progress', 'in-review', 'done'] as const).map((s) => (
           <label key={s}>
             <input
               type="checkbox"
-              checked={filters.status.includes(s as any)}
-              onChange={() => filters.toggleStatus(s as any)}
+              checked={filters.status.includes(s)}
+              onChange={() => filters.toggleStatus(s)}
             />
             {s}
           </label>
@@ -432,6 +507,16 @@ GET /api/tasks?status=done,in-progress&priority=high&search=query&assignee=agent
   "totalPages": 5
 }
 ```
+
+**Response Fields:**
+- `data`: Array of task objects for the current page
+- `total`: Total number of tasks matching filters (not just current page)
+- `page`: 1-based page number (convenience field, derived from pageIndex)
+- `pageIndex`: 0-based page index (use this for next API requests)
+- `pageSize`: Number of items per page
+- `totalPages`: Total number of pages needed to show all results
+
+Note: Both `page` and `pageIndex` are provided for convenience - use `pageIndex` when making subsequent requests as it matches the query parameter format.
 
 ## Testing
 
