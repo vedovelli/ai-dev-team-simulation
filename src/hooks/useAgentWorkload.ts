@@ -72,12 +72,13 @@ export function useAgentWorkload(agentId: string) {
 }
 
 /**
- * Fetch all agent workloads for a sprint
- * Runs queries in parallel and aggregates results
+ * Fetch all agent workloads for a dashboard view
+ * Independent polling not tied to sprint metrics
+ * Polls every 30s with stale-while-revalidate strategy
  */
-export function useAgentWorkloadList(agentIds: string[]) {
+export function useAgentWorkloadList(options?: { enabled?: boolean; refetchInterval?: number }) {
   return useQuery({
-    queryKey: ['agent-workload-list', agentIds],
+    queryKey: ['workload', 'agents'],
     queryFn: async () => {
       const response = await fetch('/api/agents/workload')
       if (!response.ok) {
@@ -85,8 +86,13 @@ export function useAgentWorkloadList(agentIds: string[]) {
       }
       return response.json() as Promise<WorkloadData[]>
     },
-    enabled: agentIds.length > 0,
-    staleTime: 30 * 1000,
-    gcTime: 5 * 60 * 1000,
+    enabled: options?.enabled !== false,
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchInterval: options?.refetchInterval ?? 30 * 1000, // Auto-poll every 30s
+    refetchOnWindowFocus: true, // Refetch when window regains focus
+    refetchOnReconnect: true, // Refetch when connection restored
+    retry: 3, // Retry 3 times with exponential backoff
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30 * 1000),
   })
 }
