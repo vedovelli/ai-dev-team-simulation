@@ -1,4 +1,4 @@
-import type { Notification } from '../../types/notification'
+import type { Notification, NotificationType } from '../../types/notification'
 import { getRelativeTime } from '../../lib/utils'
 
 interface NotificationItemProps {
