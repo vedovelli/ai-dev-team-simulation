@@ -28,23 +28,13 @@ function generateMockNotifications(): Notification[] {
   const now = new Date()
   let id = 1
 
-  // Helper to create a notification with proper timestamp alignment
-  // Captures current id before increment to ensure consistency between ID and timestamp
-  const addNotification = (notif: Omit<Notification, 'timestamp'>) => {
-    const currentId = id
-    notifications.push({
-      ...notif,
-      timestamp: new Date(now.getTime() - (currentId * 5 * 60 * 1000)).toISOString(),
-    })
-    id++
-  }
-
   // Task assigned notifications
   tasks.slice(0, 2).forEach((task, idx) => {
-    addNotification({
+    notifications.push({
       id: `notif-${id}`,
       type: 'task_assigned',
       message: `You were assigned to: ${task}`,
+      timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
       read: idx > 0,
       metadata: {
         entityId: `task-${id}`,
@@ -54,14 +44,16 @@ function generateMockNotifications(): Notification[] {
         source: 'system',
       },
     })
+    id++
   })
 
   // Comment added notifications
   tasks.slice(2, 4).forEach((task, idx) => {
-    addNotification({
+    notifications.push({
       id: `notif-${id}`,
       type: 'comment_added',
       message: `${agents[idx % agents.length]} commented on "${task}"`,
+      timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
       read: idx > 0,
       metadata: {
         entityId: `task-${id}`,
@@ -71,13 +63,15 @@ function generateMockNotifications(): Notification[] {
         source: 'system',
       },
     })
+    id++
   })
 
   // Sprint lifecycle notifications
-  addNotification({
+  notifications.push({
     id: `notif-${id}`,
     type: 'sprint_started',
     message: `${sprints[0]} has started`,
+    timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
     read: false,
     metadata: {
       entityId: 'sprint-4',
@@ -86,11 +80,13 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
+  id++
 
-  addNotification({
+  notifications.push({
     id: `notif-${id}`,
     type: 'sprint_completed',
     message: `${sprints[1]} completed with 92% on-time delivery`,
+    timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
     read: true,
     metadata: {
       entityId: 'sprint-5',
@@ -99,12 +95,14 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
+  id++
 
   // Status change notifications
-  addNotification({
+  notifications.push({
     id: `notif-${id}`,
     type: 'status_changed',
     message: `Task "${tasks[3]}" status changed to In Progress`,
+    timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
     read: true,
     metadata: {
       entityId: 'task-4',
@@ -113,12 +111,14 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
+  id++
 
   // Agent events
-  addNotification({
+  notifications.push({
     id: `notif-${id}`,
     type: 'agent_event',
     message: `${agents[0]} completed task: ${tasks[4]}`,
+    timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
     read: true,
     metadata: {
       entityId: 'agent-1',
@@ -128,18 +128,21 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
+  id++
 
   // Performance alerts
-  addNotification({
+  notifications.push({
     id: `notif-${id}`,
     type: 'performance_alert',
     message: `Team velocity trending upward: +12% this week`,
+    timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
     read: true,
     metadata: {
       priority: 'high',
       source: 'analytics',
     },
   })
+  id++
 
   return notifications
 }
