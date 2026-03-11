@@ -29,11 +29,14 @@ function generateMockNotifications(): Notification[] {
   let id = 1
 
   // Helper to create a notification with proper timestamp alignment
+  // Captures current id before increment to ensure consistency between ID and timestamp
   const addNotification = (notif: Omit<Notification, 'timestamp'>) => {
+    const currentId = id
     notifications.push({
       ...notif,
-      timestamp: new Date(now.getTime() - (id * 5 * 60 * 1000)).toISOString(),
+      timestamp: new Date(now.getTime() - (currentId * 5 * 60 * 1000)).toISOString(),
     })
+    id++
   }
 
   // Task assigned notifications
@@ -51,7 +54,6 @@ function generateMockNotifications(): Notification[] {
         source: 'system',
       },
     })
-    id++
   })
 
   // Comment added notifications
@@ -69,7 +71,6 @@ function generateMockNotifications(): Notification[] {
         source: 'system',
       },
     })
-    id++
   })
 
   // Sprint lifecycle notifications
@@ -85,7 +86,6 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
-  id++
 
   addNotification({
     id: `notif-${id}`,
@@ -99,7 +99,6 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
-  id++
 
   // Status change notifications
   addNotification({
@@ -114,7 +113,6 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
-  id++
 
   // Agent events
   addNotification({
@@ -130,7 +128,6 @@ function generateMockNotifications(): Notification[] {
       source: 'system',
     },
   })
-  id++
 
   // Performance alerts
   addNotification({
@@ -143,7 +140,6 @@ function generateMockNotifications(): Notification[] {
       source: 'analytics',
     },
   })
-  id++
 
   return notifications
 }
