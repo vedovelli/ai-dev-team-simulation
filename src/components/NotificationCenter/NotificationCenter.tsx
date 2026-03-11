@@ -29,6 +29,7 @@ export function NotificationCenter() {
     unreadCount,
     markAsRead,
     markAsReadBatch,
+    dismiss,
   } = useNotifications({
     refetchInterval: 30 * 1000,
     pageSize: 20,
@@ -192,6 +193,8 @@ export function NotificationCenter() {
                     notification={notification}
                     onMarkAsRead={handleMarkAsRead}
                     isMarkingAsRead={markAsRead.isPending}
+                    onDismiss={() => dismiss.mutate(notification.id)}
+                    isDismissing={dismiss.isPending}
                   />
                 ))}
               </div>
