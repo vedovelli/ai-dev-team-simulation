@@ -146,39 +146,53 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
    * Mark multiple notifications as read
    */
   const markMultipleAsRead = async (ids: string[]) => {
-    const response = await fetch('/api/notifications/read-batch', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ids }),
-    })
+    try {
+      const response = await fetch('/api/notifications/read-batch', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      })
 
-    if (!response.ok) {
-      throw new Error(`Failed to mark notifications as read: ${response.statusText}`)
+      if (!response.ok) {
+        throw new Error(`Failed to mark notifications as read: ${response.statusText}`)
+      }
+
+      const notifications = (await response.json()) as Notification[]
+
+      // Invalidate queries after batch operation
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+
+      return notifications
+    } catch (error) {
+      // Rethrow error with context for proper error handling
+      throw new Error(`Failed to mark notifications as read: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-
-    // Invalidate queries after batch operation
-    await queryClient.invalidateQueries({ queryKey: ['notifications'] })
-
-    return response.json() as Promise<Notification[]>
   }
 
   /**
    * Dismiss (delete) a notification
    */
   const dismissNotification = async (id: string) => {
-    const response = await fetch(`/api/notifications/${id}/dismiss`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-    })
+    try {
+      const response = await fetch(`/api/notifications/${id}/dismiss`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
 
-    if (!response.ok) {
-      throw new Error(`Failed to dismiss notification: ${response.statusText}`)
+      if (!response.ok) {
+        throw new Error(`Failed to dismiss notification: ${response.statusText}`)
+      }
+
+      const result = await response.json()
+
+      // Invalidate queries after dismiss
+      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+
+      return result
+    } catch (error) {
+      // Rethrow error with context for proper error handling
+      throw new Error(`Failed to dismiss notification: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
-
-    // Invalidate queries after dismiss
-    await queryClient.invalidateQueries({ queryKey: ['notifications'] })
-
-    return response.json()
   }
 
   return {

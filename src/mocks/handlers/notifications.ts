@@ -2,6 +2,32 @@ import { http, HttpResponse } from 'msw'
 import type { Notification, NotificationEventType } from '../../types/notification'
 
 /**
+ * Discriminated union type for structured notification messages
+ * Ensures type-safe access to event-specific properties
+ */
+type StructuredMessageItem =
+  | { msg: string; eventType: 'assignment_changed'; agentId: string }
+  | { msg: string; eventType: 'sprint_updated'; sprintId: string }
+  | { msg: string; eventType: 'task_reassigned'; taskId: string }
+  | { msg: string; eventType: 'deadline_approaching'; taskId: string; priority: 'high' }
+
+/**
+ * Get related ID from a structured message using discriminated unions
+ * Type-safe alternative to `as any` casting
+ */
+function getRelatedId(item: StructuredMessageItem): string {
+  switch (item.eventType) {
+    case 'assignment_changed':
+      return item.agentId
+    case 'sprint_updated':
+      return item.sprintId
+    case 'task_reassigned':
+    case 'deadline_approaching':
+      return item.taskId
+  }
+}
+
+/**
  * Generate realistic notification data with event types
  * Includes: assignment_changed, sprint_updated, task_reassigned, deadline_approaching
  * Also supports legacy types: agent_event, sprint_change, performance_alert
@@ -27,24 +53,24 @@ function generateMockNotifications(): Notification[] {
   const sprints = ['Sprint 4', 'Sprint 5', 'Sprint 6']
 
   // Structured event message templates
-  const assignmentChangedMessages = [
-    { msg: 'Task "Implement authentication module" assigned to Agent Alice', eventType: 'assignment_changed' as const, agentId: 'agent-1' },
-    { msg: 'Task "Fix database connection pool" reassigned from Bob to Charlie', eventType: 'assignment_changed' as const, agentId: 'agent-3' },
+  const assignmentChangedMessages: Array<StructuredMessageItem> = [
+    { msg: 'Task "Implement authentication module" assigned to Agent Alice', eventType: 'assignment_changed', agentId: 'agent-1' },
+    { msg: 'Task "Fix database connection pool" reassigned from Bob to Charlie', eventType: 'assignment_changed', agentId: 'agent-3' },
   ]
 
-  const sprintUpdatedMessages = [
-    { msg: 'Sprint 5 status changed: Story points velocity updated to 34', eventType: 'sprint_updated' as const, sprintId: 'sprint-5' },
-    { msg: 'Sprint 6 backlog refinement scheduled for tomorrow at 2 PM', eventType: 'sprint_updated' as const, sprintId: 'sprint-6' },
+  const sprintUpdatedMessages: Array<StructuredMessageItem> = [
+    { msg: 'Sprint 5 status changed: Story points velocity updated to 34', eventType: 'sprint_updated', sprintId: 'sprint-5' },
+    { msg: 'Sprint 6 backlog refinement scheduled for tomorrow at 2 PM', eventType: 'sprint_updated', sprintId: 'sprint-6' },
   ]
 
-  const taskReassignedMessages = [
-    { msg: 'Task reassigned: "API endpoint refactoring" moved from Alice to Diana', eventType: 'task_reassigned' as const, taskId: 'task-123' },
-    { msg: 'Task reassigned: "User profile page" reassigned to Agent Bob', eventType: 'task_reassigned' as const, taskId: 'task-456' },
+  const taskReassignedMessages: Array<StructuredMessageItem> = [
+    { msg: 'Task reassigned: "API endpoint refactoring" moved from Alice to Diana', eventType: 'task_reassigned', taskId: 'task-123' },
+    { msg: 'Task reassigned: "User profile page" reassigned to Agent Bob', eventType: 'task_reassigned', taskId: 'task-456' },
   ]
 
-  const deadlineApproachingMessages = [
-    { msg: 'Deadline approaching: "Complete core features" due in 2 days', eventType: 'deadline_approaching' as const, taskId: 'task-789', priority: 'high' as const },
-    { msg: 'Deadline approaching: "Documentation review" due in 1 day', eventType: 'deadline_approaching' as const, taskId: 'task-101', priority: 'high' as const },
+  const deadlineApproachingMessages: Array<StructuredMessageItem> = [
+    { msg: 'Deadline approaching: "Complete core features" due in 2 days', eventType: 'deadline_approaching', taskId: 'task-789', priority: 'high' },
+    { msg: 'Deadline approaching: "Documentation review" due in 1 day', eventType: 'deadline_approaching', taskId: 'task-101', priority: 'high' },
   ]
 
   // Legacy notification types for backward compatibility
@@ -98,8 +124,8 @@ function generateMockNotifications(): Notification[] {
       eventType: item.eventType,
       message: item.msg,
       read: idx > 1, // First 2 are unread
-      priority: item.priority || 'normal',
-      relatedId: (item as any).agentId || (item as any).sprintId || (item as any).taskId,
+      priority: 'priority' in item ? item.priority : 'normal',
+      relatedId: getRelatedId(item),
       metadata: {
         eventType: item.eventType,
         source: 'system',
