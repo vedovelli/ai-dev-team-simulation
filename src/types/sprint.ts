@@ -1,4 +1,14 @@
-export type SprintStatus = 'planning' | 'active' | 'completed'
+export type SprintStatus = 'planning' | 'active' | 'completed' | 'archived'
+
+export interface SprintHistoryEvent {
+  id: string
+  sprintId: string
+  eventType: 'created' | 'started' | 'completed' | 'archived' | 'restored'
+  previousStatus?: SprintStatus
+  newStatus: SprintStatus
+  timestamp: string
+  description: string
+}
 
 export interface Sprint {
   id: string
