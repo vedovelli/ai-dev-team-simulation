@@ -3,52 +3,158 @@ import type { Notification, NotificationType } from '../../types/notification'
 
 /**
  * Generate realistic notification data with various types
- * Includes agent events, sprint updates, and performance alerts
+ *
+ * Creates notifications for:
+ * - Task assignments/unassignments
+ * - Sprint lifecycle events (started/completed)
+ * - Comments added to tasks/sprints
+ * - Status changes
+ * - Agent activity events
+ * - Performance alerts
  */
 function generateMockNotifications(): Notification[] {
-  const agentEvents = [
-    'Agent Alice completed task: Implement authentication module',
-    'Agent Bob started working on: Database optimization',
-    'Agent Charlie submitted code for review: API endpoint refactoring',
-    'Agent Diana completed sprint story: User profile page',
+  const agents = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank']
+  const tasks = [
+    'Implement authentication module',
+    'Database optimization',
+    'API endpoint refactoring',
+    'User profile page',
+    'Payment integration',
+    'Search functionality',
   ]
-
-  const sprintUpdates = [
-    'Sprint 5 velocity updated: 34 points completed',
-    'Sprint backlog refinement scheduled for tomorrow',
-    'Sprint 4 completed with 92% on-time delivery',
-    'New sprint 6 goals approved by team',
-  ]
-
-  const performanceAlerts = [
-    'Agent performance: Bob completed 8/10 tasks on time',
-    'Team velocity trending upward: +12% this week',
-    'Sprint burndown on track: 85% of sprint capacity used',
-    'Code review quality: High complexity PR detected',
-  ]
+  const sprints = ['Sprint 4', 'Sprint 5', 'Sprint 6']
 
   const notifications: Notification[] = []
   const now = new Date()
+  let id = 1
 
-  // Generate mix of notification types
-  const allMessages = [
-    ...agentEvents.map((msg, idx) => ({ type: 'agent_event' as const, msg, idx })),
-    ...sprintUpdates.map((msg, idx) => ({ type: 'sprint_change' as const, msg, idx })),
-    ...performanceAlerts.map((msg, idx) => ({ type: 'performance_alert' as const, msg, idx })),
-  ]
-
-  allMessages.forEach((item, idx) => {
+  /**
+   * Helper to create a notification with proper timestamp alignment.
+   * Captures the current id before incrementing to ensure consistency
+   * between the notification ID and its timestamp calculation.
+   * This prevents timestamp calculation bugs where id is incremented
+   * in the template literal before being used in the timestamp.
+   *
+   * Timestamps are offset such that earlier-created notifications
+   * have more recent timestamps (lower id = closer to now), simulating
+   * notifications arriving in reverse chronological order. Each notification
+   * is offset by 5 minutes from the previous one.
+   *
+   * Example:
+   * - notif-1: created first, timestamp = now - 5 minutes (most recent)
+   * - notif-2: created second, timestamp = now - 10 minutes
+   * - notif-7: created last, timestamp = now - 35 minutes (oldest)
+   */
+  const addNotification = (notif: Omit<Notification, 'timestamp'>) => {
+    const currentId = id
+    const minutesOffset = currentId * 5
     notifications.push({
-      id: `notif-${idx + 1}`,
-      type: item.type,
-      message: item.msg,
-      timestamp: new Date(now.getTime() - (idx * 5 * 60 * 1000)).toISOString(), // 5 min intervals
-      read: idx > 3, // First 4 are unread
+      ...notif,
+      timestamp: new Date(now.getTime() - (minutesOffset * 60 * 1000)).toISOString(),
+    })
+    id++
+  }
+
+  // Task assigned notifications
+  tasks.slice(0, 2).forEach((task, idx) => {
+    addNotification({
+      id: `notif-${id}`,
+      type: 'task_assigned',
+      message: `You were assigned to: ${task}`,
+      read: idx > 0,
       metadata: {
+        entityId: `task-${id}`,
+        entityType: 'task',
+        actor: agents[idx % agents.length],
+        priority: 'normal',
         source: 'system',
-        priority: item.type === 'performance_alert' ? 'high' : 'normal',
       },
     })
+  })
+
+  // Comment added notifications
+  tasks.slice(2, 4).forEach((task, idx) => {
+    addNotification({
+      id: `notif-${id}`,
+      type: 'comment_added',
+      message: `${agents[idx % agents.length]} commented on "${task}"`,
+      read: idx > 0,
+      metadata: {
+        entityId: `task-${id}`,
+        entityType: 'task',
+        actor: agents[idx % agents.length],
+        priority: 'normal',
+        source: 'system',
+      },
+    })
+  })
+
+  // Sprint lifecycle notifications
+  addNotification({
+    id: `notif-${id}`,
+    type: 'sprint_started',
+    message: `${sprints[0]} has started`,
+    read: false,
+    metadata: {
+      entityId: 'sprint-4',
+      entityType: 'sprint',
+      priority: 'high',
+      source: 'system',
+    },
+  })
+
+  addNotification({
+    id: `notif-${id}`,
+    type: 'sprint_completed',
+    message: `${sprints[1]} completed with 92% on-time delivery`,
+    read: true,
+    metadata: {
+      entityId: 'sprint-5',
+      entityType: 'sprint',
+      priority: 'normal',
+      source: 'system',
+    },
+  })
+
+  // Status change notifications
+  addNotification({
+    id: `notif-${id}`,
+    type: 'status_changed',
+    message: `Task "${tasks[3]}" status changed to In Progress`,
+    read: true,
+    metadata: {
+      entityId: 'task-4',
+      entityType: 'task',
+      priority: 'normal',
+      source: 'system',
+    },
+  })
+
+  // Agent events
+  addNotification({
+    id: `notif-${id}`,
+    type: 'agent_event',
+    message: `${agents[0]} completed task: ${tasks[4]}`,
+    read: true,
+    metadata: {
+      entityId: 'agent-1',
+      entityType: 'agent',
+      actor: agents[0],
+      priority: 'normal',
+      source: 'system',
+    },
+  })
+
+  // Performance alerts
+  addNotification({
+    id: `notif-${id}`,
+    type: 'performance_alert',
+    message: `Team velocity trending upward: +12% this week`,
+    read: true,
+    metadata: {
+      priority: 'high',
+      source: 'analytics',
+    },
   })
 
   return notifications
