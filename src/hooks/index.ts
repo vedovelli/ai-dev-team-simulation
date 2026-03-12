@@ -53,3 +53,5 @@ export type {
   FilteredTasksResponse,
   UseAdvancedTaskFiltersOptions,
 } from './useAdvancedTaskFilters'
+export { useActivityFeed } from './useActivityFeed'
+export type { UseActivityFeedOptions } from './useActivityFeed'
