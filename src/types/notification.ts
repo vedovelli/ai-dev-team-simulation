@@ -12,6 +12,10 @@
  * - performance_alert: Performance-related alerts
  */
 
+// Specific notification event types (structured events)
+export type NotificationEventType = 'assignment_changed' | 'sprint_updated' | 'task_reassigned' | 'deadline_approaching'
+
+// All notification types (includes both legacy and structured event types)
 export type NotificationType =
   | 'task_assigned'
   | 'task_unassigned'
@@ -21,6 +25,7 @@ export type NotificationType =
   | 'status_changed'
   | 'agent_event'
   | 'performance_alert'
+  | NotificationEventType
 
 /**
  * Base notification interface
@@ -33,6 +38,10 @@ export interface Notification {
   read: boolean
   /** Optional metadata for specific notification types */
   metadata?: NotificationMetadata
+  // Optional fields for structured events
+  eventType?: NotificationEventType
+  relatedId?: string // ID of related entity (task, sprint, agent)
+  priority?: 'low' | 'normal' | 'high'
 }
 
 /**
@@ -60,4 +69,13 @@ export interface NotificationsResponse {
   data: Notification[]
   total: number
   unreadCount: number
+}
+
+/**
+ * Notification center aggregated state
+ */
+export interface NotificationCenter {
+  notifications: Notification[]
+  unreadCount: number
+  total: number
 }
