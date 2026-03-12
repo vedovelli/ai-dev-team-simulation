@@ -6,6 +6,7 @@ import type {
   TeamCapacity,
   SprintReport,
   SprintReportRequest,
+  SprintHistoryEvent,
 } from '../../types/sprint'
 
 /**
@@ -31,6 +32,9 @@ export const sprintKeys = {
   reports: () => [...sprintKeys.all, 'report'] as const,
   report: (sprintId: string, filters?: Record<string, unknown>) =>
     [...sprintKeys.reports(), sprintId, { ...filters }] as const,
+  history: () => [...sprintKeys.all, 'history'] as const,
+  historyData: (sprintId: string) =>
+    [...sprintKeys.history(), sprintId] as const,
 }
 
 interface SprintsListResponse {
@@ -268,6 +272,37 @@ export function useSprintReport(
     },
     staleTime: 1000 * 60 * 60, // 1 hour (business reports don't change often)
     gcTime: 1000 * 60 * 60 * 2, // 2 hours
+    refetchOnWindowFocus: false,
+    retry: 2,
+    enabled: !!sprintId, // Dependent query
+  })
+}
+
+/**
+ * Fetch sprint lifecycle history events.
+ * Shows chronological view of sprint state changes (created, started, completed, archived, restored).
+ *
+ * @param sprintId - The sprint ID (can be null/undefined)
+ * @returns Array of SprintHistoryEvent objects ordered chronologically
+ *
+ * @example
+ * ```tsx
+ * const { data: history } = useSprintHistory(sprintId)
+ * // Returns [{ eventType: 'created', ... }, { eventType: 'started', ... }, ...]
+ * ```
+ */
+export function useSprintHistory(sprintId: string | null | undefined) {
+  return useQuery<SprintHistoryEvent[]>({
+    queryKey: sprintId ? sprintKeys.historyData(sprintId) : [],
+    queryFn: async () => {
+      const response = await fetch(`/api/sprints/${sprintId}/history`)
+      if (!response.ok) {
+        throw new Error(`Failed to fetch history for sprint ${sprintId}`)
+      }
+      return response.json()
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 10, // 10 minutes
     refetchOnWindowFocus: false,
     retry: 2,
     enabled: !!sprintId, // Dependent query

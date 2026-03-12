@@ -16,6 +16,7 @@ import type {
   TeamCapacity,
   TeamMemberCapacity,
   SprintReport,
+  SprintHistoryEvent,
 } from '../../types/sprint'
 
 interface SprintsListResponse {
@@ -34,7 +35,7 @@ function generateSprints(): Sprint[] {
     {
       id: 'sprint-1',
       name: 'Sprint 1 - Auth & Core Features',
-      status: 'completed',
+      status: 'archived',
       goals: 'Implement user authentication and basic CRUD operations',
       tasks: ['task-1', 'task-2', 'task-3', 'task-4', 'task-5'],
       estimatedPoints: 34,
@@ -73,6 +74,82 @@ function generateSprints(): Sprint[] {
   ]
 
   return sprints
+}
+
+/**
+ * Generate mock sprint history events
+ */
+function generateSprintHistory(sprintId: string): SprintHistoryEvent[] {
+  const historyMap: Record<string, SprintHistoryEvent[]> = {
+    'sprint-1': [
+      {
+        id: 'event-1',
+        sprintId: 'sprint-1',
+        eventType: 'created',
+        newStatus: 'planning',
+        timestamp: '2026-02-01T08:00:00Z',
+        description: 'Sprint created',
+      },
+      {
+        id: 'event-2',
+        sprintId: 'sprint-1',
+        eventType: 'started',
+        previousStatus: 'planning',
+        newStatus: 'active',
+        timestamp: '2026-02-01T10:00:00Z',
+        description: 'Sprint started',
+      },
+      {
+        id: 'event-3',
+        sprintId: 'sprint-1',
+        eventType: 'completed',
+        previousStatus: 'active',
+        newStatus: 'completed',
+        timestamp: '2026-02-14T18:00:00Z',
+        description: 'All tasks completed',
+      },
+      {
+        id: 'event-4',
+        sprintId: 'sprint-1',
+        eventType: 'archived',
+        previousStatus: 'completed',
+        newStatus: 'archived',
+        timestamp: '2026-02-20T12:30:00Z',
+        description: 'Sprint archived for historical reference',
+      },
+    ],
+    'sprint-2': [
+      {
+        id: 'event-5',
+        sprintId: 'sprint-2',
+        eventType: 'created',
+        newStatus: 'planning',
+        timestamp: '2026-02-15T08:00:00Z',
+        description: 'Sprint created',
+      },
+      {
+        id: 'event-6',
+        sprintId: 'sprint-2',
+        eventType: 'started',
+        previousStatus: 'planning',
+        newStatus: 'active',
+        timestamp: '2026-02-15T10:00:00Z',
+        description: 'Sprint started',
+      },
+    ],
+    'sprint-3': [
+      {
+        id: 'event-7',
+        sprintId: 'sprint-3',
+        eventType: 'created',
+        newStatus: 'planning',
+        timestamp: '2026-02-28T08:00:00Z',
+        description: 'Sprint created',
+      },
+    ],
+  }
+
+  return historyMap[sprintId] || []
 }
 
 /**
@@ -641,6 +718,17 @@ export const sprintHandlers = [
     }
 
     return HttpResponse.json(capacity, { status: 200 })
+  }),
+
+  /**
+   * GET /api/sprints/:id/history
+   * Returns sprint lifecycle history events
+   */
+  http.get('/api/sprints/:id/history', ({ params }) => {
+    const { id } = params
+    const history = generateSprintHistory(id as string)
+
+    return HttpResponse.json<SprintHistoryEvent[]>(history, { status: 200 })
   }),
 
   /**
