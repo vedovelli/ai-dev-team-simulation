@@ -1,7 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { Sprint } from '../../types/sprint'
 import { sprintKeys } from '../queries/sprints'
-import { useMutationWithRetry } from '../useMutationWithRetry'
+import { useConflictAwareMutation } from '../useConflictAwareMutation'
 
 /**
  * Input type for updating a sprint
@@ -13,34 +13,40 @@ interface UpdateSprintInput {
   estimatedPoints: number
   startDate?: string
   endDate?: string
+  version?: number
 }
 
 /**
- * Update an existing sprint with optimistic updates
+ * Update an existing sprint with optimistic updates and conflict detection
  *
  * Features:
  * - Optimistic update: immediately reflects changes
+ * - Version-based conflict detection with 409 handling
  * - Automatic retry on failure with exponential backoff
  * - Invalidates sprint detail and list on success
  */
 export const useUpdateSprint = (sprintId: string) => {
   const queryClient = useQueryClient()
 
-  return useMutationWithRetry({
+  return useConflictAwareMutation({
     mutationFn: async (data: UpdateSprintInput): Promise<Sprint> => {
       const response = await fetch(`/api/sprints/${sprintId}`, {
-        method: 'PUT',
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
 
       if (!response.ok) {
-        const error = await response.json() as { error: string }
+        const error = await response.json() as { error?: string; serverVersion?: Sprint }
+        if (response.status === 409) {
+          throw new Error(`409: conflict with serverVersion: ${JSON.stringify(error.serverVersion || {})}`)
+        }
         throw new Error(error.error || 'Failed to update sprint')
       }
 
       return response.json() as Promise<Sprint>
     },
+    queryKeyFn: () => sprintKeys.detail(sprintId),
     onMutate: async (data) => {
       // Cancel pending requests
       await queryClient.cancelQueries({ queryKey: sprintKeys.all })
@@ -57,7 +63,7 @@ export const useUpdateSprint = (sprintId: string) => {
       // Create optimistic update - use list data if detail not cached
       let optimisticSprint: Sprint
       if (previousDetail) {
-        optimisticSprint = { ...previousDetail, ...data }
+        optimisticSprint = { ...previousDetail, ...data, version: (previousDetail.version || 1) + 1 }
       } else {
         // Find sprint in list cache as fallback
         let foundInList: Sprint | undefined
@@ -68,7 +74,7 @@ export const useUpdateSprint = (sprintId: string) => {
         })
 
         if (foundInList) {
-          optimisticSprint = { ...foundInList, ...data }
+          optimisticSprint = { ...foundInList, ...data, version: (foundInList.version || 1) + 1 }
         } else {
           // Last resort: create minimal object (shouldn't happen in normal flow)
           optimisticSprint = {
@@ -77,8 +83,9 @@ export const useUpdateSprint = (sprintId: string) => {
             tasks: [],
             taskCount: 0,
             completedCount: 0,
+            version: 1,
             createdAt: new Date().toISOString(),
-          }
+          } as Sprint
         }
       }
 
