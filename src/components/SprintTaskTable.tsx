@@ -1,6 +1,8 @@
 import { useMemo, useState, useCallback } from 'react'
 import type { SprintTask, TaskStatus, TaskPriority } from '../types/sprint'
 import { useTable } from '../hooks/useTable'
+import { TaskDependencyBadge } from './TaskDependencyBadge'
+import { useTasks } from '../hooks/useTasks'
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
   'backlog': 'bg-slate-500/20 text-slate-300',
@@ -36,11 +38,29 @@ export function SprintTaskTable({
   selectedTaskIds = new Set(),
   onSelectionChange,
 }: SprintTaskTableProps) {
+  const { data: allTasks = [] } = useTasks()
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>({
+    title: true,
+    status: true,
+    assignee: true,
+    priority: true,
+    blockedBy: false,
+  })
+
   const { sortedAndFilteredData, handleSort, handleFilter, filterValue, sortKey, sortOrder } =
     useTable({
       data: tasks,
       initialSortKey: 'title',
     })
+
+  // Create a map of task IDs to titles for blocked by display
+  const taskTitleMap = useMemo(() => {
+    const map: Record<string, string> = {}
+    allTasks.forEach((task) => {
+      map[task.id] = task.title
+    })
+    return map
+  }, [allTasks])
 
   const handleTaskToggle = useCallback(
     (taskId: string) => {
@@ -72,9 +92,10 @@ export function SprintTaskTable({
       { key: 'status' as const, label: 'Status' },
       { key: 'assignee' as const, label: 'Assignee' },
       { key: 'priority' as const, label: 'Priority' },
+      { key: 'blockedBy' as const, label: 'Blocked By' },
     ]
-    return baseColumns
-  }, [])
+    return baseColumns.filter((col) => visibleColumns[col.key] !== false)
+  }, [visibleColumns])
 
   if (isLoading) {
     return (
@@ -96,15 +117,27 @@ export function SprintTaskTable({
 
   return (
     <div className="space-y-4">
-      {/* Filter Input */}
-      <div className="flex items-center">
+      {/* Filter Input and Column Toggle */}
+      <div className="flex items-center justify-between gap-3">
         <input
           type="text"
           placeholder="Filter tasks..."
           value={filterValue}
           onChange={(e) => handleFilter(e.target.value)}
-          className="px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500"
+          className="px-3 py-2 bg-slate-800 border border-slate-700 rounded text-white placeholder-slate-500 text-sm focus:outline-none focus:border-blue-500 flex-1"
         />
+        <button
+          onClick={() =>
+            setVisibleColumns((prev) => ({
+              ...prev,
+              blockedBy: !prev.blockedBy,
+            }))
+          }
+          className="px-3 py-2 text-sm font-medium text-slate-300 hover:text-white bg-slate-800 border border-slate-700 rounded hover:border-slate-600 transition-colors"
+          aria-label="Toggle Blocked By column"
+        >
+          {visibleColumns.blockedBy ? '✓ Blocked By' : 'Blocked By'}
+        </button>
       </div>
 
       {/* Table */}
@@ -176,6 +209,24 @@ export function SprintTaskTable({
                     {PRIORITY_LABELS[task.priority]}
                   </span>
                 </td>
+                {visibleColumns.blockedBy && (
+                  <td className="px-4 py-3">
+                    {task.dependsOn && task.dependsOn.length > 0 ? (
+                      <div className="flex flex-wrap gap-2">
+                        {task.dependsOn.map((blockerTaskId) => (
+                          <TaskDependencyBadge
+                            key={blockerTaskId}
+                            taskId={blockerTaskId}
+                            taskTitle={taskTitleMap[blockerTaskId] || 'Unknown Task'}
+                            isBlocked={true}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-slate-500 text-sm">—</span>
+                    )}
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>
