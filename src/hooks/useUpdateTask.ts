@@ -1,26 +1,30 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { Task, UpdateTaskInput } from '../types/task'
-import { useMutationWithRetry } from './useMutationWithRetry'
+import { useConflictAwareMutation } from './useConflictAwareMutation'
 
 export function useUpdateTask() {
   const queryClient = useQueryClient()
 
-  return useMutationWithRetry({
-    mutationFn: async ({ id, data }: { id: string; data: UpdateTaskInput }) => {
+  return useConflictAwareMutation({
+    mutationFn: async ({ id, data, version }: { id: string; data: UpdateTaskInput; version: number }) => {
       const response = await fetch(`/api/tasks/${id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({ ...data, version }),
       })
 
       if (!response.ok) {
         const error = await response.json()
+        if (response.status === 409) {
+          throw new Error(`409: conflict with serverVersion: ${JSON.stringify(error.serverVersion || {})}`)
+        }
         throw new Error(error.error || 'Failed to update task')
       }
 
       return response.json() as Promise<Task>
     },
-    onMutate: async ({ id, data }) => {
+    queryKeyFn: ({ id }) => ['tasks', id],
+    onMutate: async ({ id, data, version }) => {
       // Cancel any pending requests for tasks
       await queryClient.cancelQueries({ queryKey: ['tasks'] })
 
@@ -37,6 +41,7 @@ export function useUpdateTask() {
               ? {
                   ...task,
                   ...data,
+                  version: version + 1,
                   updatedAt: new Date().toISOString(),
                 }
               : task
