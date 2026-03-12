@@ -34,12 +34,23 @@ function generateMockNotifications(): Notification[] {
    * between the notification ID and its timestamp calculation.
    * This prevents timestamp calculation bugs where id is incremented
    * in the template literal before being used in the timestamp.
+   *
+   * Timestamps are offset such that earlier-created notifications
+   * have more recent timestamps (lower id = closer to now), simulating
+   * notifications arriving in reverse chronological order. Each notification
+   * is offset by 5 minutes from the previous one.
+   *
+   * Example:
+   * - notif-1: created first, timestamp = now - 5 minutes (most recent)
+   * - notif-2: created second, timestamp = now - 10 minutes
+   * - notif-7: created last, timestamp = now - 35 minutes (oldest)
    */
   const addNotification = (notif: Omit<Notification, 'timestamp'>) => {
     const currentId = id
+    const minutesOffset = currentId * 5
     notifications.push({
       ...notif,
-      timestamp: new Date(now.getTime() - (currentId * 5 * 60 * 1000)).toISOString(),
+      timestamp: new Date(now.getTime() - (minutesOffset * 60 * 1000)).toISOString(),
     })
     id++
   }
