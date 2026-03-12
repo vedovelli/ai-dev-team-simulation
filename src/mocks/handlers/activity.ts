@@ -1,92 +1,167 @@
 /**
  * MSW Handlers for Activity Feed
  *
- * Provides realistic mock data for:
- * - GET /api/activity/feed - Returns last 50 events
+ * Provides realistic paginated activity data:
+ * - GET /api/activity - Cursor-based pagination with entity filtering
+ * - GET /api/activity/feed - Legacy endpoint (for backward compatibility)
  * - POST /api/activity/:eventId/reactions - Add reaction to event
  */
 
 import { http, HttpResponse, delay } from 'msw'
-import type { ActivityEvent, ReactionEmoji } from '../../types/activity'
+import type { ActivityEvent, ActivityFeedResponse, ReactionEmoji, EntityType } from '../../types/activity'
 
-// Mock event store with reactions
+// Mock event store
 const eventStore: Map<string, ActivityEvent> = new Map()
 
-// Initialize with mock events
+// Initialize with realistic mock events
 function initializeMockEvents() {
   const now = new Date()
-  const events: ActivityEvent[] = [
+  const actors = ['alice', 'bob', 'charlie', 'diana', 'eve']
+  const agents = ['agent-1', 'agent-2', 'agent-3']
+
+  // Create realistic activity events
+  const baseEvents: Partial<ActivityEvent>[] = [
     {
-      id: 'evt-1',
-      type: 'task_created',
-      actor: 'alice',
-      timestamp: new Date(now.getTime() - 5 * 60000).toISOString(),
-      metadata: { title: 'Implement authentication system' },
-      reactions: { '👍': 3, '❤️': 1 },
-    },
-    {
-      id: 'evt-2',
       type: 'task_assigned',
-      actor: 'bob',
-      timestamp: new Date(now.getTime() - 3 * 60000).toISOString(),
-      metadata: { title: 'Design dashboard UI', assignee: 'charlie' },
-      reactions: { '🚀': 2 },
+      entityType: 'task',
+      actorName: 'alice',
+      payload: { taskId: 'task-123', assignee: 'bob', priority: 'high' },
     },
     {
-      id: 'evt-3',
-      type: 'task_completed',
-      actor: 'charlie',
-      timestamp: new Date(now.getTime() - 1 * 60000).toISOString(),
-      metadata: { title: 'Write API tests' },
-      reactions: { '👍': 5, '❤️': 2, '🚀': 1 },
+      type: 'task_status_changed',
+      entityType: 'task',
+      actorName: 'bob',
+      payload: { taskId: 'task-123', from: 'todo', to: 'in_progress' },
     },
     {
-      id: 'evt-4',
-      type: 'agent_status_change',
-      actor: 'agent-alpha',
-      timestamp: new Date(now.getTime() - 30000).toISOString(),
-      metadata: { status: 'online', previousStatus: 'idle' },
-      reactions: {},
+      type: 'comment_added',
+      entityType: 'task',
+      actorName: 'charlie',
+      payload: { taskId: 'task-123', comment: 'Working on this now', commentId: 'cmt-1' },
+    },
+    {
+      type: 'sprint_updated',
+      entityType: 'sprint',
+      actorName: 'diana',
+      payload: { sprintId: 'sprint-1', field: 'endDate', value: '2026-03-20' },
+    },
+    {
+      type: 'task_assigned',
+      entityType: 'task',
+      actorName: 'eve',
+      payload: { taskId: 'task-456', assignee: 'agent-1' },
     },
   ]
 
-  // Add more events to test virtual scrolling
-  for (let i = 0; i < 46; i++) {
-    const eventTypes: ActivityEvent['type'][] = [
-      'task_created',
-      'task_assigned',
-      'task_completed',
-      'agent_status_change',
-    ]
-    const type = eventTypes[i % eventTypes.length]
-    const timestamp = new Date(
-      now.getTime() - (5 + i) * 60000
-    ).toISOString()
+  // Generate 100 events for testing pagination
+  let eventId = 1
+  for (let i = 0; i < 100; i++) {
+    const baseEvent = baseEvents[i % baseEvents.length]
+    const timestamp = new Date(now.getTime() - (i + 1) * 5 * 60000) // 5 min apart
 
-    events.push({
-      id: `evt-${5 + i}`,
-      type,
-      actor: ['alice', 'bob', 'charlie', 'agent-1', 'agent-2'][i % 5],
-      timestamp,
-      metadata: {
-        title: `Event ${5 + i}`,
-      },
-      reactions: {},
-    })
-  }
+    const event: ActivityEvent = {
+      id: `evt-${eventId++}`,
+      type: baseEvent.type || 'task_assigned',
+      entityType: baseEvent.entityType || 'sprint',
+      entityId: baseEvent.payload?.taskId || baseEvent.payload?.sprintId || `entity-${i}`,
+      actorName: baseEvent.actorName || actors[i % actors.length],
+      payload: baseEvent.payload || {},
+      createdAt: timestamp.toISOString(),
+    }
 
-  events.forEach((event) => {
     eventStore.set(event.id, event)
-  })
+  }
 }
 
 // Initialize on first load
 initializeMockEvents()
 
+/**
+ * Encode cursor for pagination
+ * Cursor is base64-encoded event ID
+ */
+function encodeCursor(eventId: string): string {
+  return Buffer.from(eventId).toString('base64')
+}
+
+/**
+ * Decode cursor for pagination
+ */
+function decodeCursor(cursor: string): string {
+  try {
+    return Buffer.from(cursor, 'base64').toString('utf-8')
+  } catch {
+    return ''
+  }
+}
+
 export const activityHandlers = [
   /**
+   * GET /api/activity
+   * Cursor-based paginated activity feed with entity filtering
+   *
+   * Query params:
+   * - entityType: 'sprint' | 'task' | 'agent' (optional)
+   * - entityId: string (optional)
+   * - cursor: string (optional, base64-encoded)
+   * - limit: number (default: 50)
+   */
+  http.get('/api/activity', async ({ request }) => {
+    await delay(300)
+
+    const url = new URL(request.url)
+    const entityType = url.searchParams.get('entityType') as EntityType | null
+    const entityId = url.searchParams.get('entityId')
+    const cursor = url.searchParams.get('cursor')
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
+
+    // Get all events sorted by createdAt descending
+    let events = Array.from(eventStore.values()).sort(
+      (a, b) =>
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    )
+
+    // Filter by entity type if specified
+    if (entityType) {
+      events = events.filter((e) => e.entityType === entityType)
+    }
+
+    // Filter by entity ID if specified
+    if (entityId) {
+      events = events.filter((e) => e.entityId === entityId)
+    }
+
+    // Find starting position from cursor
+    let startIndex = 0
+    if (cursor) {
+      const decodedCursor = decodeCursor(cursor)
+      startIndex = events.findIndex((e) => e.id === decodedCursor) + 1
+      if (startIndex === 0) {
+        // Cursor not found, start from beginning
+        startIndex = 0
+      }
+    }
+
+    // Get page of events
+    const pageEvents = events.slice(startIndex, startIndex + limit)
+    const hasMore = startIndex + limit < events.length
+    const nextCursor = hasMore && pageEvents.length > 0
+      ? encodeCursor(pageEvents[pageEvents.length - 1].id)
+      : null
+
+    const response: ActivityFeedResponse = {
+      events: pageEvents,
+      nextCursor,
+      hasMore,
+    }
+
+    return HttpResponse.json(response)
+  }),
+
+  /**
    * GET /api/activity/feed
-   * Returns paginated activity events
+   * Legacy endpoint for backward compatibility
+   * Returns non-paginated feed with optional filter
    */
   http.get('/api/activity/feed', async ({ request }) => {
     await delay(300)
@@ -95,10 +170,10 @@ export const activityHandlers = [
     const limit = parseInt(url.searchParams.get('limit') || '50', 10)
     const filter = url.searchParams.get('filter')
 
-    // Get all events and sort by timestamp descending
+    // Get all events and sort by createdAt descending
     let events = Array.from(eventStore.values()).sort(
       (a, b) =>
-        new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
 
     // Apply filter if provided
@@ -106,9 +181,8 @@ export const activityHandlers = [
       events = events.filter(
         (event) =>
           event.type === filter ||
-          event.actor.includes(filter) ||
-          (event.metadata?.title &&
-            event.metadata.title.toLowerCase().includes(filter.toLowerCase()))
+          event.actorName.includes(filter) ||
+          JSON.stringify(event.payload).toLowerCase().includes(filter.toLowerCase())
       )
     }
 
@@ -140,7 +214,7 @@ export const activityHandlers = [
       )
     }
 
-    // Update reactions
+    // Update reactions (in a real app, these would be persisted)
     const reactions = event.reactions || {}
     reactions[body.emoji] = (reactions[body.emoji] || 0) + 1
 
