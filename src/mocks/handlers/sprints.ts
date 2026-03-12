@@ -28,6 +28,16 @@ interface SprintsListResponse {
 }
 
 /**
+ * In-memory store for sprint versions
+ * In production, this would be persisted in database
+ */
+const sprintVersionStore: Record<string, number> = {
+  'sprint-1': 1,
+  'sprint-2': 1,
+  'sprint-3': 1,
+}
+
+/**
  * Generate mock sprint data
  */
 function generateSprints(): Sprint[] {
@@ -44,6 +54,7 @@ function generateSprints(): Sprint[] {
       createdAt: '2026-02-01T10:00:00Z',
       startDate: '2026-02-01T00:00:00Z',
       endDate: '2026-02-14T23:59:59Z',
+      version: sprintVersionStore['sprint-1'] || 1,
     },
     {
       id: 'sprint-2',
@@ -57,6 +68,7 @@ function generateSprints(): Sprint[] {
       createdAt: '2026-02-15T10:00:00Z',
       startDate: '2026-02-15T00:00:00Z',
       endDate: '2026-02-28T23:59:59Z',
+      version: sprintVersionStore['sprint-2'] || 1,
     },
     {
       id: 'sprint-3',
@@ -70,6 +82,7 @@ function generateSprints(): Sprint[] {
       createdAt: '2026-02-28T10:00:00Z',
       startDate: '2026-03-01T00:00:00Z',
       endDate: '2026-03-14T23:59:59Z',
+      version: sprintVersionStore['sprint-3'] || 1,
     },
   ]
 
@@ -481,7 +494,12 @@ export const sprintHandlers = [
       )
     }
 
-    return HttpResponse.json(sprint, { status: 200 })
+    return HttpResponse.json(sprint, {
+      headers: {
+        'X-Resource-Version': String(sprint.version),
+      },
+      status: 200,
+    })
   }),
 
   /**
@@ -593,6 +611,7 @@ export const sprintHandlers = [
         endDate: string
         teamAssignment: string
         status: string
+        version?: number
       }>
 
       const sprints = generateSprints()
@@ -603,6 +622,39 @@ export const sprintHandlers = [
           { error: 'Sprint not found' },
           { status: 404 }
         )
+      }
+
+      // Check version if provided (conflict detection)
+      if (body.version !== undefined) {
+        const serverVersion = sprintVersionStore[id as keyof typeof sprintVersionStore] || 1
+
+        // Simulate ~5% conflict rate when version mismatches
+        if (body.version !== serverVersion && Math.random() < 0.05) {
+          return HttpResponse.json(
+            {
+              error: 'conflict',
+              serverVersion: {
+                ...sprint,
+                version: serverVersion,
+              },
+            },
+            { status: 409 }
+          )
+        }
+
+        // Check actual version match
+        if (body.version !== serverVersion) {
+          return HttpResponse.json(
+            {
+              error: 'conflict',
+              serverVersion: {
+                ...sprint,
+                version: serverVersion,
+              },
+            },
+            { status: 409 }
+          )
+        }
       }
 
       // Prevent editing dates for closed sprints
@@ -638,16 +690,25 @@ export const sprintHandlers = [
         }
       }
 
-      // Update sprint
+      // Update sprint with incremented version
       const updatedSprint: Sprint = {
         ...sprint,
         name: body.name !== undefined ? body.name : sprint.name,
         startDate: body.startDate || sprint.startDate,
         endDate: body.endDate || sprint.endDate,
         status: body.status as any || sprint.status,
+        version: (sprint.version || 1) + 1,
       }
 
-      return HttpResponse.json(updatedSprint, { status: 200 })
+      // Increment version in store
+      sprintVersionStore[id as keyof typeof sprintVersionStore] = updatedSprint.version
+
+      return HttpResponse.json(updatedSprint, {
+        headers: {
+          'X-Resource-Version': String(updatedSprint.version),
+        },
+        status: 200,
+      })
     } catch (error) {
       return HttpResponse.json(
         { error: 'Invalid request body' },

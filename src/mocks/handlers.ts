@@ -13,6 +13,7 @@ import { metricsHandlers } from './handlers/metrics'
 import { bulkOperationHandlers } from './handlers/bulk-operations'
 import { agentCapacityHandlers } from './handlers/agentCapacity'
 import { taskQueueHandlers } from './handlers/taskQueue'
+import { taskHandlers } from './handlers/tasks'
 import { sprintHandlers } from './handlers/sprints'
 import { agentTaskQueueHandlers } from './handlers/agentTaskQueue'
 import { sprintAnalyticsHandlers } from './handlers/sprintAnalytics'
@@ -2564,6 +2565,7 @@ export const paginatedHandlers = [
   ...bulkOperationHandlers,
   ...agentCapacityHandlers,
   ...taskQueueHandlers,
+  ...taskHandlers,
   ...sprintHandlers,
   ...agentTaskQueueHandlers,
   ...sprintAnalyticsHandlers,

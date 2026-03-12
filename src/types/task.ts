@@ -17,6 +17,7 @@ export interface Task {
   dependsOn?: string[]
   blockedBy?: string[]
   deadline?: string
+  version: number
 }
 
 export interface UpdateTaskInput {
@@ -31,6 +32,7 @@ export interface UpdateTaskInput {
   dependsOn?: string[]
   description?: string
   deadline?: string
+  version?: number
 }
 
 export interface TaskHistoryEntry {
