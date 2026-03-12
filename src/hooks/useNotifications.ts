@@ -1,162 +1,76 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect } from 'react'
-import type { Notification, NotificationsResponse, NotificationType } from '../types/notification'
-import { useWebSocket, type WebSocketMessage } from './useWebSocket'
-import { useWebSocketQueryIntegration } from './useWebSocketQueryIntegration'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { Notification, NotificationCenter } from '../types/notification'
+import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
- * Options for the useNotifications hook
+ * Configuration options for useNotifications hook
  */
 export interface UseNotificationsOptions {
   /** Refetch interval in milliseconds (default: 30000 = 30s) */
   refetchInterval?: number
-  /** Enable automatic refetch (default: true) */
+  /** Enable automatic refetch on window focus (default: true) */
   refetchOnWindowFocus?: boolean
-  /** Filter by notification type */
-  type?: NotificationType
-  /** Only fetch unread notifications (default: false) */
+  /** Filter to show only unread notifications (default: false) */
   unreadOnly?: boolean
-  /** Pagination: page index (default: 0) */
-  pageIndex?: number
-  /** Pagination: page size (default: 20) */
-  pageSize?: number
-  /** Enable WebSocket real-time updates (default: true) */
-  enableWebSocket?: boolean
-  /** WebSocket URL (default: ws://localhost:8080/notifications) */
-  wsUrl?: string
 }
 
 /**
- * Fetch and manage notifications with real-time WebSocket support
+ * Mark notification as read request
+ */
+interface MarkAsReadRequest {
+  id: string
+}
+
+/**
+ * Fetch real-time notifications with polling and provide mutations for interaction
  *
  * Features:
- * - WebSocket real-time subscription for instant updates
- * - Automatic polling every 30 seconds (configurable fallback)
+ * - Automatic polling every 30 seconds (configurable)
  * - Refetch on window focus for fresh data
- * - WebSocket reconnection with exponential backoff
- * - Unread count tracking and aggregation
- * - Mark as read/dismiss mutations with optimistic updates
- * - Filtering by notification type
- * - Pagination support
- * - Cache invalidation triggers from WebSocket events
- * - Stale-while-revalidate strategy
- *
- * @example
- * ```tsx
- * const {
- *   data, isPending, error, unreadCount,
- *   markAsRead, dismiss, wsConnected
- * } = useNotifications({ enableWebSocket: true })
- *
- * if (isPending) return <div>Loading...</div>
- * if (error) return <div>Error: {error.message}</div>
- *
- * return (
- *   <div>
- *     <h2>Unread: {unreadCount} {wsConnected && '✓ Live'}</h2>
- *     {data?.map(notif => (
- *       <div key={notif.id}>
- *         {notif.message}
- *         <button onClick={() => markAsRead.mutate(notif.id)}>Mark read</button>
- *         <button onClick={() => dismiss.mutate(notif.id)}>Dismiss</button>
- *       </div>
- *     ))}
- *   </div>
- * )
- * ```
+ * - Stale-while-revalidate strategy: 30s stale, 2min gc
+ * - Caps notifications at 20 most recent entries
+ * - Unread count computed from notification state
+ * - Mark-as-read mutation with optimistic updates
+ * - Support for filtering by unread status
+ * - Exponential backoff retry logic
  */
 export function useNotifications(options: UseNotificationsOptions = {}) {
   const {
     refetchInterval = 30 * 1000, // 30 seconds
     refetchOnWindowFocus = true,
-    type,
     unreadOnly = false,
-    pageIndex = 0,
-    pageSize = 20,
-    enableWebSocket = true,
-    wsUrl = 'ws://localhost:8080/notifications',
   } = options
 
   const queryClient = useQueryClient()
-  const queryKey = ['notifications', { type, unreadOnly, pageIndex, pageSize }]
 
-  // Build query parameters
-  const params = new URLSearchParams()
-  if (type) params.append('type', type)
-  if (unreadOnly) params.append('unread', 'true')
-  params.append('pageIndex', pageIndex.toString())
-  params.append('pageSize', pageSize.toString())
-
-  // WebSocket integration for real-time updates
-  const { isConnected: wsConnected } = useWebSocket({
-    url: wsUrl,
-    onMessage: (message: WebSocketMessage<Partial<Notification>>) => {
-      if (!enableWebSocket) return
-
-      // Handle different WebSocket message types
-      if (message.type === 'notification:new') {
-        // New notification received - invalidate to refetch
-        queryClient.invalidateQueries({ queryKey })
-      } else if (message.type === 'notification:updated') {
-        // Update existing notification in cache
-        queryClient.setQueryData(queryKey, (old: NotificationsResponse | undefined) => {
-          if (!old) return old
-
-          // Calculate new unread count based on read status change
-          const notification = old.data.find(n => n.id === message.payload.id)
-          let newUnreadCount = old.unreadCount
-
-          if (notification) {
-            const wasUnread = !notification.read
-            const nowUnread = message.payload.read === false
-
-            if (wasUnread && !nowUnread) {
-              // Changed from unread to read
-              newUnreadCount = Math.max(0, old.unreadCount - 1)
-            } else if (!wasUnread && nowUnread) {
-              // Changed from read to unread
-              newUnreadCount = old.unreadCount + 1
-            }
-          }
-
-          return {
-            ...old,
-            data: old.data.map((n) =>
-              n.id === message.payload.id ? { ...n, ...message.payload } : n
-            ),
-            unreadCount: newUnreadCount,
-          }
-        })
-      } else if (message.type === 'notification:dismissed') {
-        // Remove dismissed notification from cache
-        queryClient.setQueryData(queryKey, (old: NotificationsResponse | undefined) => {
-          if (!old) return old
-          return {
-            ...old,
-            data: old.data.filter((n) => n.id !== message.payload.id),
-            total: Math.max(0, old.total - 1),
-          }
-        })
-      }
-    },
-    shouldReconnect: enableWebSocket,
-    maxReconnectAttempts: 5,
-    initialReconnectDelay: 1000,
-    maxReconnectDelay: 30000,
-  })
-
-  // Fetch notifications
-  const query = useQuery<NotificationsResponse, Error>({
-    queryKey: ['notifications', { type, unreadOnly, pageIndex, pageSize }],
+  // Query to fetch notifications with polling
+  const query = useQuery<NotificationCenter, Error>({
+    queryKey: ['notifications', { unreadOnly }],
     queryFn: async () => {
-      const response = await fetch(`/api/notifications?${params}`)
+      const params = new URLSearchParams()
+      if (unreadOnly) {
+        params.append('unread', 'true')
+      }
+
+      const response = await fetch(`/api/notifications?${params}`, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+
       if (!response.ok) {
         throw new Error(`Failed to fetch notifications: ${response.statusText}`)
       }
-      return response.json() as Promise<NotificationsResponse>
+
+      const data = (await response.json()) as NotificationCenter
+
+      // Cap notifications at 20 most recent entries
+      if (data.notifications.length > 20) {
+        data.notifications = data.notifications.slice(0, 20)
+      }
+
+      return data
     },
     staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes (was cacheTime in v4)
+    gcTime: 2 * 60 * 1000, // 2 minutes (was cacheTime in v4)
     refetchInterval, // Polling configuration
     refetchOnWindowFocus, // Refetch when window regains focus
     refetchOnReconnect: true, // Refetch when connection is restored
@@ -164,164 +78,127 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   })
 
-  // Mark single notification as read with optimistic update
-  const markAsReadMutation = useMutation({
-    mutationFn: async (notificationId: string) => {
-      const response = await fetch(`/api/notifications/${notificationId}/read`, {
+  // Mutation for marking a notification as read
+  const markAsReadMutation = useMutationWithRetry<Notification, MarkAsReadRequest>({
+    mutationFn: async ({ id }) => {
+      const response = await fetch(`/api/notifications/${id}/read`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
       })
+
       if (!response.ok) {
         throw new Error(`Failed to mark notification as read: ${response.statusText}`)
       }
+
       return response.json() as Promise<Notification>
     },
-    onMutate: async (notificationId) => {
-      // Cancel ongoing queries
-      await queryClient.cancelQueries({ queryKey })
+    onMutate: async ({ id }) => {
+      // Cancel any pending requests for notifications
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
 
-      // Get current data
-      const previousData = queryClient.getQueryData<NotificationsResponse>(queryKey)
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
 
-      // Optimistically update
+      // Optimistically update notification cache
       if (previousData) {
-        const updated: NotificationsResponse = {
+        const updated = {
           ...previousData,
-          data: previousData.data.map((n) =>
-            n.id === notificationId ? { ...n, read: true } : n
+          notifications: previousData.notifications.map((notif) =>
+            notif.id === id ? { ...notif, read: true } : notif
           ),
           unreadCount: Math.max(0, previousData.unreadCount - 1),
         }
-        queryClient.setQueryData(queryKey, updated)
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+
+        // Also update unreadOnly query if it's being used
+        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: NotificationCenter) => {
+          if (!old) return old
+          return {
+            ...old,
+            notifications: old.notifications.filter((notif) => notif.id !== id),
+            unreadCount: Math.max(0, old.unreadCount - 1),
+          }
+        })
       }
 
-      return previousData
+      return { previousData }
     },
-    onError: (error, variables, context) => {
-      // Revert on error
-      if (context) {
-        queryClient.setQueryData(queryKey, context)
+    onError: (_, __, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
       }
     },
-  })
-
-  // Mark multiple notifications as read
-  const markAsReadBatchMutation = useMutation({
-    mutationFn: async (notificationIds: string[]) => {
-      const response = await fetch('/api/notifications/read-batch', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: notificationIds }),
-      })
-      if (!response.ok) {
-        throw new Error(`Failed to mark notifications as read: ${response.statusText}`)
-      }
-      return response.json() as Promise<Notification[]>
-    },
-    onMutate: async (notificationIds) => {
-      await queryClient.cancelQueries({ queryKey })
-
-      const previousData = queryClient.getQueryData<NotificationsResponse>(queryKey)
-
-      if (previousData) {
-        const updated: NotificationsResponse = {
-          ...previousData,
-          data: previousData.data.map((n) =>
-            notificationIds.includes(n.id) ? { ...n, read: true } : n
-          ),
-          unreadCount: Math.max(
-            0,
-            previousData.unreadCount - notificationIds.length
-          ),
-        }
-        queryClient.setQueryData(queryKey, updated)
-      }
-
-      return previousData
-    },
-    onError: (error, variables, context) => {
-      if (context) {
-        queryClient.setQueryData(queryKey, context)
-      }
+    onSuccess: () => {
+      // Invalidate to refetch fresh data after successful mutation
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 
-  // Dismiss notification (removes from list)
-  const dismissMutation = useMutation({
-    mutationFn: async (notificationId: string) => {
-      const response = await fetch(`/api/notifications/${notificationId}/dismiss`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-      })
-      if (!response.ok) {
-        throw new Error(`Failed to dismiss notification: ${response.statusText}`)
-      }
-      return response.json() as Promise<{ success: boolean }>
-    },
-    onMutate: async (notificationId) => {
-      await queryClient.cancelQueries({ queryKey })
+  /**
+   * Mark a single notification as read
+   */
+  const markAsRead = (id: string) => {
+    markAsReadMutation.mutate({ id })
+  }
 
-      const previousData = queryClient.getQueryData<NotificationsResponse>(queryKey)
+  /**
+   * Mark multiple notifications as read
+   */
+  const markMultipleAsRead = async (ids: string[]) => {
+    const response = await fetch('/api/notifications/read-batch', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    })
 
-      // Optimistically remove from list
-      if (previousData) {
-        const notificationToRemove = previousData.data.find((n) => n.id === notificationId)
-        const updated: NotificationsResponse = {
-          ...previousData,
-          data: previousData.data.filter((n) => n.id !== notificationId),
-          total: Math.max(0, previousData.total - 1),
-          unreadCount: notificationToRemove?.read
-            ? previousData.unreadCount
-            : Math.max(0, previousData.unreadCount - 1),
-        }
-        queryClient.setQueryData(queryKey, updated)
-      }
+    if (!response.ok) {
+      throw new Error(`Failed to mark notifications as read: ${response.statusText}`)
+    }
 
-      return previousData
-    },
-    onError: (error, variables, context) => {
-      if (context) {
-        queryClient.setQueryData(queryKey, context)
-      }
-    },
-  })
+    // Invalidate queries after batch operation
+    await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+
+    return response.json() as Promise<Notification[]>
+  }
+
+  /**
+   * Dismiss (delete) a notification
+   */
+  const dismissNotification = async (id: string) => {
+    const response = await fetch(`/api/notifications/${id}/dismiss`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+    })
+
+    if (!response.ok) {
+      throw new Error(`Failed to dismiss notification: ${response.statusText}`)
+    }
+
+    // Invalidate queries after dismiss
+    await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+
+    return response.json()
+  }
 
   return {
     // Query state
-    data: query.data?.data || [],
-    isLoading: query.isLoading,
-    isPending: query.isPending,
-    error: query.error,
-    isRefetching: query.isRefetching,
+    ...query,
 
     // Computed values
-    unreadCount: query.data?.unreadCount || 0,
-    total: query.data?.total || 0,
+    notifications: query.data?.notifications ?? [],
+    unreadCount: query.data?.unreadCount ?? 0,
+    total: query.data?.total ?? 0,
 
-    // WebSocket state
-    wsConnected: enableWebSocket && wsConnected,
+    // Mutation state
+    markAsReadLoading: markAsReadMutation.isLoading,
+    markAsReadError: markAsReadMutation.error,
 
-    // Mutations
-    markAsRead: {
-      mutate: markAsReadMutation.mutate,
-      mutateAsync: markAsReadMutation.mutateAsync,
-      isPending: markAsReadMutation.isPending,
-      error: markAsReadMutation.error,
-    },
-    markAsReadBatch: {
-      mutate: markAsReadBatchMutation.mutate,
-      mutateAsync: markAsReadBatchMutation.mutateAsync,
-      isPending: markAsReadBatchMutation.isPending,
-      error: markAsReadBatchMutation.error,
-    },
-    dismiss: {
-      mutate: dismissMutation.mutate,
-      mutateAsync: dismissMutation.mutateAsync,
-      isPending: dismissMutation.isPending,
-      error: dismissMutation.error,
-    },
-
-    // Refetch capability
-    refetch: query.refetch,
+    // Actions
+    markAsRead,
+    markMultipleAsRead,
+    dismissNotification,
   }
 }
+
+export type UseNotificationsReturn = ReturnType<typeof useNotifications>
