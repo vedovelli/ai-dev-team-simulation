@@ -1,81 +1,29 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import type { Task } from '../../types/task'
 import { dependencyKeys } from '../queries/dependencies'
+import { detectCircularDependency } from '../../utils/dependencyValidation'
 
 /**
- * Validates for circular dependencies in a task dependency graph
- *
- * @param taskId - The task to add a dependency to
- * @param dependsOnTaskId - The task that the first task will depend on
- * @param allTasks - All tasks in the system
- * @returns Error message if circular dependency detected, null otherwise
- *
- * @example
- * ```tsx
- * const error = detectCircularDependency('task-1', 'task-2', allTasks)
- * if (error) {
- *   showError(error)
- * }
- * ```
+ * Re-export detectCircularDependency for backward compatibility
  */
-export function detectCircularDependency(
-  taskId: string,
-  dependsOnTaskId: string,
-  allTasks: Map<string, Task>
-): string | null {
-  // Direct self-dependency check
-  if (taskId === dependsOnTaskId) {
-    return 'A task cannot depend on itself'
-  }
+export { detectCircularDependency }
 
-  // Build a map for O(1) lookups
-  const taskMap = allTasks
-
-  // BFS to detect cycles
-  const visited = new Set<string>()
-  const queue = [dependsOnTaskId]
-
-  while (queue.length > 0) {
-    const currentId = queue.shift()!
-
-    if (currentId === taskId) {
-      return `Adding this dependency would create a circular dependency: ${taskId} → ${dependsOnTaskId} → ... → ${taskId}`
-    }
-
-    if (visited.has(currentId)) {
-      continue
-    }
-
-    visited.add(currentId)
-
-    const task = taskMap.get(currentId)
-    if (task?.dependsOn) {
-      for (const depId of task.dependsOn) {
-        if (!visited.has(depId)) {
-          queue.push(depId)
-        }
-      }
-    }
-  }
-
-  return null
-}
-
-interface AddDependencyVariables {
-  taskId: string
-  dependsOnTaskId: string
-}
-
-interface RemoveDependencyVariables {
+interface DependencyVariables {
   taskId: string
   dependsOnTaskId: string
 }
 
 interface DependencyMutationsReturn {
-  addDependency: ReturnType<typeof useMutation<Task, Error, AddDependencyVariables>>['mutate']
-  removeDependency: ReturnType<typeof useMutation<Task, Error, RemoveDependencyVariables>>['mutate']
-  addDependencyAsync: ReturnType<typeof useMutation<Task, Error, AddDependencyVariables>>['mutateAsync']
-  removeDependencyAsync: ReturnType<typeof useMutation<Task, Error, RemoveDependencyVariables>>['mutateAsync']
+  addDependency: (
+    variables: DependencyVariables,
+    options?: { onError?: (error: Error) => void; onSuccess?: () => void }
+  ) => void
+  removeDependency: (
+    variables: DependencyVariables,
+    options?: { onError?: (error: Error) => void; onSuccess?: () => void }
+  ) => void
+  addDependencyAsync: (variables: DependencyVariables) => Promise<Task>
+  removeDependencyAsync: (variables: DependencyVariables) => Promise<Task>
   isPending: boolean
 }
 
@@ -84,41 +32,45 @@ interface DependencyMutationsReturn {
  *
  * Features:
  * - Circular dependency detection before mutation
- * - Optimistic updates with automatic rollback
- * - Automatic cache invalidation of related queries
+ * - Automatic cache invalidation of all dependency queries
+ * - Fresh validation data from query client
  * - Type-safe mutations
  *
- * @param taskId - The task ID to manage dependencies for
- * @param allTasks - Map of all tasks for circular dependency detection
+ * Note: This hook fetches all tasks from the query client to ensure
+ * validation is performed against current data, not stale snapshots.
+ *
  * @returns Mutation functions and loading state
  *
  * @example
  * ```tsx
- * const { addDependency, removeDependency, isPending } = useDependencyMutations(
- *   taskId,
- *   new Map(tasks.map(t => [t.id, t]))
- * )
+ * const { addDependency, removeDependency, isPending } = useDependencyMutations()
  *
  * const handleAdd = () => {
- *   addDependency({ taskId, dependsOnTaskId: 'task-2' }, {
+ *   addDependency({ taskId: 'task-1', dependsOnTaskId: 'task-2' }, {
  *     onError: (error) => showError(error.message)
  *   })
  * }
  * ```
  */
-export function useDependencyMutations(
-  taskId: string,
-  allTasks: Map<string, Task>
-): DependencyMutationsReturn {
+export function useDependencyMutations(): DependencyMutationsReturn {
   const queryClient = useQueryClient()
 
-  const addDependencyMutation = useMutation<Task, Error, AddDependencyVariables>({
+  const addDependencyMutation = useMutation<Task, Error, DependencyVariables>({
     mutationFn: async (variables) => {
-      // Validate for circular dependency
+      // Get fresh task data from query client for validation
+      const allTasksData = queryClient.getQueryData<Task[]>(['tasks'])
+      if (!allTasksData) {
+        throw new Error('Task data not available in cache. Ensure tasks are loaded.')
+      }
+
+      // Convert to Map for validation
+      const tasksMap = new Map(allTasksData.map((t) => [t.id, t]))
+
+      // Validate for circular dependency using fresh data
       const circularError = detectCircularDependency(
         variables.taskId,
         variables.dependsOnTaskId,
-        allTasks
+        tasksMap
       )
 
       if (circularError) {
@@ -139,18 +91,15 @@ export function useDependencyMutations(
       return response.json() as Promise<Task>
     },
 
-    onSuccess: (data, variables) => {
-      // Invalidate dependency queries
+    onSuccess: () => {
+      // Invalidate all dependency queries
       queryClient.invalidateQueries({
-        queryKey: dependencyKeys.list(variables.taskId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: dependencyKeys.list(variables.dependsOnTaskId),
+        queryKey: dependencyKeys.all,
       })
     },
   })
 
-  const removeDependencyMutation = useMutation<Task, Error, RemoveDependencyVariables>({
+  const removeDependencyMutation = useMutation<Task, Error, DependencyVariables>({
     mutationFn: async (variables) => {
       const response = await fetch(
         `/api/tasks/${variables.taskId}/dependencies/${variables.dependsOnTaskId}`,
@@ -168,13 +117,10 @@ export function useDependencyMutations(
       return response.json() as Promise<Task>
     },
 
-    onSuccess: (data, variables) => {
-      // Invalidate dependency queries
+    onSuccess: () => {
+      // Invalidate all dependency queries
       queryClient.invalidateQueries({
-        queryKey: dependencyKeys.list(variables.taskId),
-      })
-      queryClient.invalidateQueries({
-        queryKey: dependencyKeys.list(variables.dependsOnTaskId),
+        queryKey: dependencyKeys.all,
       })
     },
   })

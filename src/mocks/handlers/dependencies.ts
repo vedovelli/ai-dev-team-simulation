@@ -1,5 +1,6 @@
 import { http, HttpResponse } from 'msw'
 import type { Task } from '../../types/task'
+import { detectCircularDependency } from '../../utils/dependencyValidation'
 
 /**
  * In-memory storage for task dependencies
@@ -187,7 +188,7 @@ export const dependencyHandlers = [
       }
 
       // Detect circular dependency
-      const circularError = detectCircularDependency(taskId, dependsOnTaskId)
+      const circularError = detectCircularDependency(taskId, dependsOnTaskId, tasksMap)
       if (circularError) {
         return HttpResponse.json({ error: circularError }, { status: 400 })
       }
@@ -243,45 +244,3 @@ export const dependencyHandlers = [
     return HttpResponse.json(updatedTask)
   }),
 ]
-
-/**
- * Detect circular dependencies using BFS
- *
- * @param taskId - The task to add a dependency to
- * @param dependsOnTaskId - The task that the first task will depend on
- * @returns Error message if circular dependency is detected, null otherwise
- */
-function detectCircularDependency(taskId: string, dependsOnTaskId: string): string | null {
-  if (taskId === dependsOnTaskId) {
-    return 'A task cannot depend on itself'
-  }
-
-  // BFS to detect cycles
-  const visited = new Set<string>()
-  const queue = [dependsOnTaskId]
-
-  while (queue.length > 0) {
-    const currentId = queue.shift()!
-
-    if (currentId === taskId) {
-      return `Adding this dependency would create a circular dependency: ${taskId} → ${dependsOnTaskId} → ... → ${taskId}`
-    }
-
-    if (visited.has(currentId)) {
-      continue
-    }
-
-    visited.add(currentId)
-
-    const task = tasksMap.get(currentId)
-    const deps = dependenciesStore.get(currentId) || []
-
-    for (const depId of deps) {
-      if (!visited.has(depId)) {
-        queue.push(depId)
-      }
-    }
-  }
-
-  return null
-}
