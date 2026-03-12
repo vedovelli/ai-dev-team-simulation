@@ -1,0 +1,104 @@
+import { describe, it, expect } from 'vitest'
+import { detectCircularDependency } from '../mutations/useDependencyMutations'
+import type { Task } from '../../types/task'
+
+describe('detectCircularDependency', () => {
+  it('should detect direct self-dependency', () => {
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: [] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-1', 'task-1', tasks)
+    expect(error).toBe('A task cannot depend on itself')
+  })
+
+  it('should detect circular dependency in a chain', () => {
+    // task-1 -> task-2 -> task-3
+    // If we try to make task-3 -> task-1, that creates a cycle
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: ['task-2'] } as Task],
+      ['task-2', { id: 'task-2', dependsOn: ['task-3'] } as Task],
+      ['task-3', { id: 'task-3', dependsOn: [] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-1', 'task-3', tasks)
+    expect(error).not.toBeNull()
+    expect(error).toContain('circular')
+  })
+
+  it('should allow valid dependencies', () => {
+    // task-1 -> task-2
+    // task-3 is independent
+    // task-4 can depend on task-1 without issues
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: ['task-2'] } as Task],
+      ['task-2', { id: 'task-2', dependsOn: [] } as Task],
+      ['task-3', { id: 'task-3', dependsOn: [] } as Task],
+      ['task-4', { id: 'task-4', dependsOn: [] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-4', 'task-1', tasks)
+    expect(error).toBeNull()
+  })
+
+  it('should detect circular dependency in longer chains', () => {
+    // task-1 -> task-2 -> task-3 -> task-4
+    // If we try to make task-1 -> task-4, that creates a cycle
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: ['task-2'] } as Task],
+      ['task-2', { id: 'task-2', dependsOn: ['task-3'] } as Task],
+      ['task-3', { id: 'task-3', dependsOn: ['task-4'] } as Task],
+      ['task-4', { id: 'task-4', dependsOn: [] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-1', 'task-4', tasks)
+    expect(error).not.toBeNull()
+    expect(error).toContain('circular')
+  })
+
+  it('should allow dependencies that do not create cycles', () => {
+    // task-1 -> task-2 -> task-3
+    // task-4 -> task-5
+    // task-4 can depend on task-3 without creating a cycle
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: ['task-2'] } as Task],
+      ['task-2', { id: 'task-2', dependsOn: ['task-3'] } as Task],
+      ['task-3', { id: 'task-3', dependsOn: [] } as Task],
+      ['task-4', { id: 'task-4', dependsOn: ['task-5'] } as Task],
+      ['task-5', { id: 'task-5', dependsOn: [] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-4', 'task-3', tasks)
+    expect(error).toBeNull()
+  })
+
+  it('should handle missing tasks gracefully', () => {
+    const tasks = new Map<string, Task>()
+
+    // Should return null since task-2 doesn't exist (can't detect cycle with missing data)
+    const error = detectCircularDependency('task-1', 'task-2', tasks)
+    expect(error).toBeNull()
+  })
+
+  it('should detect two-way circular dependency', () => {
+    // task-1 -> task-2 and task-2 -> task-1 (mutual dependency)
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: ['task-2'] } as Task],
+      ['task-2', { id: 'task-2', dependsOn: ['task-1'] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-2', 'task-1', tasks)
+    expect(error).not.toBeNull()
+    expect(error).toContain('circular')
+  })
+
+  it('should handle empty dependency chains', () => {
+    const tasks = new Map<string, Task>([
+      ['task-1', { id: 'task-1', dependsOn: undefined } as Task],
+      ['task-2', { id: 'task-2', dependsOn: [] } as Task],
+    ])
+
+    const error = detectCircularDependency('task-1', 'task-2', tasks)
+    expect(error).toBeNull()
+  })
+})
