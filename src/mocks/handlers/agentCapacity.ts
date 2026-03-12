@@ -5,10 +5,17 @@
  * - Get all agents with current capacity and workload
  * - Real-time task count tracking per agent
  * - Workload color coding (green/yellow/orange/red)
+ * - Sprint-specific capacity metrics with warning levels
+ * - Capacity adjustment (PATCH)
  */
 
 import { http, HttpResponse } from 'msw'
 import type { AgentCapacityData } from '../../hooks/useBulkAssignment'
+import type {
+  AgentCapacityMetric,
+  AgentCapacityMetricsResponse,
+  WarningLevel,
+} from '../../types/capacity'
 
 /**
  * Mock data generator for agent capacity
@@ -67,6 +74,83 @@ function generateAgentCapacityData(): Record<string, AgentCapacityData> {
   return capacityMap
 }
 
+/**
+ * Mock data generator for agent capacity metrics with warning levels
+ * Generates 10-50 agents with varied utilization levels
+ */
+function generateAgentCapacityMetrics(
+  sprintId: string
+): AgentCapacityMetricsResponse {
+  const agentCount = 15 + Math.floor(Math.random() * 36) // 15-50 agents
+  const agentNames = [
+    'Alice Chen',
+    'Bob Rodriguez',
+    'Charlie Williams',
+    'Diana Prince',
+    'Eve Martinez',
+    'Frank Thompson',
+    'Grace Lee',
+    'Henry Jackson',
+    'Ivy Kim',
+    'Jack Anderson',
+    'Kara Davis',
+    'Leo Wilson',
+    'Maya Patel',
+    'Noah Brown',
+    'Olivia Moore',
+    'Paul Taylor',
+    'Quinn White',
+    'Ruby Harris',
+    'Sam Martin',
+    'Tara Johnson',
+    'Uma Singh',
+    'Victor Lopez',
+    'Wendy Garcia',
+    'Xavier Martinez',
+    'Yara Ahmed',
+    'Zoe Miller',
+  ]
+
+  const agents: AgentCapacityMetric[] = []
+
+  for (let i = 0; i < agentCount; i++) {
+    const maxCapacity = 10 + Math.floor(Math.random() * 11) // 10-20
+    const currentLoad = Math.floor(Math.random() * (maxCapacity + 1))
+    const utilizationPct = Math.round((currentLoad / maxCapacity) * 100)
+
+    let warningLevel: WarningLevel
+    if (utilizationPct > 95) {
+      warningLevel = 'critical'
+    } else if (utilizationPct > 80) {
+      warningLevel = 'warning'
+    } else {
+      warningLevel = 'ok'
+    }
+
+    agents.push({
+      agentId: `agent-${i + 1}`,
+      name: agentNames[i % agentNames.length],
+      currentLoad,
+      maxCapacity,
+      tasksAssigned: currentLoad,
+      utilizationPct,
+      warningLevel,
+    })
+  }
+
+  return {
+    agents,
+    timestamp: new Date().toISOString(),
+    sprintId,
+  }
+}
+
+// Store for capacity adjustments (for optimistic updates)
+const capacityStore: Record<
+  string,
+  Record<string, number>
+> = {}
+
 // Cache capacity data with TTL
 let cachedCapacity = generateAgentCapacityData()
 let lastGeneratedAt = Date.now()
@@ -99,6 +183,25 @@ export const agentCapacityHandlers = [
   }),
 
   /**
+   * GET /api/agents/capacity?sprintId=:id
+   * Get agent capacity metrics for a specific sprint with warning levels
+   */
+  http.get('/api/agents/capacity', ({ request }) => {
+    const url = new URL(request.url)
+    const sprintId = url.searchParams.get('sprintId')
+
+    if (!sprintId) {
+      return HttpResponse.json(
+        { error: 'sprintId is required' },
+        { status: 400 }
+      )
+    }
+
+    const metricsData = generateAgentCapacityMetrics(sprintId)
+    return HttpResponse.json(metricsData, { status: 200 })
+  }),
+
+  /**
    * GET /api/agents/:id/capacity
    * Get capacity info for a specific agent
    */
@@ -115,6 +218,41 @@ export const agentCapacityHandlers = [
     }
 
     return HttpResponse.json(agentCapacity, { status: 200 })
+  }),
+
+  /**
+   * PATCH /api/agents/:id/capacity
+   * Adjust an agent's maximum capacity
+   */
+  http.patch('/api/agents/:id/capacity', async ({ params, request }) => {
+    const { id } = params
+    const body = await request.json() as { newMaxCapacity: number }
+
+    if (!body.newMaxCapacity || body.newMaxCapacity < 1) {
+      return HttpResponse.json(
+        { error: 'newMaxCapacity must be at least 1' },
+        { status: 400 }
+      )
+    }
+
+    const agentId = id as string
+    const previousCapacity = capacityStore[agentId] ?? 10
+
+    // Store the adjustment
+    if (!capacityStore[agentId]) {
+      capacityStore[agentId] = previousCapacity
+    }
+    capacityStore[agentId] = body.newMaxCapacity
+
+    return HttpResponse.json(
+      {
+        agentId,
+        previousCapacity,
+        newCapacity: body.newMaxCapacity,
+        updatedAt: new Date().toISOString(),
+      },
+      { status: 200 }
+    )
   }),
 
   /**
