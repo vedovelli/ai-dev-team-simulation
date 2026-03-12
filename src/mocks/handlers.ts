@@ -23,6 +23,7 @@ import { agentManagementHandlers } from './handlers/agents'
 import { notificationHandlers } from './handlers/notifications'
 import { taskExecutionHandlers } from './handlers/taskExecution'
 import { agentPresenceHandlers } from './handlers/agentPresence'
+import { agentAvailabilityHandlers } from './handlers/agentAvailability'
 import { workloadHandlers } from './handlers/workload'
 import { activityHandlers } from './handlers/activity'
 import { agentAnalyticsHandlers } from './handlers/agentAnalytics'
@@ -2575,6 +2576,7 @@ export const paginatedHandlers = [
   ...notificationHandlers,
   ...taskExecutionHandlers,
   ...agentPresenceHandlers,
+  ...agentAvailabilityHandlers,
   ...workloadHandlers,
   ...activityHandlers,
   ...agentAnalyticsHandlers,

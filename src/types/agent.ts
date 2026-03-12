@@ -80,3 +80,28 @@ export interface AgentPresence {
   lastSeenAt: string
   statusChangeReason?: 'timeout' | 'user-action' | 'manual' | 'task-assignment'
 }
+
+/**
+ * Daily availability information for an agent on a specific date
+ * Used for calendar view to show availability status and conflicts
+ */
+export interface DailyAvailability {
+  date: string // ISO 8601 date (YYYY-MM-DD)
+  agentId: string
+  availabilityStatus: 'available' | 'unavailable' | 'partial'
+  tasksScheduled: number
+  hasConflict: boolean
+  conflictReason?: string
+}
+
+/**
+ * Agent calendar availability data
+ * Contains daily availability information for a month/range
+ */
+export interface AgentCalendarAvailability {
+  agentId: string
+  agentName: string
+  month: number // 1-12
+  year: number
+  dailyAvailability: DailyAvailability[]
+}
