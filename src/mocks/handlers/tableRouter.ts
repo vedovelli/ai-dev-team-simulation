@@ -177,6 +177,7 @@ const mockTasks: Task[] = [
     createdAt: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000).toISOString(),
     deadline: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    version: 1,
   },
   {
     id: 'task-2',
@@ -192,6 +193,7 @@ const mockTasks: Task[] = [
     createdAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString(),
     deadline: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString(),
+    version: 1,
   },
   {
     id: 'task-3',
@@ -206,6 +208,7 @@ const mockTasks: Task[] = [
     estimatedHours: 8,
     createdAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+    version: 1,
   },
   {
     id: 'task-4',
@@ -220,6 +223,7 @@ const mockTasks: Task[] = [
     estimatedHours: 4,
     createdAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 4 * 60 * 60 * 1000).toISOString(),
+    version: 1,
   },
   {
     id: 'task-5',
@@ -234,6 +238,7 @@ const mockTasks: Task[] = [
     estimatedHours: 10,
     createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
     updatedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+    version: 1,
   },
 ]
 
