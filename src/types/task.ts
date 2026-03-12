@@ -15,6 +15,7 @@ export interface Task {
   createdAt: string
   updatedAt: string
   dependsOn?: string[]
+  blockedBy?: string[]
   deadline?: string
 }
 
