@@ -55,4 +55,12 @@ export const queryKeys = {
     detail: (id: string | number) =>
       [...queryKeys.projects.details(), id] as const,
   },
+
+  // Activity Feed
+  activity: {
+    all: ['activity'] as const,
+    feeds: () => [...queryKeys.activity.all, 'feeds'] as const,
+    feed: (entityType?: string, entityId?: string) =>
+      [...queryKeys.activity.feeds(), { entityType, entityId }] as const,
+  },
 } as const
