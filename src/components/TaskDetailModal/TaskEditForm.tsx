@@ -2,6 +2,8 @@ import { useForm } from '@tanstack/react-form'
 import { useEffect, useState } from 'react'
 import type { Task, UpdateTaskInput } from '../../types/task'
 import { useUpdateTask } from '../../hooks/useUpdateTask'
+import { useUpdateTaskDependencies } from '../../hooks/useUpdateTaskDependencies'
+import { TaskDependencyWidget } from '../TaskDependencyWidget'
 
 interface TaskEditFormProps {
   task: Task
@@ -17,6 +19,7 @@ interface TaskFormData {
   assignee: string
   deadline: string
   estimatedHours: number | ''
+  dependsOn: string[]
 }
 
 const PRIORITIES = ['none', 'low', 'normal', 'high', 'urgent']
@@ -29,6 +32,7 @@ export function TaskEditForm({
 }: TaskEditFormProps) {
   const [apiError, setApiError] = useState<string | null>(null)
   const updateMutation = useUpdateTask()
+  const updateDependenciesMutation = useUpdateTaskDependencies()
 
   const form = useForm<TaskFormData>({
     defaultValues: {
@@ -39,6 +43,7 @@ export function TaskEditForm({
       assignee: task.assignee || '',
       deadline: task.deadline || '',
       estimatedHours: task.estimatedHours || '',
+      dependsOn: task.dependsOn || [],
     },
     onSubmit: async ({ value }) => {
       setApiError(null)
@@ -65,10 +70,20 @@ export function TaskEditForm({
           estimatedHours: value.estimatedHours ? Number(value.estimatedHours) : undefined,
         }
 
+        // Update main task fields
         await updateMutation.mutateAsync({
           id: task.id,
           data: updateData,
         })
+
+        // Update dependencies if they changed
+        const dependenciesChanged = JSON.stringify(value.dependsOn) !== JSON.stringify(task.dependsOn || [])
+        if (dependenciesChanged) {
+          await updateDependenciesMutation.mutateAsync({
+            id: task.id,
+            dependsOn: value.dependsOn,
+          })
+        }
 
         onUnsavedChangesChange(false)
         onClose()
@@ -90,7 +105,8 @@ export function TaskEditForm({
           values.status !== task.status ||
           values.assignee !== task.assignee ||
           values.deadline !== (task.deadline || '') ||
-          values.estimatedHours !== (task.estimatedHours || '')
+          values.estimatedHours !== (task.estimatedHours || '') ||
+          JSON.stringify(values.dependsOn) !== JSON.stringify(task.dependsOn || [])
 
         onUnsavedChangesChange(hasChanges)
       },
@@ -101,12 +117,14 @@ export function TaskEditForm({
   }, [task, form, onUnsavedChangesChange])
 
   const handleCancel = () => {
+    const dependsOn = form.getFieldValue('dependsOn')
     if (form.getFieldValue('title') !== task.title ||
         form.getFieldValue('priority') !== task.priority ||
         form.getFieldValue('status') !== task.status ||
         form.getFieldValue('assignee') !== task.assignee ||
         form.getFieldValue('deadline') !== (task.deadline || '') ||
-        form.getFieldValue('estimatedHours') !== (task.estimatedHours || '')) {
+        form.getFieldValue('estimatedHours') !== (task.estimatedHours || '') ||
+        JSON.stringify(dependsOn) !== JSON.stringify(task.dependsOn || [])) {
       if (confirm('You have unsaved changes. Discard them?')) {
         form.reset()
         onClose()
@@ -365,6 +383,22 @@ export function TaskEditForm({
                 {field.state.meta.errors.join(', ')}
               </p>
             )}
+          </div>
+        )}
+      </form.Field>
+
+      {/* Dependencies Field */}
+      <form.Field
+        name="dependsOn"
+      >
+        {(field) => (
+          <div>
+            <TaskDependencyWidget
+              task={task}
+              selectedDependencies={field.state.value}
+              onDependenciesChange={(deps) => field.handleChange(deps)}
+              disabled={updateMutation.isPending || updateDependenciesMutation.isPending}
+            />
           </div>
         )}
       </form.Field>
