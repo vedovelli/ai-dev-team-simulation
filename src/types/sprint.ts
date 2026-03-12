@@ -22,6 +22,7 @@ export interface Sprint {
   createdAt: string
   startDate?: string
   endDate?: string
+  version: number
 }
 
 export type TaskStatus = 'backlog' | 'in-progress' | 'in-review' | 'done'
