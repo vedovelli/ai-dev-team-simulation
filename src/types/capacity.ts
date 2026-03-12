@@ -32,6 +32,15 @@ export interface AgentCapacityMetricsResponse {
 }
 
 /**
+ * Dashboard summary of overall capacity status
+ */
+export interface CapacityDashboardSummary {
+  totalAgents: number
+  atRiskCount: number
+  averageUtilization: number
+}
+
+/**
  * Request to adjust agent capacity
  */
 export interface CapacityAdjustmentRequest {
