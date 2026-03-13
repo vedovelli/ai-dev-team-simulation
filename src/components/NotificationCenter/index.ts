@@ -1,3 +1,5 @@
+export { NotificationCenterModal } from './NotificationCenterModal'
+export type { NotificationCenterModalProps } from './NotificationCenterModal'
 export { NotificationCenter } from './NotificationCenter'
 export { NotificationItem } from './NotificationItem'
 export { ToastContainer } from './ToastContainer'
