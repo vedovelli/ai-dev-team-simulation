@@ -68,3 +68,6 @@ export type {
 } from '../types/agentAvailability'
 export { useRealtimeSync } from './useRealtimeSync'
 export type { UseRealtimeSyncOptions, UseRealtimeSyncReturn } from './useRealtimeSync'
+export { useTaskSearch } from './useTaskSearch'
+export type { UseTaskSearchReturn } from '../types/task-search'
+export { useTaskSearchFilters } from './useTaskSearchFilters'

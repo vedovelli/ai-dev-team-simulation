@@ -30,6 +30,7 @@ import { agentAnalyticsHandlers } from './handlers/agentAnalytics'
 import { templateHandlers } from './handlers/templates'
 import { analyticsHandlers } from './handlers/analytics'
 import { searchHandlers } from './handlers/search'
+import { taskSearchHandlers } from './handlers/task-search'
 import { dependencyHandlers } from './handlers/dependencies'
 
 interface Team {
@@ -2583,5 +2584,6 @@ export const paginatedHandlers = [
   ...templateHandlers,
   ...analyticsHandlers,
   ...searchHandlers,
+  ...taskSearchHandlers,
   ...dependencyHandlers,
 ]
