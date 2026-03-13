@@ -1,6 +1,7 @@
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationToast } from '../NotificationToast/NotificationToast'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import type { NotificationType } from '../../types/notification'
 
 /**
  * ToastContainer Component
@@ -10,10 +11,11 @@ import { useState } from 'react'
  * to provide real-time visual feedback.
  *
  * Features:
- * - Auto-dismiss after 5s (configurable)
- * - Click to navigate to related entity
- * - Success, info, warning, error variants
- * - Stacks multiple toasts
+ * - Auto-dismiss after 5s (default, configurable)
+ * - Max 3 visible toasts at once
+ * - Dismissible with close button
+ * - Success, info, warning, error variants mapped from notification types
+ * - Accessible: ARIA live region, role="alert"
  */
 export function ToastContainer() {
   const [displayedNotificationIds, setDisplayedNotificationIds] = useState<
@@ -21,29 +23,52 @@ export function ToastContainer() {
   >(new Set())
   const [dismissedToasts, setDismissedToasts] = useState<Set<string>>(new Set())
 
-  const { data: notifications } = useNotifications({
+  const { notifications } = useNotifications({
     refetchInterval: 30 * 1000,
-    unreadOnly: true,
   })
 
   // Track which notifications have been shown as toasts
-  const notificationsToShow = notifications.filter((notif) => {
-    const isNew = !displayedNotificationIds.has(notif.id)
-    const isDismissed = dismissedToasts.has(notif.id)
-    return isNew && !isDismissed && !notif.read
-  })
+  const notificationsToShow = notifications
+    .filter((notif) => {
+      const isNew = !displayedNotificationIds.has(notif.id)
+      const isDismissed = dismissedToasts.has(notif.id)
+      return isNew && !isDismissed && !notif.read
+    })
+    .slice(0, 3) // Max 3 visible toasts
 
   // Update displayed notifications
-  if (notificationsToShow.length > 0) {
-    setDisplayedNotificationIds((prev) => {
-      const updated = new Set(prev)
-      notificationsToShow.forEach((notif) => updated.add(notif.id))
-      return updated
-    })
-  }
+  useEffect(() => {
+    if (notificationsToShow.length > 0) {
+      setDisplayedNotificationIds((prev) => {
+        const updated = new Set(prev)
+        notificationsToShow.forEach((notif) => updated.add(notif.id))
+        return updated
+      })
+    }
+  }, [notificationsToShow])
 
   const handleToastDismiss = (id: string) => {
     setDismissedToasts((prev) => new Set(prev).add(id))
+  }
+
+  const mapNotificationTypeToToastType = (
+    notificationType: NotificationType
+  ): 'success' | 'error' | 'warning' | 'info' => {
+    const typeMap: Record<NotificationType, 'success' | 'error' | 'warning' | 'info'> = {
+      task_assigned: 'info',
+      task_unassigned: 'info',
+      sprint_started: 'success',
+      sprint_completed: 'success',
+      comment_added: 'info',
+      status_changed: 'info',
+      agent_event: 'info',
+      performance_alert: 'warning',
+      assignment_changed: 'info',
+      sprint_updated: 'success',
+      task_reassigned: 'info',
+      deadline_approaching: 'warning',
+    }
+    return typeMap[notificationType] || 'info'
   }
 
   return (
@@ -53,12 +78,7 @@ export function ToastContainer() {
       aria-atomic="true"
     >
       {notificationsToShow.map((notification) => {
-        // Map notification types to toast types
-        const toastType = {
-          agent_event: 'info' as const,
-          sprint_change: 'info' as const,
-          performance_alert: 'warning' as const,
-        }[notification.type] || 'info'
+        const toastType = mapNotificationTypeToToastType(notification.type)
 
         return (
           <div key={notification.id} className="pointer-events-auto">

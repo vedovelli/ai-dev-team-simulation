@@ -5,34 +5,35 @@ import { NotificationItem } from './NotificationItem'
 /**
  * NotificationCenter Component
  *
- * A dropdown panel showing user notifications with:
- * - Badge count indicator
- * - Mark as read/dismiss actions
+ * A slide-in drawer panel showing user notifications with:
+ * - Unread badge count indicator on bell icon
+ * - Filter toggle (All / Unread)
+ * - Mark individual as read
+ * - Mark all as read button
  * - Empty state and loading states
- * - Notification categories
+ * - Notification categories with icons
  * - Relative timestamps
  *
  * Features:
  * - Click outside to close
  * - Keyboard accessible (Escape to close)
- * - Optimistic UI updates
+ * - Optimistic UI updates via useNotifications mutations
  */
 export function NotificationCenter() {
   const [isOpen, setIsOpen] = useState(false)
+  const [filterUnread, setFilterUnread] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
 
   const {
-    data: notifications,
-    isPending,
+    notifications,
+    isLoading,
     error,
     unreadCount,
     markAsRead,
-    markAsReadBatch,
-    dismiss,
+    markMultipleAsRead,
   } = useNotifications({
     refetchInterval: 30 * 1000,
-    pageSize: 20,
   })
 
   // Handle click outside to close dropdown
@@ -69,15 +70,24 @@ export function NotificationCenter() {
   }, [isOpen])
 
   const handleMarkAsRead = (notificationId: string) => {
-    markAsRead.mutate(notificationId)
+    markAsRead(notificationId)
   }
 
-  const handleMarkAllAsRead = () => {
+  const handleMarkAllAsRead = async () => {
     const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
     if (unreadIds.length > 0) {
-      markAsReadBatch.mutate(unreadIds)
+      try {
+        await markMultipleAsRead(unreadIds)
+      } catch (error) {
+        console.error('Failed to mark all as read:', error)
+      }
     }
   }
+
+  // Filter notifications based on filter state
+  const displayedNotifications = filterUnread
+    ? notifications.filter((n) => !n.read)
+    : notifications
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -124,23 +134,48 @@ export function NotificationCenter() {
           aria-labelledby="notification-button"
         >
           {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-200 flex items-center justify-between">
-            <h3 className="font-semibold text-gray-900">Notifications</h3>
-            {unreadCount > 0 && (
+          <div className="px-4 py-3 border-b border-gray-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-semibold text-gray-900">Notifications</h3>
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllAsRead}
+                  className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Mark all as read"
+                >
+                  Mark all as read
+                </button>
+              )}
+            </div>
+
+            {/* Filter Toggle */}
+            <div className="flex gap-2">
               <button
-                onClick={handleMarkAllAsRead}
-                disabled={markAsReadBatch.isPending}
-                className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Mark all as read"
+                onClick={() => setFilterUnread(false)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  !filterUnread
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
               >
-                {markAsReadBatch.isPending ? 'Marking...' : 'Mark all as read'}
+                All
               </button>
-            )}
+              <button
+                onClick={() => setFilterUnread(true)}
+                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+                  filterUnread
+                    ? 'bg-blue-100 text-blue-700'
+                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                }`}
+              >
+                Unread
+              </button>
+            </div>
           </div>
 
           {/* Content Area */}
           <div className="flex-1 overflow-y-auto">
-            {isPending && (
+            {isLoading && (
               <div className="flex items-center justify-center h-40">
                 <div className="animate-spin">
                   <svg
@@ -166,7 +201,7 @@ export function NotificationCenter() {
               </div>
             )}
 
-            {!isPending && !error && notifications.length === 0 && (
+            {!isLoading && !error && displayedNotifications.length === 0 && (
               <div className="flex flex-col items-center justify-center h-40 text-gray-500">
                 <svg
                   className="w-12 h-12 text-gray-300 mb-2"
@@ -181,20 +216,17 @@ export function NotificationCenter() {
                     d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
                   />
                 </svg>
-                <p className="text-sm">No notifications yet</p>
+                <p className="text-sm">{filterUnread ? 'No unread notifications' : 'No notifications yet'}</p>
               </div>
             )}
 
-            {!isPending && !error && notifications.length > 0 && (
+            {!isLoading && !error && displayedNotifications.length > 0 && (
               <div className="divide-y divide-gray-200">
-                {notifications.map((notification) => (
+                {displayedNotifications.map((notification) => (
                   <NotificationItem
                     key={notification.id}
                     notification={notification}
                     onMarkAsRead={handleMarkAsRead}
-                    isMarkingAsRead={markAsRead.isPending}
-                    onDismiss={() => dismiss.mutate(notification.id)}
-                    isDismissing={dismiss.isPending}
                   />
                 ))}
               </div>
@@ -202,7 +234,7 @@ export function NotificationCenter() {
           </div>
 
           {/* Footer */}
-          {!isPending && notifications.length > 0 && (
+          {!isLoading && notifications.length > 0 && (
             <div className="px-4 py-3 border-t border-gray-200 text-center">
               <button
                 onClick={() => setIsOpen(false)}
