@@ -21,7 +21,7 @@ export function TaskSearchPage() {
       q: filters.q,
       status: filters.status.length > 0 ? (filters.status as any) : undefined,
       assigneeId: filters.assigneeId,
-      priority: filters.priority as any,
+      priority: (filters.priority as any) || undefined,
       sprintId: filters.sprintId,
       dateFrom: filters.dateFrom,
       dateTo: filters.dateTo,
