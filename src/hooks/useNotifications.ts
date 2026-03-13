@@ -3,6 +3,23 @@ import type { Notification, NotificationCenter } from '../types/notification'
 import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
+ * Request/response types for dismiss operations
+ */
+interface DismissNotificationRequest {
+  id: string
+}
+
+interface DismissAllReadRequest {
+  // No parameters needed
+}
+
+interface DismissAllReadResponse {
+  success: boolean
+  deletedCount: number
+  remaining: number
+}
+
+/**
  * Configuration options for useNotifications hook
  */
 export interface UseNotificationsOptions {
@@ -169,13 +186,11 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     }
   }
 
-  /**
-   * Dismiss (delete) a notification
-   */
-  const dismissNotification = async (id: string) => {
-    try {
-      const response = await fetch(`/api/notifications/${id}/dismiss`, {
-        method: 'PATCH',
+  // Mutation for dismissing a single notification
+  const dismissMutation = useMutationWithRetry<Notification, DismissNotificationRequest>({
+    mutationFn: async ({ id }) => {
+      const response = await fetch(`/api/notifications/${id}`, {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
       })
 
@@ -183,16 +198,107 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         throw new Error(`Failed to dismiss notification: ${response.statusText}`)
       }
 
-      const result = await response.json()
+      return response.json() as Promise<Notification>
+    },
+    onMutate: async ({ id }) => {
+      // Cancel any pending requests for notifications
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
 
-      // Invalidate queries after dismiss
-      await queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
 
-      return result
-    } catch (error) {
-      // Rethrow error with context for proper error handling
-      throw new Error(`Failed to dismiss notification: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
+      // Optimistically remove notification from cache
+      if (previousData) {
+        const notification = previousData.notifications.find((n) => n.id === id)
+        const updated = {
+          ...previousData,
+          notifications: previousData.notifications.filter((n) => n.id !== id),
+          unreadCount: notification && !notification.read ? Math.max(0, previousData.unreadCount - 1) : previousData.unreadCount,
+        }
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+
+        // Also update unreadOnly query if it's being used
+        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: NotificationCenter) => {
+          if (!old) return old
+          return {
+            ...old,
+            notifications: old.notifications.filter((n) => n.id !== id),
+            unreadCount: notification && !notification.read ? Math.max(0, old.unreadCount - 1) : old.unreadCount,
+          }
+        })
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+      }
+    },
+    onSuccess: () => {
+      // Invalidate to refetch fresh data after successful mutation
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+
+  // Mutation for dismissing all read notifications
+  const dismissAllReadMutation = useMutationWithRetry<DismissAllReadResponse, DismissAllReadRequest>({
+    mutationFn: async () => {
+      const response = await fetch('/api/notifications/read', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to dismiss all read notifications: ${response.statusText}`)
+      }
+
+      return response.json() as Promise<DismissAllReadResponse>
+    },
+    onMutate: async () => {
+      // Cancel any pending requests for notifications
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
+
+      // Optimistically remove all read notifications
+      if (previousData) {
+        const updated = {
+          ...previousData,
+          notifications: previousData.notifications.filter((n) => !n.read),
+          total: previousData.notifications.filter((n) => !n.read).length,
+        }
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+      }
+    },
+    onSuccess: () => {
+      // Invalidate to refetch fresh data after successful mutation
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+
+  /**
+   * Dismiss a single notification
+   */
+  const dismissNotification = (id: string) => {
+    dismissMutation.mutate({ id })
+  }
+
+  /**
+   * Dismiss all read notifications
+   */
+  const dismissAllReadNotifications = () => {
+    dismissAllReadMutation.mutate({})
   }
 
   return {
@@ -207,12 +313,132 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     // Mutation state
     markAsReadLoading: markAsReadMutation.isLoading,
     markAsReadError: markAsReadMutation.error,
+    dismissLoading: dismissMutation.isLoading,
+    dismissError: dismissMutation.error,
+    dismissAllReadLoading: dismissAllReadMutation.isLoading,
+    dismissAllReadError: dismissAllReadMutation.error,
 
     // Actions
     markAsRead,
     markMultipleAsRead,
     dismissNotification,
+    dismissAllReadNotifications,
   }
 }
 
 export type UseNotificationsReturn = ReturnType<typeof useNotifications>
+
+/**
+ * Mutation hook for dismissing a single notification
+ * Provides optimistic updates and rollback on error
+ */
+export function useDismissNotification() {
+  const queryClient = useQueryClient()
+
+  return useMutationWithRetry<Notification, DismissNotificationRequest>({
+    mutationFn: async ({ id }) => {
+      const response = await fetch(`/api/notifications/${id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to dismiss notification: ${response.statusText}`)
+      }
+
+      return response.json() as Promise<Notification>
+    },
+    onMutate: async ({ id }) => {
+      // Cancel any pending requests for notifications
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
+
+      // Optimistically remove notification from cache
+      if (previousData) {
+        const notification = previousData.notifications.find((n) => n.id === id)
+        const updated = {
+          ...previousData,
+          notifications: previousData.notifications.filter((n) => n.id !== id),
+          unreadCount: notification && !notification.read ? Math.max(0, previousData.unreadCount - 1) : previousData.unreadCount,
+        }
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+
+        // Also update unreadOnly query if it's being used
+        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: NotificationCenter) => {
+          if (!old) return old
+          return {
+            ...old,
+            notifications: old.notifications.filter((n) => n.id !== id),
+            unreadCount: notification && !notification.read ? Math.max(0, old.unreadCount - 1) : old.unreadCount,
+          }
+        })
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+      }
+    },
+    onSuccess: () => {
+      // Invalidate to refetch fresh data after successful mutation
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
+
+/**
+ * Mutation hook for dismissing all read notifications
+ * Clears all read notifications with optimistic updates
+ */
+export function useDismissAllNotifications() {
+  const queryClient = useQueryClient()
+
+  return useMutationWithRetry<DismissAllReadResponse, DismissAllReadRequest>({
+    mutationFn: async () => {
+      const response = await fetch('/api/notifications/read', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to dismiss all read notifications: ${response.statusText}`)
+      }
+
+      return response.json() as Promise<DismissAllReadResponse>
+    },
+    onMutate: async () => {
+      // Cancel any pending requests for notifications
+      await queryClient.cancelQueries({ queryKey: ['notifications'] })
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
+
+      // Optimistically remove all read notifications
+      if (previousData) {
+        const updated = {
+          ...previousData,
+          notifications: previousData.notifications.filter((n) => !n.read),
+          total: previousData.notifications.filter((n) => !n.read).length,
+        }
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+      }
+    },
+    onSuccess: () => {
+      // Invalidate to refetch fresh data after successful mutation
+      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+    },
+  })
+}
