@@ -1,353 +1,175 @@
-import { useEffect, useRef, useCallback, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import type {
-  EntitySubscription,
-  RealtimeUpdateEvent,
-  UpdateCallback,
-  UseRealtimeSyncOptions,
-  UseRealtimeSyncReturn,
-  PollingTransportConfig,
-  BatchUpdateConfig,
-} from '../types/realtime'
+import type { PendingEvent } from '../mocks/handlers/events'
 
 /**
- * Polling-based transport implementation
- * Provides real-time cache sync via polling (future: WebSocket)
+ * Return type for useRealtimeSync hook
  */
-class PollingTransport {
-  private subscriptions: EntitySubscription[] = []
-  private callback: UpdateCallback | null = null
-  private pollIntervals: Map<string, NodeJS.Timeout> = new Map()
-  private isConnected = false
-  private retryCount = new Map<string, number>()
-  private config: PollingTransportConfig
-  private batchQueue: RealtimeUpdateEvent[] = []
-  private batchTimer: NodeJS.Timeout | null = null
-  private batchConfig: BatchUpdateConfig
+export interface UseRealtimeSyncReturn {
+  /** Timestamp of last successful sync */
+  lastSyncedAt: Date | null
+  /** Whether currently fetching pending events */
+  isSyncing: boolean
+  /** Latest error from sync attempt, if any */
+  syncError: Error | null
+  /** Manually trigger a poll outside the scheduled interval */
+  forceSync: () => void
+}
 
-  constructor(config: PollingTransportConfig = {}, batchConfig: BatchUpdateConfig = { enabled: false }) {
-    this.config = {
-      pollInterval: 30000,
-      enableExponentialBackoff: true,
-      maxRetries: 3,
-      ...config,
+/**
+ * Map event types to the query keys they should invalidate
+ * Enables coordinated cache invalidation across related queries
+ */
+function getQueryKeysToInvalidate(event: PendingEvent): string[][] {
+  const queryKeys: string[][] = []
+  const { type, payload } = event
+
+  switch (type) {
+    case 'task_completed':
+    case 'task_updated':
+      // Invalidate tasks list for the sprint
+      if (payload.sprintId) {
+        queryKeys.push(['sprints', payload.sprintId, 'tasks'])
+      }
+      break
+
+    case 'sprint_updated':
+      // Invalidate sprint detail
+      if (payload.sprintId) {
+        queryKeys.push(['sprints', payload.sprintId])
+      }
+      break
+
+    case 'agent_reassigned':
+      // Invalidate agents list and all tasks
+      queryKeys.push(['agents'])
+      queryKeys.push(['tasks'])
+      break
+
+    case 'notification_created':
+      // Invalidate notifications
+      queryKeys.push(['notifications'])
+      break
+  }
+
+  return queryKeys
+}
+
+/**
+ * Hook for real-time sprint and task synchronization via polling
+ *
+ * Polls `/api/events/pending` every 10 seconds to fetch events that trigger cache invalidation.
+ * Enables other views to reflect mutations promptly without full WebSocket infrastructure.
+ *
+ * Architecture is designed so WebSocket transport can replace polling later without changing
+ * the consumer API.
+ *
+ * @param sprintId - The sprint ID to sync for
+ * @returns Object with sync state and forceSync control method
+ */
+export function useRealtimeSync(sprintId: string): UseRealtimeSyncReturn {
+  const queryClient = useQueryClient()
+  const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const [syncError, setSyncError] = useState<Error | null>(null)
+
+  // Use ref to track the last sync timestamp for cursor-based polling
+  const lastSyncTimestampRef = useRef<number>(Date.now())
+  // Use ref for the polling interval ID
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null)
+
+  /**
+   * Perform a single poll of pending events and invalidate affected caches
+   */
+  const poll = async () => {
+    setIsSyncing(true)
+    setSyncError(null)
+
+    try {
+      const since = new Date(lastSyncTimestampRef.current).toISOString()
+      const params = new URLSearchParams({
+        since,
+        sprintId,
+      })
+
+      const response = await fetch(`/api/events/pending?${params}`, {
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch pending events: ${response.statusText}`)
+      }
+
+      const data = (await response.json()) as {
+        events: PendingEvent[]
+        cursor: string
+      }
+
+      // Update last sync timestamp to current time for next poll
+      lastSyncTimestampRef.current = Date.now()
+      setLastSyncedAt(new Date())
+
+      // Invalidate query caches based on event types received
+      for (const event of data.events) {
+        const queryKeysToInvalidate = getQueryKeysToInvalidate(event)
+
+        // Invalidate each affected query key
+        for (const queryKey of queryKeysToInvalidate) {
+          await queryClient.invalidateQueries({
+            queryKey,
+          })
+        }
+      }
+    } catch (error) {
+      const err = error instanceof Error ? error : new Error('Unknown sync error')
+      setSyncError(err)
+    } finally {
+      setIsSyncing(false)
     }
-    this.batchConfig = {
-      enabled: false,
-      timeout: 500,
-      maxSize: 10,
-      ...batchConfig,
-    }
   }
 
-  subscribe(subscriptions: EntitySubscription[], callback: UpdateCallback): void {
-    this.subscriptions = subscriptions
-    this.callback = callback
-    this.isConnected = true
-    this.startPolling()
-  }
-
-  unsubscribe(): void {
-    this.stopPolling()
-    this.callback = null
-    this.isConnected = false
-  }
-
-  isConnectedNow(): boolean {
-    return this.isConnected
-  }
-
-  private startPolling(): void {
-    // Group subscriptions by entity type
-    const entityTypes = new Set(this.subscriptions.map((s) => s.entity))
-
-    entityTypes.forEach((entity) => {
-      this.pollEntity(entity)
+  /**
+   * Manually trigger a poll outside the normal schedule
+   */
+  const forceSync = () => {
+    poll().catch((err) => {
+      console.error('Force sync failed:', err)
     })
   }
 
-  private pollEntity(entity: string): void {
-    const pollKey = `poll_${entity}`
+  /**
+   * Set up polling interval on mount, clean up on unmount
+   */
+  useEffect(() => {
+    // Initial poll on mount
+    poll().catch((err) => {
+      console.error('Initial sync failed:', err)
+    })
 
-    // Clear existing interval
-    if (this.pollIntervals.has(pollKey)) {
-      clearInterval(this.pollIntervals.get(pollKey))
-    }
-
-    // Fetch immediately
-    this.fetchEntity(entity)
-
-    // Then set up polling
-    const interval = setInterval(() => {
-      this.fetchEntity(entity)
-    }, this.config.pollInterval)
-
-    this.pollIntervals.set(pollKey, interval)
-  }
-
-  private async fetchEntity(entity: string): Promise<void> {
-    try {
-      const response = await fetch(`/api/realtime/sync?entity=${entity}`)
-      if (!response.ok) throw new Error(`${response.statusText}`)
-
-      const updates: RealtimeUpdateEvent[] = await response.json()
-
-      // Filter updates to match subscriptions
-      const relevantUpdates = updates.filter((update) =>
-        this.subscriptions.some(
-          (sub) =>
-            sub.entity === entity &&
-            (!sub.id || (update.payload && (update.payload as Record<string, unknown>).id === sub.id))
-        )
-      )
-
-      // Process updates
-      relevantUpdates.forEach((update) => {
-        if (this.batchConfig.enabled && this.batchConfig.enabled) {
-          this.enqueueBatchUpdate(update)
-        } else {
-          this.callback?.(update)
-        }
+    // Set up 10-second polling interval
+    pollIntervalRef.current = setInterval(() => {
+      poll().catch((err) => {
+        console.error('Periodic sync failed:', err)
       })
+    }, 10 * 1000) // 10 seconds
 
-      // Reset retry count on success
-      this.retryCount.delete(`retry_${entity}`)
-    } catch (error) {
-      this.handleFetchError(entity, error)
-    }
-  }
-
-  private handleFetchError(entity: string, error: unknown): void {
-    const retryKey = `retry_${entity}`
-    const attempt = (this.retryCount.get(retryKey) || 0) + 1
-
-    if (attempt <= this.config.maxRetries!) {
-      this.retryCount.set(retryKey, attempt)
-
-      if (this.config.enableExponentialBackoff) {
-        const delay = Math.min(1000 * Math.pow(2, attempt - 1), 30000)
-        setTimeout(() => this.fetchEntity(entity), delay)
+    // Cleanup on unmount
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current)
       }
     }
-  }
-
-  private enqueueBatchUpdate(update: RealtimeUpdateEvent): void {
-    this.batchQueue.push(update)
-
-    // Flush if batch size reached
-    if (this.batchQueue.length >= this.batchConfig.maxSize!) {
-      this.flushBatch()
-      return
-    }
-
-    // Reset timer
-    if (this.batchTimer) clearTimeout(this.batchTimer)
-
-    this.batchTimer = setTimeout(() => {
-      this.flushBatch()
-    }, this.batchConfig.timeout)
-  }
-
-  private flushBatch(): void {
-    if (this.batchTimer) {
-      clearTimeout(this.batchTimer)
-      this.batchTimer = null
-    }
-
-    if (this.batchQueue.length > 0) {
-      // Batch flush: send all updates at once
-      this.batchQueue.forEach((update) => {
-        this.callback?.(update)
-      })
-      this.batchQueue = []
-    }
-  }
-
-  private stopPolling(): void {
-    this.pollIntervals.forEach((interval) => clearInterval(interval))
-    this.pollIntervals.clear()
-
-    if (this.batchTimer) {
-      clearTimeout(this.batchTimer)
-      this.batchTimer = null
-    }
-  }
-
-  cleanup(): void {
-    this.stopPolling()
-    this.flushBatch()
-  }
-}
-
-/**
- * useRealtimeSync Hook
- *
- * Transport-agnostic cache synchronization for polling/WebSocket.
- * Automatically invalidates related query cache keys on entity updates.
- *
- * Features:
- * - Entity subscription management (task, sprint, agent)
- * - Automatic cache invalidation on updates
- * - Batch update handling for high-frequency scenarios
- * - Exponential backoff retry logic
- * - WebSocket-ready architecture (polling now, WebSocket later)
- *
- * @example
- * ```tsx
- * const { isConnected, error, refetch } = useRealtimeSync({
- *   subscriptions: [
- *     { entity: 'task', id: taskId },
- *     { entity: 'sprint' },
- *   ],
- *   onUpdate: (event) => {
- *     console.log('Task updated:', event.payload)
- *   },
- *   pollingConfig: { pollInterval: 30000 },
- *   batchConfig: { enabled: true, timeout: 500 },
- * })
- * ```
- */
-export function useRealtimeSync(options: UseRealtimeSyncOptions): UseRealtimeSyncReturn {
-  const { subscriptions, onUpdate, pollingConfig, batchConfig, debug } = options
-  const queryClient = useQueryClient()
-  const transportRef = useRef<PollingTransport | null>(null)
-  const [isConnected, setIsConnected] = useState(false)
-  const [error, setError] = useState<Error | null>(null)
-
-  // Wrapped callback that handles cache invalidation
-  const handleUpdate = useCallback(
-    (event: RealtimeUpdateEvent) => {
-      if (debug) {
-        console.log('[useRealtimeSync]', event.subscription.entity, event.payload)
-      }
-
-      // Invalidate related query keys based on entity type
-      invalidateRelatedQueries(queryClient, event.subscription.entity, event.payload)
-
-      // Call user callback
-      onUpdate(event)
-    },
-    [onUpdate, queryClient, debug]
-  )
-
-  // Initialize transport
-  useEffect(() => {
-    if (!transportRef.current) {
-      transportRef.current = new PollingTransport(pollingConfig, batchConfig)
-    }
-
-    transportRef.current.subscribe(subscriptions, handleUpdate)
-    setIsConnected(true)
-    setError(null)
-
-    return () => {
-      transportRef.current?.unsubscribe()
-    }
-  }, [subscriptions, handleUpdate, pollingConfig, batchConfig])
-
-  // Update subscriptions dynamically
-  const updateSubscriptions = useCallback((newSubscriptions: EntitySubscription[]) => {
-    if (transportRef.current) {
-      transportRef.current.unsubscribe()
-      transportRef.current.subscribe(newSubscriptions, handleUpdate)
-    }
-  }, [handleUpdate])
-
-  // Manual refetch
-  const refetch = useCallback(async () => {
-    try {
-      setError(null)
-      // Refetch all related query keys
-      subscriptions.forEach((sub) => {
-        const queryKeys = buildQueryKeysForEntity(sub.entity, sub.id)
-        queryKeys.forEach((key) => {
-          queryClient.invalidateQueries({ queryKey: key })
-        })
-      })
-    } catch (err) {
-      setError(err instanceof Error ? err : new Error('Refetch failed'))
-    }
-  }, [subscriptions, queryClient])
-
-  // Disconnect
-  const disconnect = useCallback(() => {
-    transportRef.current?.unsubscribe()
-    setIsConnected(false)
-  }, [])
-
-  // Cleanup on unmount
-  useEffect(() => {
-    return () => {
-      transportRef.current?.cleanup()
-    }
-  }, [])
+  }, [sprintId, queryClient])
 
   return {
-    isConnected,
-    error,
-    refetch,
-    updateSubscriptions,
-    disconnect,
+    lastSyncedAt,
+    isSyncing,
+    syncError,
+    forceSync,
   }
 }
 
-/**
- * Build query keys for a given entity type
- * Used for cache invalidation when updates arrive
- */
-function buildQueryKeysForEntity(entity: string, id?: string): unknown[][] {
-  const keys: unknown[][] = []
-
-  switch (entity) {
-    case 'task': {
-      if (id) {
-        keys.push(['tasks', id])
-        keys.push(['tasks', id, 'details'])
-      }
-      // Always invalidate lists
-      keys.push(['tasks'])
-      keys.push(['tasks', 'list'])
-      break
-    }
-    case 'sprint': {
-      if (id) {
-        keys.push(['sprints', id])
-        keys.push(['sprints', id, 'metrics'])
-        keys.push(['sprints', id, 'tasks'])
-      }
-      keys.push(['sprints'])
-      keys.push(['sprints', 'list'])
-      break
-    }
-    case 'agent': {
-      if (id) {
-        keys.push(['agents', id])
-        keys.push(['agents', id, 'status'])
-        keys.push(['agents', id, 'tasks'])
-      }
-      keys.push(['agents'])
-      keys.push(['agents', 'list'])
-      break
-    }
-  }
-
-  return keys
-}
-
-/**
- * Invalidate all related query keys for an entity update
- */
-function invalidateRelatedQueries(
-  queryClient: ReturnType<typeof useQueryClient>,
-  entity: string,
-  payload: unknown
-): void {
-  const keys = buildQueryKeysForEntity(
-    entity,
-    (payload && typeof payload === 'object' && (payload as Record<string, unknown>).id) as string | undefined
-  )
-
-  keys.forEach((key) => {
-    queryClient.invalidateQueries({ queryKey: key })
-  })
+export type UseRealtimeSyncOptions = {
+  /** Polling interval in milliseconds (default: 10000 = 10s) */
+  pollInterval?: number
 }
