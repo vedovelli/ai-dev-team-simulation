@@ -543,6 +543,51 @@ export const notificationHandlers = [
 
     return HttpResponse.json({ success: true })
   }),
+
+  /**
+   * DELETE /api/notifications/:id
+   * Delete a single notification with 200ms delay
+   * Removes notification from in-memory store
+   */
+  http.delete('/api/notifications/:id', async ({ params }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const { id } = params
+    const notifIndex = notificationsStore.findIndex((n) => n.id === id)
+
+    if (notifIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 }
+      )
+    }
+
+    // Remove from store
+    notificationsStore.splice(notifIndex, 1)
+
+    return HttpResponse.json({ success: true, id })
+  }),
+
+  /**
+   * DELETE /api/notifications/read
+   * Delete all read notifications
+   * Returns count of deleted notifications
+   */
+  http.delete('/api/notifications/read', async () => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const initialLength = notificationsStore.length
+    notificationsStore = notificationsStore.filter((n) => !n.read)
+    const deletedCount = initialLength - notificationsStore.length
+
+    return HttpResponse.json({
+      success: true,
+      deletedCount,
+      remaining: notificationsStore.length,
+    })
+  }),
 ]
 
 /**
