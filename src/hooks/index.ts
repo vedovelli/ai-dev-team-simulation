@@ -66,3 +66,5 @@ export type {
   ConflictEntry,
   ConflictMap,
 } from '../types/agentAvailability'
+export { useRealtimeSync } from './useRealtimeSync'
+export type { UseRealtimeSyncOptions, UseRealtimeSyncReturn } from './useRealtimeSync'
