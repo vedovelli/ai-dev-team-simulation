@@ -1,85 +1,67 @@
 /**
- * Notification Preferences Types
- *
- * User settings for controlling notification behavior across the application.
- * Supports subscription control, frequency modes, and delivery channels.
+ * Notification preferences and configuration
  */
 
+import type { NotificationType } from './notification'
+
 /**
- * Frequency modes for notifications
- * - instant: Receive notifications immediately
- * - daily: Receive a daily digest
- * - off: Disable notifications for this type
+ * Frequency options for notifications
  */
 export type NotificationFrequency = 'instant' | 'daily' | 'off'
 
 /**
- * Delivery channels for notifications
- * - in-app: Notifications appear in the app notification center
- * - email: Notifications sent via email
+ * Channel options for notifications
  */
 export type NotificationChannel = 'in-app' | 'email'
 
 /**
- * Notification types that can be controlled via preferences
- * Matches NotificationType but used for preference configuration
+ * Preferences for a single notification type
  */
-export type NotificationTypePreference =
-  | 'task_assigned'
-  | 'task_unassigned'
-  | 'sprint_started'
-  | 'sprint_completed'
-  | 'comment_added'
-  | 'status_changed'
-  | 'agent_event'
-  | 'performance_alert'
-  | 'assignment_changed'
-  | 'sprint_updated'
-  | 'task_reassigned'
-  | 'deadline_approaching'
-
-/**
- * Per-notification-type preference settings
- */
-export interface NotificationTypePreferences {
-  /** Notification type identifier */
-  type: NotificationTypePreference
-  /** Frequency mode for this notification type */
+export interface NotificationTypePreference {
+  enabled: boolean
   frequency: NotificationFrequency
-  /** Delivery channels enabled for this type */
   channels: NotificationChannel[]
 }
 
 /**
- * User notification preferences
- * Controls which notifications are received, how frequently, and via which channels
+ * User's complete notification preferences
  */
 export interface NotificationPreferences {
-  /** User ID */
+  id: string
   userId: string
-  /** Global notification enable/disable */
-  enabled: boolean
-  /** Preferences grouped by notification type */
-  types: NotificationTypePreferences[]
-  /** Timestamp when preferences were last updated */
+  createdAt: string
   updatedAt: string
+
+  // Per-notification-type preferences
+  assignment_changed: NotificationTypePreference
+  sprint_updated: NotificationTypePreference
+  task_reassigned: NotificationTypePreference
+  deadline_approaching: NotificationTypePreference
+  task_assigned: NotificationTypePreference
+  task_unassigned: NotificationTypePreference
+  sprint_started: NotificationTypePreference
+  sprint_completed: NotificationTypePreference
+  comment_added: NotificationTypePreference
+  status_changed: NotificationTypePreference
+  agent_event: NotificationTypePreference
+  performance_alert: NotificationTypePreference
+
+  // Global settings
+  quiet_hours_enabled: boolean
+  quiet_hours_start: string // HH:mm format
+  quiet_hours_end: string   // HH:mm format
 }
 
 /**
- * Payload for updating notification preferences
- * Supports partial updates (only specified fields are updated)
+ * API response for fetching preferences
  */
-export interface UpdateNotificationPreferencesPayload {
-  /** Global notification enable/disable */
-  enabled?: boolean
-  /** Updated type preferences (replaces all existing) */
-  types?: NotificationTypePreferences[]
-}
-
-/**
- * API response for notification preferences endpoints
- */
-export interface NotificationPreferencesResponse {
+export interface PreferencesResponse {
   data: NotificationPreferences
-  success: boolean
+}
+
+/**
+ * API request for updating preferences
+ */
+export interface UpdatePreferencesRequest {
+  [key in NotificationType]?: NotificationTypePreference
 }

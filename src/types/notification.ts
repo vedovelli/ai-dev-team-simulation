@@ -79,3 +79,8 @@ export interface NotificationCenter {
   unreadCount: number
   total: number
 }
+
+/**
+ * Filter options for NotificationCenter
+ */
+export type NotificationFilter = 'all' | 'unread' | NotificationType

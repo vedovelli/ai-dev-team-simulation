@@ -1,24 +1,35 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import type { NotificationPreferences, UpdateNotificationPreferencesPayload } from '../types/notification-preferences'
+import type { NotificationPreferences, UpdatePreferencesRequest } from '../types/notification-preferences'
 import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
- * Fetch user notification preferences and provide mutations for updates
+ * Configuration options for useNotificationPreferences hook
+ */
+export interface UseNotificationPreferencesOptions {
+  /** Enable automatic refetch on window focus (default: true) */
+  refetchOnWindowFocus?: boolean
+}
+
+/**
+ * Fetch and manage user's notification preferences
  *
  * Features:
- * - Fetches preferences with TanStack Query
- * - Update mutation with optimistic updates and rollback on error
- * - Cache invalidation for notifications query on successful update
- * - Query key: ['notification-preferences']
- * - Stale time: 5 minutes (preferences rarely change)
+ * - Caches preferences with 5min stale time
+ * - Update mutation with optimistic updates
+ * - Automatic cache invalidation of notifications after update
+ * - Error handling and rollback on failed updates
  * - Exponential backoff retry logic
  */
-export function useNotificationPreferences() {
+export function useNotificationPreferences(options: UseNotificationPreferencesOptions = {}) {
+  const {
+    refetchOnWindowFocus = true,
+  } = options
+
   const queryClient = useQueryClient()
 
-  // Query to fetch current preferences
+  // Query to fetch preferences
   const query = useQuery<NotificationPreferences, Error>({
-    queryKey: ['notification-preferences'],
+    queryKey: ['notificationPreferences'],
     queryFn: async () => {
       const response = await fetch('/api/notification-preferences', {
         headers: { 'Content-Type': 'application/json' },
@@ -28,46 +39,45 @@ export function useNotificationPreferences() {
         throw new Error(`Failed to fetch notification preferences: ${response.statusText}`)
       }
 
-      const data = (await response.json()) as { data: NotificationPreferences; success: boolean }
-      return data.data
+      return response.json() as Promise<NotificationPreferences>
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
-    gcTime: 30 * 60 * 1000, // 30 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+    refetchOnWindowFocus,
+    refetchOnReconnect: true,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   // Mutation for updating preferences
-  const updateMutation = useMutationWithRetry<NotificationPreferences, UpdateNotificationPreferencesPayload>({
-    mutationFn: async (payload) => {
+  const updateMutation = useMutationWithRetry<NotificationPreferences, UpdatePreferencesRequest>({
+    mutationFn: async (patch) => {
       const response = await fetch('/api/notification-preferences', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(patch),
       })
 
       if (!response.ok) {
         throw new Error(`Failed to update notification preferences: ${response.statusText}`)
       }
 
-      const data = (await response.json()) as { data: NotificationPreferences; success: boolean }
-      return data.data
+      return response.json() as Promise<NotificationPreferences>
     },
-    onMutate: async (payload) => {
-      // Cancel any pending requests for preferences
-      await queryClient.cancelQueries({ queryKey: ['notification-preferences'] })
+    onMutate: async (patch) => {
+      // Cancel any pending requests
+      await queryClient.cancelQueries({ queryKey: ['notificationPreferences'] })
 
       // Snapshot previous data
-      const previousData = queryClient.getQueryData<NotificationPreferences>(['notification-preferences'])
+      const previousData = queryClient.getQueryData<NotificationPreferences>(['notificationPreferences'])
 
-      // Optimistically update preferences cache
+      // Optimistically update
       if (previousData) {
-        const optimisticData: NotificationPreferences = {
+        const updated = {
           ...previousData,
-          ...payload,
-          updatedAt: new Date().toISOString(),
+          ...patch,
         }
-        queryClient.setQueryData(['notification-preferences'], optimisticData)
+        queryClient.setQueryData(['notificationPreferences'], updated)
       }
 
       return { previousData }
@@ -75,25 +85,24 @@ export function useNotificationPreferences() {
     onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousData) {
-        queryClient.setQueryData(['notification-preferences'], context.previousData)
+        queryClient.setQueryData(['notificationPreferences'], context.previousData)
       }
     },
     onSuccess: () => {
-      // Invalidate notifications query to ensure UI reflects preference changes
+      // Invalidate notifications query since preferences may affect what's shown
       queryClient.invalidateQueries({ queryKey: ['notifications'] })
     },
   })
 
   /**
    * Update notification preferences
-   * Supports partial updates (only specified fields are updated on server)
    */
-  const updatePreferences = (payload: UpdateNotificationPreferencesPayload) => {
-    updateMutation.mutate(payload)
+  const updatePreferences = (patch: UpdatePreferencesRequest) => {
+    updateMutation.mutate(patch)
   }
 
   /**
-   * Reset preferences to defaults
+   * Reset all preferences to default
    */
   const resetPreferences = async () => {
     try {
@@ -106,12 +115,12 @@ export function useNotificationPreferences() {
         throw new Error(`Failed to reset notification preferences: ${response.statusText}`)
       }
 
-      const data = (await response.json()) as { data: NotificationPreferences; success: boolean }
+      const result = await response.json() as NotificationPreferences
 
-      // Update query cache with reset data
-      queryClient.setQueryData(['notification-preferences'], data.data)
+      // Update cache with reset data
+      queryClient.setQueryData(['notificationPreferences'], result)
 
-      return data.data
+      return result
     } catch (error) {
       throw new Error(`Failed to reset notification preferences: ${error instanceof Error ? error.message : 'Unknown error'}`)
     }
