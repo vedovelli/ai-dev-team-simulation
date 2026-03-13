@@ -68,3 +68,14 @@ export type {
 } from '../types/agentAvailability'
 export { useRealtimeSync } from './useRealtimeSync'
 export type { UseRealtimeSyncOptions, UseRealtimeSyncReturn } from './useRealtimeSync'
+export { useNotificationPreferences } from './useNotificationPreferences'
+export type { UseNotificationPreferencesReturn } from './useNotificationPreferences'
+export type {
+  NotificationPreferences,
+  UpdateNotificationPreferencesPayload,
+  NotificationFrequency,
+  NotificationChannel,
+  NotificationTypePreference,
+  NotificationTypePreferences,
+  NotificationPreferencesResponse,
+} from '../types/notification-preferences'
