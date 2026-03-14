@@ -1,6 +1,7 @@
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { Notification, NotificationCenter, PaginatedNotificationsResponse } from '../types/notification'
 import { useMutationWithRetry } from './useMutationWithRetry'
+import { usePollingWithFocus } from './usePollingWithFocus'
 
 /**
  * Request/response types for dismiss operations
@@ -61,6 +62,9 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
   const queryClient = useQueryClient()
 
+  // Use polling hook to pause polling when window is hidden
+  const polling = usePollingWithFocus({ interval: refetchInterval })
+
   // Infinite query to fetch notifications with cursor-based pagination
   const query = useInfiniteQuery<PaginatedNotificationsResponse, Error>({
     queryKey: ['notifications', { unreadOnly }],
@@ -93,7 +97,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     refetchInterval: (query) => {
       // Only poll first page for fresh notifications
       const isFirstPage = !query.state.variables?.pageParam
-      return isFirstPage ? refetchInterval : false
+      // Check visibility state from polling hook
+      return isFirstPage ? polling.refetchInterval : false
     },
     refetchOnWindowFocus: 'stale',
     refetchOnReconnect: 'stale',
