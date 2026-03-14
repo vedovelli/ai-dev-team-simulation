@@ -34,6 +34,7 @@ import { searchHandlers } from './handlers/search'
 import { taskSearchHandlers } from './handlers/task-search'
 import { dependencyHandlers } from './handlers/dependencies'
 import { eventsHandlers } from './handlers/events'
+import { retroHandlers } from './handlers/retro'
 
 interface Team {
   id: string
@@ -2590,4 +2591,5 @@ export const paginatedHandlers = [
   ...taskSearchHandlers,
   ...dependencyHandlers,
   ...eventsHandlers,
+  ...retroHandlers,
 ]
