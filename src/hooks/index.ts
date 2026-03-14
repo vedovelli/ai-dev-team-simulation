@@ -74,3 +74,5 @@ export type { UseRealtimeSyncOptions, UseRealtimeSyncReturn } from './useRealtim
 export { useTaskSearch } from './useTaskSearch'
 export type { UseTaskSearchReturn } from '../types/task-search'
 export { useTaskSearchFilters } from './useTaskSearchFilters'
+export { useAgentCapacityMetricsV1 } from './useAgentCapacityMetricsV1'
+export type { UseAgentCapacityMetricsV1Options } from './useAgentCapacityMetricsV1'
