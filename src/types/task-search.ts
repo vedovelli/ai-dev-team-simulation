@@ -1,43 +1,65 @@
 /**
  * Types for task search and advanced filtering
  *
- * Supports multi-field filtering, debounced search, and pagination.
+ * Supports full-text search, faceted filtering, debounced input, and pagination.
  */
 
-import type { Task, TaskStatus, TaskPriority } from './task'
+import type { TaskStatus, TaskPriority } from './task'
 
-export interface TaskSearchParams {
-  q?: string
-  status?: TaskStatus[]
-  assigneeId?: string
-  priority?: TaskPriority
-  sprintId?: string
-  dateFrom?: string
-  dateTo?: string
-  sortBy?: keyof Task
-  sortDir?: 'asc' | 'desc'
-  page?: number
-  limit?: number
+export interface SearchTask {
+  id: string
+  title: string
+  description: string
+  assignee: string
+  status: TaskStatus
+  priority: TaskPriority
+  sprint: string
+  matchedFields: ('title' | 'description')[]
 }
 
-export interface TaskSearchResult {
-  data: Task[]
-  meta: {
-    total: number
-    page: number
-    pageSize: number
-    pageCount: number
-  }
+export interface SearchFacets {
+  priority: Record<TaskPriority, number>
+  status: Record<TaskStatus, number>
+  assignedAgent: Record<string, number>
+  sprint: Record<string, number>
 }
 
-export type TaskSearchFilters = Omit<TaskSearchParams, 'page' | 'limit' | 'sortBy' | 'sortDir'>
+export interface TaskSearchPagination {
+  page: number
+  perPage: number
+  total: number
+  totalPages: number
+}
+
+export interface TaskSearchResponse {
+  results: SearchTask[]
+  facets: SearchFacets
+  pagination: TaskSearchPagination
+}
+
+export interface TaskSearchFilters {
+  priority?: string
+  status?: string
+  assignedAgent?: string
+  sprint?: string
+}
 
 export interface UseTaskSearchReturn {
-  tasks: Task[]
-  totalCount: number
-  pageCount: number
+  results: SearchTask[]
+  facets: SearchFacets
+  pagination: TaskSearchPagination
   isLoading: boolean
   isError: boolean
-  isFetching: boolean
   error: Error | null
+  hasSearchQuery: boolean
+  debouncedQuery: string
+  setQuery: (query: string) => void
+  setFilters: (filters: TaskSearchFilters) => void
+  setPage: (page: number) => void
+}
+
+export interface UseTaskSearchOptions {
+  debounceMs?: number
+  perPage?: number
+  staleTime?: number
 }

@@ -2,28 +2,22 @@
  * MSW Handler for Task Search & Advanced Filtering
  *
  * Implements GET /api/tasks/search endpoint with:
- * - Multi-field filtering (status, assignee, priority, sprint, date range)
- * - Text search across task titles and IDs
- * - Sorting on any column
+ * - Full-text search across task titles and descriptions
+ * - Faceted filtering (priority, status, assignedAgent, sprint)
+ * - Facet aggregation response with counts
+ * - Match highlights via matchedFields
  * - Pagination with metadata
  */
 
 import { http, HttpResponse } from 'msw'
-import type { Task, TaskStatus, TaskPriority } from '../../types/task'
+import type { TaskStatus, TaskPriority } from '../../types/task'
+import type { TaskSearchResponse, SearchTask } from '../../types/task-search'
 
-// Re-use mock tasks from the existing search handler
-function generateMockTasks(): Task[] {
+// Generate mock tasks with descriptions for search
+function generateSearchMockTasks(): SearchTask[] {
   const statuses: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
   const priorities: TaskPriority[] = ['low', 'medium', 'high']
-  const teams = ['Frontend', 'Backend', 'DevOps', 'Design', 'QA']
-  const assignees = [
-    'John Doe',
-    'Jane Smith',
-    'Bob Johnson',
-    'Alice Williams',
-    'Charlie Brown',
-    'Diana Prince',
-  ]
+  const agents = ['John Doe', 'Jane Smith', 'Bob Johnson', 'Alice Williams', 'Charlie Brown', 'Diana Prince']
   const sprints = ['sprint-1', 'sprint-2', 'sprint-3', 'sprint-4']
 
   const taskTitles = [
@@ -49,122 +43,145 @@ function generateMockTasks(): Task[] {
     'Create admin dashboard',
   ]
 
-  const tasks: Task[] = []
-  for (let i = 1; i <= 150; i++) {
-    const createdDate = new Date(Date.now() - (i * 24 * 60 * 60 * 1000) % (60 * 24 * 60 * 60 * 1000))
-    const deadline = new Date(createdDate.getTime() + Math.random() * 30 * 24 * 60 * 60 * 1000)
+  const descriptions = [
+    'Build a robust JWT-based authentication with refresh tokens and role-based access control',
+    'Write comprehensive API documentation with examples and error codes for all endpoints',
+    'Fix validation errors in login form, add error messages and field highlighting',
+    'Create migration scripts for database schema updates and data transformations',
+    'Design reusable dashboard components with charts, tables, and widgets',
+    'Write comprehensive test coverage for all service methods and edge cases',
+    'Analyze and optimize slow database queries using indices and query optimization',
+    'Implement Redis caching layer for frequently accessed data and API responses',
+    'Setup GitHub Actions CI/CD pipeline with testing, linting, and deployment',
+    'Create guided onboarding flow for new users with tutorial and feature discovery',
+    'Review security audit findings and implement fixes for vulnerabilities',
+    'Update all npm dependencies to latest versions and check compatibility',
+    'Refactor legacy authentication code to use modern patterns and standards',
+    'Implement dark mode toggle with theme switching and persistence',
+    'Add Google Analytics and custom event tracking for user behavior',
+    'Make application responsive on mobile devices with proper touch interactions',
+    'Setup Prometheus monitoring and alerting for system health metrics',
+    'Implement full-text search across tasks and projects with filters',
+    'Add i18n support for multiple languages in UI and API responses',
+    'Create admin panel for user management, logs, and system configuration',
+  ]
 
+  const tasks: SearchTask[] = []
+  for (let i = 1; i <= 100; i++) {
     tasks.push({
       id: `task-${i}`,
       title: `${taskTitles[i % taskTitles.length]} #${i}`,
-      assignee: assignees[i % assignees.length],
-      team: teams[i % teams.length],
+      description: descriptions[i % descriptions.length],
+      assignee: agents[i % agents.length],
       status: statuses[i % statuses.length],
       priority: priorities[i % priorities.length],
-      storyPoints: (i % 13) + 1,
       sprint: sprints[i % sprints.length],
-      order: i % 10,
-      estimatedHours: (i % 40) + 1,
-      createdAt: createdDate.toISOString(),
-      updatedAt: new Date(
-        createdDate.getTime() + Math.random() * 30 * 24 * 60 * 60 * 1000
-      ).toISOString(),
-      deadline: deadline.toISOString(),
-      dependsOn: [],
-      version: 1,
+      matchedFields: [],
     })
   }
 
   return tasks
 }
 
-const mockTasks = generateMockTasks()
+const mockTasks = generateSearchMockTasks()
 
-interface FilterParams {
+interface SearchParams {
   q?: string
-  status?: string[]
-  assigneeId?: string
   priority?: string
-  sprintId?: string
-  dateFrom?: string
-  dateTo?: string
-  sortBy?: string
-  sortDir?: 'asc' | 'desc'
+  status?: string
+  assignedAgent?: string
+  sprint?: string
   page?: number
-  limit?: number
+  perPage?: number
 }
 
-function filterAndSortTasks(params: FilterParams) {
-  let filtered = [...mockTasks]
+/**
+ * Calculate facet aggregation for filtered results
+ */
+function calculateFacets(tasks: SearchTask[]) {
+  const facets = {
+    priority: { low: 0, medium: 0, high: 0 },
+    status: { backlog: 0, 'in-progress': 0, 'in-review': 0, done: 0 },
+    assignedAgent: {} as Record<string, number>,
+    sprint: {} as Record<string, number>,
+  }
 
-  // Text search
+  tasks.forEach((task) => {
+    facets.priority[task.priority]++
+    facets.status[task.status]++
+    facets.assignedAgent[task.assignee] = (facets.assignedAgent[task.assignee] || 0) + 1
+    facets.sprint[task.sprint] = (facets.sprint[task.sprint] || 0) + 1
+  })
+
+  return facets
+}
+
+/**
+ * Search tasks with full-text and filter support
+ */
+function searchTasks(params: SearchParams) {
+  let results = [...mockTasks]
+
+  // Full-text search across title and description
   if (params.q && params.q.trim()) {
     const searchLower = params.q.toLowerCase()
-    filtered = filtered.filter(
-      (task) =>
-        task.title.toLowerCase().includes(searchLower) ||
-        task.id.toLowerCase().includes(searchLower)
-    )
+    results = results
+      .map((task) => {
+        const matched: SearchTask = { ...task, matchedFields: [] }
+
+        if (task.title.toLowerCase().includes(searchLower)) {
+          matched.matchedFields.push('title')
+        }
+        if (task.description.toLowerCase().includes(searchLower)) {
+          matched.matchedFields.push('description')
+        }
+
+        // Only include if matched
+        return matched.matchedFields.length > 0 ? matched : null
+      })
+      .filter((task) => task !== null) as SearchTask[]
   }
 
-  // Status filter (multi-select)
-  if (params.status && params.status.length > 0) {
-    filtered = filtered.filter((task) => params.status!.includes(task.status))
-  }
-
-  // Assignee filter
-  if (params.assigneeId) {
-    filtered = filtered.filter((task) => task.assignee === params.assigneeId)
-  }
-
-  // Priority filter
+  // Filter by priority
   if (params.priority) {
-    filtered = filtered.filter((task) => task.priority === params.priority)
+    results = results.filter((task) => task.priority === params.priority)
   }
 
-  // Sprint filter
-  if (params.sprintId) {
-    filtered = filtered.filter((task) => task.sprint === params.sprintId)
+  // Filter by status
+  if (params.status) {
+    results = results.filter((task) => task.status === params.status)
   }
 
-  // Date range filter
-  if (params.dateFrom) {
-    const fromDate = new Date(params.dateFrom)
-    filtered = filtered.filter((task) => new Date(task.createdAt) >= fromDate)
+  // Filter by assigned agent
+  if (params.assignedAgent) {
+    results = results.filter((task) => task.assignee === params.assignedAgent)
   }
 
-  if (params.dateTo) {
-    const toDate = new Date(params.dateTo)
-    filtered = filtered.filter((task) => new Date(task.createdAt) <= toDate)
+  // Filter by sprint
+  if (params.sprint) {
+    results = results.filter((task) => task.sprint === params.sprint)
   }
 
-  // Sorting
-  const sortBy = (params.sortBy || 'createdAt') as keyof Task
-  const sortDir = params.sortDir || 'desc'
-
-  filtered.sort((a, b) => {
-    const aVal = a[sortBy]
-    const bVal = b[sortBy]
-
-    if (aVal === bVal) return 0
-
-    const comparison = aVal < bVal ? -1 : 1
-    return sortDir === 'asc' ? comparison : -comparison
-  })
+  // Calculate facets before pagination
+  const facets = calculateFacets(results)
 
   // Pagination
   const page = Math.max(1, params.page || 1)
-  const limit = Math.min(100, Math.max(1, params.limit || 20))
-  const pageCount = Math.ceil(filtered.length / limit)
-  const startIdx = (page - 1) * limit
-  const endIdx = startIdx + limit
+  const perPage = Math.max(1, Math.min(100, params.perPage || 20))
+  const total = results.length
+  const totalPages = Math.ceil(total / perPage)
+  const startIdx = (page - 1) * perPage
+  const endIdx = startIdx + perPage
 
   return {
-    data: filtered.slice(startIdx, endIdx),
-    total: filtered.length,
-    page,
-    pageSize: limit,
-    pageCount,
+    results: results.slice(startIdx, endIdx),
+    facets,
+    pagination: {
+      page,
+      perPage,
+      total,
+      totalPages,
+    },
   }
 }
 
@@ -172,34 +189,18 @@ export const taskSearchHandlers = [
   http.get('/api/tasks/search', ({ request }) => {
     const url = new URL(request.url)
 
-    // Parse multi-select status
-    const statusRaw = url.searchParams.getAll('status')
-    const status = statusRaw.length > 0 ? statusRaw : undefined
-
-    const params: FilterParams = {
+    const params: SearchParams = {
       q: url.searchParams.get('q') || undefined,
-      status: status as any,
-      assigneeId: url.searchParams.get('assigneeId') || undefined,
       priority: url.searchParams.get('priority') || undefined,
-      sprintId: url.searchParams.get('sprintId') || undefined,
-      dateFrom: url.searchParams.get('dateFrom') || undefined,
-      dateTo: url.searchParams.get('dateTo') || undefined,
-      sortBy: url.searchParams.get('sortBy') || undefined,
-      sortDir: (url.searchParams.get('sortDir') as 'asc' | 'desc') || 'desc',
+      status: url.searchParams.get('status') || undefined,
+      assignedAgent: url.searchParams.get('assignedAgent') || undefined,
+      sprint: url.searchParams.get('sprint') || undefined,
       page: url.searchParams.get('page') ? parseInt(url.searchParams.get('page')!, 10) : 1,
-      limit: url.searchParams.get('limit') ? parseInt(url.searchParams.get('limit')!, 10) : 20,
+      perPage: url.searchParams.get('perPage') ? parseInt(url.searchParams.get('perPage')!, 10) : 20,
     }
 
-    const result = filterAndSortTasks(params)
+    const result = searchTasks(params)
 
-    return HttpResponse.json({
-      data: result.data,
-      meta: {
-        total: result.total,
-        page: result.page,
-        pageSize: result.pageSize,
-        pageCount: result.pageCount,
-      },
-    })
+    return HttpResponse.json<TaskSearchResponse>(result)
   }),
 ]
