@@ -1,254 +1,207 @@
-import { useEffect, useState } from 'react'
+import { useForm } from '@tanstack/react-form'
+import { useState, useEffect, useCallback } from 'react'
+import type { NotificationPreferences, NotificationTypePreference } from '../../types/notification-preferences'
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
-import type { NotificationTypePreference, NotificationTypePreferences, NotificationFrequency } from '../../types/notification-preferences'
-import { NotificationTypeRow } from './NotificationTypeRow'
+import { useToast } from '../Toast'
+import { NotificationTypeToggle, NOTIFICATION_TYPE_LABELS } from './NotificationTypeToggle'
+import { ResetPreferencesDialog } from './ResetPreferencesDialog'
 
-const NOTIFICATION_TYPE_LABELS: Record<NotificationTypePreference, string> = {
-  task_assigned: 'Task Assigned',
-  task_unassigned: 'Task Unassigned',
-  sprint_started: 'Sprint Started',
-  sprint_completed: 'Sprint Completed',
-  comment_added: 'Comment Added',
-  status_changed: 'Status Changed',
-  agent_event: 'Agent Event',
-  performance_alert: 'Performance Alert',
-  assignment_changed: 'Assignment Changed',
-  sprint_updated: 'Sprint Updated',
-  task_reassigned: 'Task Reassigned',
-  deadline_approaching: 'Deadline Approaching',
+/**
+ * Notification types grouped by category for better organization
+ */
+const NOTIFICATION_CATEGORIES = {
+  'Task Notifications': [
+    'task_assigned',
+    'task_unassigned',
+    'task_reassigned',
+  ] as const,
+  'Sprint Notifications': [
+    'sprint_started',
+    'sprint_completed',
+    'sprint_updated',
+  ] as const,
+  'System & Activity': [
+    'comment_added',
+    'status_changed',
+    'assignment_changed',
+    'deadline_approaching',
+    'agent_event',
+    'performance_alert',
+  ] as const,
 }
 
-interface LocalPreferences {
-  enabled: boolean
-  globalFrequency: NotificationFrequency
-  types: NotificationTypePreferences[]
+interface NotificationPreferencesFormData {
+  preferences: Record<string, NotificationTypePreference>
 }
 
-export function NotificationPreferencesForm(): JSX.Element {
-  const { preferences, isLoading, isUpdating, updateError, updatePreferences, resetPreferences } =
-    useNotificationPreferences()
-
-  const [localPrefs, setLocalPrefs] = useState<LocalPreferences | null>(null)
-  const [submitSuccess, setSubmitSuccess] = useState(false)
-  const [submitError, setSubmitError] = useState<string | null>(null)
+export function NotificationPreferencesForm() {
+  const { preferences, isLoading, isUpdating, updatePreferences, resetPreferences } = useNotificationPreferences()
+  const { showToast } = useToast()
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const [showResetDialog, setShowResetDialog] = useState(false)
   const [isResetting, setIsResetting] = useState(false)
 
-  // Initialize local preferences when data loads
-  useEffect(() => {
-    if (preferences) {
-      setLocalPrefs({
-        enabled: preferences.enabled,
-        globalFrequency: 'instant',
-        types: [...preferences.types],
-      })
-      setSubmitSuccess(false)
-      setSubmitError(null)
-    }
-  }, [preferences])
-
-  // Handle update error
-  useEffect(() => {
-    if (updateError) {
-      setSubmitError(updateError.message)
-    }
-  }, [updateError])
-
-  if (isLoading || !localPrefs) {
-    return <div className="text-sm text-gray-500">Loading preferences...</div>
-  }
-
-  const handleMasterToggle = (enabled: boolean) => {
-    setLocalPrefs((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        enabled,
-        types: prev.types.map((t) => ({
-          ...t,
-          channels: enabled ? t.channels : [],
-        })),
-      }
-    })
-  }
-
-  const handleGlobalFrequencyChange = (frequency: NotificationFrequency) => {
-    setLocalPrefs((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        globalFrequency: frequency,
-        types: prev.types.map((t) => ({
-          ...t,
-          frequency,
-        })),
-      }
-    })
-  }
-
-  const handleFrequencyChange = (type: NotificationTypePreference, frequency: NotificationFrequency) => {
-    setLocalPrefs((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        types: prev.types.map((t) => (t.type === type ? { ...t, frequency } : t)),
-      }
-    })
-  }
-
-  const handleInAppToggle = (type: NotificationTypePreference, enabled: boolean) => {
-    setLocalPrefs((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        types: prev.types.map((t) => {
-          if (t.type === type) {
-            const newChannels = enabled ? [...t.channels, 'in-app'] : t.channels.filter((c) => c !== 'in-app')
-            return { ...t, channels: newChannels as Array<'in-app' | 'email'> }
+  // Initialize form with preferences data
+  const form = useForm<NotificationPreferencesFormData>({
+    defaultValues: {
+      preferences: preferences
+        ? {
+            assignment_changed: preferences.assignment_changed,
+            sprint_updated: preferences.sprint_updated,
+            task_reassigned: preferences.task_reassigned,
+            deadline_approaching: preferences.deadline_approaching,
+            task_assigned: preferences.task_assigned,
+            task_unassigned: preferences.task_unassigned,
+            sprint_started: preferences.sprint_started,
+            sprint_completed: preferences.sprint_completed,
+            comment_added: preferences.comment_added,
+            status_changed: preferences.status_changed,
+            agent_event: preferences.agent_event,
+            performance_alert: preferences.performance_alert,
           }
-          return t
-        }),
+        : {},
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        updatePreferences(value.preferences)
+        showToast('Preferences saved successfully!', 'success')
+        setHasUnsavedChanges(false)
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to save preferences'
+        showToast(message, 'error')
       }
-    })
-  }
+    },
+  })
 
-  const handleEmailToggle = (type: NotificationTypePreference, enabled: boolean) => {
-    setLocalPrefs((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        types: prev.types.map((t) => {
-          if (t.type === type) {
-            const newChannels = enabled ? [...t.channels, 'email'] : t.channels.filter((c) => c !== 'email')
-            return { ...t, channels: newChannels as Array<'in-app' | 'email'> }
-          }
-          return t
-        }),
-      }
-    })
-  }
-
-  const handleSave = () => {
-    setSubmitError(null)
-    setSubmitSuccess(false)
-
-    if (!localPrefs) return
-
-    try {
-      updatePreferences({
-        enabled: localPrefs.enabled,
-        types: localPrefs.types,
+  // Reset form when preferences change (after successful update)
+  useEffect(() => {
+    if (preferences && !isUpdating) {
+      form.setFieldValue('preferences', {
+        assignment_changed: preferences.assignment_changed,
+        sprint_updated: preferences.sprint_updated,
+        task_reassigned: preferences.task_reassigned,
+        deadline_approaching: preferences.deadline_approaching,
+        task_assigned: preferences.task_assigned,
+        task_unassigned: preferences.task_unassigned,
+        sprint_started: preferences.sprint_started,
+        sprint_completed: preferences.sprint_completed,
+        comment_added: preferences.comment_added,
+        status_changed: preferences.status_changed,
+        agent_event: preferences.agent_event,
+        performance_alert: preferences.performance_alert,
       })
-      setSubmitSuccess(true)
-    } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to save preferences')
     }
-  }
+  }, [preferences, isUpdating])
 
-  const handleReset = async () => {
-    setSubmitError(null)
-    setSubmitSuccess(false)
+  const handlePreferenceChange = useCallback(
+    (type: string, preference: NotificationTypePreference) => {
+      form.setFieldValue('preferences', (prev) => ({
+        ...prev,
+        [type]: preference,
+      }))
+      setHasUnsavedChanges(true)
+    },
+    [form]
+  )
+
+  const handleReset = useCallback(async () => {
     setIsResetting(true)
-
     try {
       await resetPreferences()
-      setSubmitSuccess(true)
+      setShowResetDialog(false)
+      setHasUnsavedChanges(false)
+      showToast('Preferences reset to defaults', 'success')
     } catch (error) {
-      setSubmitError(error instanceof Error ? error.message : 'Failed to reset preferences')
+      const message = error instanceof Error ? error.message : 'Failed to reset preferences'
+      showToast(message, 'error')
     } finally {
       setIsResetting(false)
     }
+  }, [resetPreferences, showToast])
+
+  if (isLoading || !preferences) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-slate-400">Loading notification preferences...</div>
+      </div>
+    )
   }
 
-  const isFormDisabled = isUpdating || isLoading || isResetting
-
   return (
-    <div className="space-y-6">
-      {submitSuccess && (
-        <div className="rounded-md bg-green-50 p-4 text-sm text-green-800">
-          {isResetting ? 'Preferences reset to defaults successfully!' : 'Preferences saved successfully!'}
-        </div>
-      )}
+    <div className="space-y-8">
+      {/* Header */}
+      <div>
+        <h1 className="text-2xl font-bold text-white mb-2">Notification Preferences</h1>
+        <p className="text-slate-400">Manage how and when you receive notifications</p>
+      </div>
 
-      {submitError && (
-        <div className="rounded-md bg-red-50 p-4 text-sm text-red-800">{submitError}</div>
-      )}
-
-      {/* Global Controls */}
-      <fieldset disabled={isFormDisabled} className="space-y-4">
-        <div className="rounded-lg border border-gray-200 bg-gray-50 p-4">
-          <h3 className="mb-4 text-sm font-semibold text-gray-900">Global Controls</h3>
-
-          <div className="space-y-4">
-            <label className="flex items-center gap-3">
-              <input
-                type="checkbox"
-                checked={localPrefs.enabled}
-                onChange={(e) => handleMasterToggle(e.target.checked)}
-                disabled={isFormDisabled}
-                className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:bg-gray-100"
-              />
-              <span className="text-sm font-medium text-gray-900">Enable all notifications</span>
-            </label>
-
-            <div>
-              <label className="mb-2 block text-xs font-medium text-gray-700">Global Frequency</label>
-              <select
-                value={localPrefs.globalFrequency}
-                onChange={(e) => handleGlobalFrequencyChange(e.target.value as NotificationFrequency)}
-                disabled={isFormDisabled || !localPrefs.enabled}
-                className="rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:bg-gray-100"
-              >
-                <option value="instant">Instant</option>
-                <option value="daily">Daily</option>
-                <option value="off">Off</option>
-              </select>
+      {/* Form */}
+      <form
+        onSubmit={(e) => {
+          e.preventDefault()
+          form.handleSubmit()
+        }}
+        className="space-y-6"
+      >
+        {/* Notification Categories */}
+        {Object.entries(NOTIFICATION_CATEGORIES).map(([category, notificationTypes]) => (
+          <div key={category} className="space-y-3">
+            <h2 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">{category}</h2>
+            <div className="space-y-1">
+              {notificationTypes.map((type) => {
+                const typePreference = form.getFieldValue('preferences')[type]
+                return (
+                  <div key={type}>
+                    <NotificationTypeToggle
+                      type={type}
+                      preference={typePreference}
+                      onChange={(newPref) => handlePreferenceChange(type, newPref)}
+                    />
+                  </div>
+                )
+              })}
             </div>
           </div>
-        </div>
-
-        {/* Per-Type Controls */}
-        <div className="rounded-lg border border-gray-200 bg-white p-4">
-          <h3 className="mb-4 text-sm font-semibold text-gray-900">Notification Type Preferences</h3>
-
-          <div className="space-y-1">
-            {localPrefs.types.map((typePref) => (
-              <NotificationTypeRow
-                key={typePref.type}
-                type={typePref.type}
-                label={NOTIFICATION_TYPE_LABELS[typePref.type]}
-                frequency={typePref.frequency}
-                hasInApp={typePref.channels.includes('in-app')}
-                hasEmail={typePref.channels.includes('email')}
-                onFrequencyChange={handleFrequencyChange}
-                onInAppToggle={handleInAppToggle}
-                onEmailToggle={handleEmailToggle}
-                disabled={isFormDisabled || !localPrefs.enabled}
-              />
-            ))}
-          </div>
-        </div>
+        ))}
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={handleSave}
-            disabled={isFormDisabled}
-            className="rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:bg-gray-400"
-          >
-            {isUpdating ? 'Saving...' : 'Save Changes'}
-          </button>
+        <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
+          <form.Subscribe
+            selector={(formState) => [formState.isSubmitting]}
+            children={([isSubmitting]) => (
+              <button
+                type="submit"
+                disabled={!hasUnsavedChanges || isUpdating || isSubmitting}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
+              >
+                {isUpdating || isSubmitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            )}
+          />
 
           <button
             type="button"
-            onClick={handleReset}
-            disabled={isFormDisabled}
-            className="text-sm font-medium text-blue-600 hover:text-blue-700 disabled:text-gray-400"
+            onClick={() => setShowResetDialog(true)}
+            disabled={isUpdating || isResetting}
+            className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed rounded transition-colors"
           >
-            {isResetting ? 'Resetting...' : 'Reset to Defaults'}
+            Reset to Defaults
           </button>
+
+          {hasUnsavedChanges && (
+            <span className="text-sm text-slate-400 ml-auto">Unsaved changes</span>
+          )}
         </div>
-      </fieldset>
+      </form>
+
+      {/* Reset Confirmation Dialog */}
+      {showResetDialog && (
+        <ResetPreferencesDialog
+          onConfirm={handleReset}
+          onCancel={() => setShowResetDialog(false)}
+          isPending={isResetting}
+        />
+      )}
     </div>
   )
 }

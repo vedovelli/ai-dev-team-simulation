@@ -1,22 +1,30 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { NotificationPreferencesForm } from '../components/NotificationPreferences'
 
+export const Route = createFileRoute('/settings')({
+  component: SettingsPage,
+})
+
 function SettingsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">Settings</h1>
-        <p className="mt-2 text-gray-600">Manage your notification preferences and settings</p>
-      </div>
+    <div className="min-h-screen bg-slate-950">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+        {/* Settings Navigation Tabs */}
+        <div className="mb-8 border-b border-slate-700">
+          <nav className="flex gap-8">
+            <div className="border-b-2 border-blue-600 pb-4">
+              <a href="#" className="text-white font-medium">
+                Notifications
+              </a>
+            </div>
+          </nav>
+        </div>
 
-      <div className="rounded-lg border border-gray-200 bg-white p-6">
-        <h2 className="mb-6 text-lg font-semibold text-gray-900">Notification Preferences</h2>
-        <NotificationPreferencesForm />
+        {/* Settings Content */}
+        <div className="bg-slate-900/50 rounded-lg border border-slate-700 p-8">
+          <NotificationPreferencesForm />
+        </div>
       </div>
     </div>
   )
 }
-
-export const Route = createFileRoute('/settings')({
-  component: SettingsPage,
-})

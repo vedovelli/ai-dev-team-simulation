@@ -88,7 +88,18 @@ function RootLayout() {
                     </Link>
                   </div>
                 </div>
-                <NotificationBell />
+                <div className="flex items-center gap-4">
+                  <Link
+                    to="/settings"
+                    className="text-sm text-slate-300 hover:text-white transition-colors"
+                    activeProps={{
+                      className: 'text-blue-400 font-semibold',
+                    }}
+                  >
+                    Settings
+                  </Link>
+                  <NotificationBell />
+                </div>
               </div>
             </div>
           </nav>
