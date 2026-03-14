@@ -83,8 +83,8 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}): UseTaskSearch
   // Build query key with debounced query and filters
   const queryKey = ['tasks', 'search', { query: debouncedQuery, filters, page }] as const
 
-  // Fetch data only if there's a query
-  const query_result = useQuery<TaskSearchResponse, Error>({
+  // Fetch data only if there's a query or filters are set
+  const queryResult = useQuery<TaskSearchResponse, Error>({
     queryKey,
     queryFn: async () => {
       const params = new URLSearchParams()
@@ -122,37 +122,43 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}): UseTaskSearch
 
       return response.json()
     },
-    enabled: debouncedQuery.length > 0, // Only fetch when there's a query
+    enabled: debouncedQuery.length > 0 || Object.values(filters).some((v) => v !== undefined),
     staleTime,
     gcTime: staleTime * 2, // Keep in cache for 2x stale time
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   })
 
+  // Memoize setFilters to maintain referential equality for consumer dependencies
+  const memoizedSetFilters = useCallback(
+    (newFilters: TaskSearchFilters) => {
+      setFilters(newFilters)
+      setPage(1) // Reset to page 1 when filters change
+    },
+    []
+  )
+
   return {
-    results: query_result.data?.results || [],
-    facets: query_result.data?.facets || {
+    results: queryResult.data?.results || [],
+    facets: queryResult.data?.facets || {
       priority: { low: 0, medium: 0, high: 0 },
       status: { backlog: 0, 'in-progress': 0, 'in-review': 0, done: 0 },
       assignedAgent: {},
       sprint: {},
     },
-    pagination: query_result.data?.pagination || {
+    pagination: queryResult.data?.pagination || {
       page,
       perPage,
       total: 0,
       totalPages: 0,
     },
-    isLoading: query_result.isLoading,
-    isError: query_result.isError,
-    error: query_result.error,
+    isLoading: queryResult.isLoading,
+    isError: queryResult.isError,
+    error: queryResult.error,
     hasSearchQuery: debouncedQuery.length > 0,
     debouncedQuery,
     setQuery,
-    setFilters: (newFilters) => {
-      setFilters(newFilters)
-      setPage(1) // Reset to page 1 when filters change
-    },
+    setFilters: memoizedSetFilters,
     setPage,
   }
 }
