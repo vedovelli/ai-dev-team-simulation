@@ -20,6 +20,15 @@
   }
 }
 
+@keyframes pulse-badge {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
 @layer utilities {
   .animate-fade-in {
     animation: fadeIn 0.2s ease-in;
@@ -27,5 +36,9 @@
 
   .animate-slide-in {
     animation: slideIn 0.3s ease-out;
+  }
+
+  .animate-pulse-badge {
+    animation: pulse-badge 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 }
