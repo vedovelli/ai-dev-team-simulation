@@ -1,11 +1,12 @@
+import { useNavigate } from '@tanstack/react-router'
 import { useNotifications } from '../../hooks/useNotifications'
 
 interface NotificationBellProps {
-  onClick: () => void
   className?: string
 }
 
-export function NotificationBell({ onClick, className = '' }: NotificationBellProps) {
+export function NotificationBell({ className = '' }: NotificationBellProps) {
+  const navigate = useNavigate()
   const { unreadCount } = useNotifications()
 
   // Format badge text: show "99+" when count exceeds 99
@@ -19,9 +20,13 @@ export function NotificationBell({ onClick, className = '' }: NotificationBellPr
         ? '1 unread notification'
         : `${unreadCount} unread notifications`
 
+  const handleClick = () => {
+    navigate({ to: '/notifications' })
+  }
+
   return (
     <button
-      onClick={onClick}
+      onClick={handleClick}
       className={`relative p-2 hover:bg-slate-100 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${className}`}
       aria-label={ariaLabel}
     >
