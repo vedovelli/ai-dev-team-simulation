@@ -1,160 +1,164 @@
-/**
- * useTaskSearch Hook
- *
- * Implements advanced task search with:
- * - Debounced query string (300ms)
- * - Dependent query that only fires when search term ≥ 2 chars OR filters are set
- * - Multi-field filtering and sorting
- * - Pagination support
- */
-
-import { useQuery, type UseQueryOptions } from '@tanstack/react-query'
-import { useDeferredValue, useCallback } from 'react'
-import type { Task } from '../types/task'
-import type { TaskSearchParams, TaskSearchResult, UseTaskSearchReturn } from '../types/task-search'
-
-interface UseTaskSearchOptions extends Omit<UseQueryOptions<TaskSearchResult>, 'queryKey' | 'queryFn'> {
-  params: TaskSearchParams
-}
+import { useQuery } from '@tanstack/react-query'
+import { useRef, useState, useCallback, useEffect } from 'react'
+import type {
+  TaskSearchResponse,
+  TaskSearchFilters,
+  UseTaskSearchReturn,
+  UseTaskSearchOptions,
+} from '../types/task-search'
 
 /**
- * Custom hook for task search with debouncing and dependent queries
+ * Hook for searching tasks with full-text search and faceted filtering
  *
- * @param options - Query options including search parameters
- * @returns Search results with loading/error states
+ * Features:
+ * - Full-text search across task titles and descriptions
+ * - Debounced query input (300ms default) to reduce API calls
+ * - Support for filtering by priority, status, agent, sprint
+ * - Facet aggregation showing count per filter option
+ * - Pagination with metadata
+ * - Stale-while-revalidate strategy (30s stale time)
+ * - Exponential backoff retry (3 attempts)
+ * - Empty state vs no-query state distinction
  *
- * @example
+ * Query key architecture: ['tasks', 'search', { query, filters, page }]
+ *
+ * Example usage:
  * ```tsx
- * const { tasks, isLoading, pageCount } = useTaskSearch({
- *   params: {
- *     q: searchTerm,
- *     status: ['in-progress'],
- *     sortBy: 'createdAt',
- *     sortDir: 'desc',
- *     page: 1,
- *     limit: 20,
- *   },
- * })
+ * const search = useTaskSearch()
+ *
+ * return (
+ *   <div>
+ *     <input
+ *       value={search.debouncedQuery}
+ *       onChange={(e) => search.setQuery(e.target.value)}
+ *     />
+ *     {search.isLoading && <p>Loading...</p>}
+ *     {search.hasSearchQuery && search.results.length === 0 && (
+ *       <p>No tasks match "{search.debouncedQuery}"</p>
+ *     )}
+ *     {search.results.map(task => (
+ *       <TaskItem key={task.id} task={task} />
+ *     ))}
+ *   </div>
+ * )
  * ```
  */
-export function useTaskSearch(options: UseTaskSearchOptions): UseTaskSearchReturn {
-  const { params, ...queryOptions } = options
+export function useTaskSearch(options: UseTaskSearchOptions = {}): UseTaskSearchReturn {
+  const { debounceMs = 300, perPage = 20, staleTime = 30 * 1000 } = options
 
-  // Debounce the search query string
-  const deferredQuery = useDeferredValue(params.q || '')
+  const [query, setQueryImmediate] = useState('')
+  const [debouncedQuery, setDebouncedQuery] = useState('')
+  const [filters, setFilters] = useState<TaskSearchFilters>({})
+  const [page, setPage] = useState(1)
+  const debounceTimerRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Determine if search should execute (dependent query)
-  const shouldSearch = useCallback(() => {
-    const hasValidSearch = deferredQuery && deferredQuery.length >= 2
-    const hasFilters =
-      (params.status && params.status.length > 0) ||
-      params.assigneeId ||
-      params.priority ||
-      params.sprintId ||
-      params.dateFrom ||
-      params.dateTo
+  // Debounce query input
+  const setQuery = useCallback(
+    (newQuery: string) => {
+      setQueryImmediate(newQuery)
 
-    return hasValidSearch || hasFilters
-  }, [deferredQuery, params])
+      // Clear existing timer
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
 
-  // Stable query key with params
-  const queryKey = [
-    'tasks',
-    'search',
-    {
-      q: deferredQuery,
-      status: params.status,
-      assigneeId: params.assigneeId,
-      priority: params.priority,
-      sprintId: params.sprintId,
-      dateFrom: params.dateFrom,
-      dateTo: params.dateTo,
-      sortBy: params.sortBy,
-      sortDir: params.sortDir,
-      page: params.page,
-      limit: params.limit,
+      // Set new timer
+      debounceTimerRef.current = setTimeout(() => {
+        setDebouncedQuery(newQuery)
+        setPage(1) // Reset to page 1 on new search
+      }, debounceMs)
     },
-  ] as const
+    [debounceMs]
+  )
 
-  const query = useQuery<TaskSearchResult>({
-    ...queryOptions,
+  // Cleanup timer on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceTimerRef.current) {
+        clearTimeout(debounceTimerRef.current)
+      }
+    }
+  }, [])
+
+  // Build query key with debounced query and filters
+  const queryKey = ['tasks', 'search', { query: debouncedQuery, filters, page }] as const
+
+  // Fetch data only if there's a query or filters are set
+  const queryResult = useQuery<TaskSearchResponse, Error>({
     queryKey,
     queryFn: async () => {
-      if (!shouldSearch()) {
-        // Return empty results if search criteria not met
-        return {
-          data: [],
-          meta: {
-            total: 0,
-            page: 1,
-            pageSize: params.limit || 20,
-            pageCount: 0,
-          },
-        }
+      const params = new URLSearchParams()
+
+      if (debouncedQuery) {
+        params.append('q', debouncedQuery)
       }
 
-      const searchParams = new URLSearchParams()
-
-      if (deferredQuery) {
-        searchParams.set('q', deferredQuery)
+      if (filters.priority) {
+        params.append('priority', filters.priority)
       }
 
-      if (params.status && params.status.length > 0) {
-        params.status.forEach((s) => searchParams.append('status', s))
+      if (filters.status) {
+        params.append('status', filters.status)
       }
 
-      if (params.assigneeId) {
-        searchParams.set('assigneeId', params.assigneeId)
+      if (filters.assignedAgent) {
+        params.append('assignedAgent', filters.assignedAgent)
       }
 
-      if (params.priority) {
-        searchParams.set('priority', params.priority)
+      if (filters.sprint) {
+        params.append('sprint', filters.sprint)
       }
 
-      if (params.sprintId) {
-        searchParams.set('sprintId', params.sprintId)
-      }
+      params.append('page', page.toString())
+      params.append('perPage', perPage.toString())
 
-      if (params.dateFrom) {
-        searchParams.set('dateFrom', params.dateFrom)
-      }
-
-      if (params.dateTo) {
-        searchParams.set('dateTo', params.dateTo)
-      }
-
-      if (params.sortBy) {
-        searchParams.set('sortBy', String(params.sortBy))
-      }
-
-      if (params.sortDir) {
-        searchParams.set('sortDir', params.sortDir)
-      }
-
-      searchParams.set('page', String(params.page || 1))
-      searchParams.set('limit', String(params.limit || 20))
-
-      const response = await fetch(`/api/tasks/search?${searchParams.toString()}`)
+      const response = await fetch(`/api/tasks/search?${params}`, {
+        headers: { 'Content-Type': 'application/json' },
+      })
 
       if (!response.ok) {
-        throw new Error('Failed to fetch task search results')
+        throw new Error(`Failed to search tasks: ${response.statusText}`)
       }
 
       return response.json()
     },
-    staleTime: 30000, // 30 seconds
-    gcTime: 2 * 60000, // 2 minutes
-    enabled: shouldSearch(),
+    enabled: debouncedQuery.length > 0 || Object.values(filters).some((v) => v !== undefined),
+    staleTime,
+    gcTime: staleTime * 2, // Keep in cache for 2x stale time
     retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
   })
 
+  // Memoize setFilters to maintain referential equality for consumer dependencies
+  const memoizedSetFilters = useCallback(
+    (newFilters: TaskSearchFilters) => {
+      setFilters(newFilters)
+      setPage(1) // Reset to page 1 when filters change
+    },
+    []
+  )
+
   return {
-    tasks: query.data?.data ?? [],
-    totalCount: query.data?.meta.total ?? 0,
-    pageCount: query.data?.meta.pageCount ?? 0,
-    isLoading: query.isPending,
-    isError: query.isError,
-    isFetching: query.isFetching,
-    error: query.error,
+    results: queryResult.data?.results || [],
+    facets: queryResult.data?.facets || {
+      priority: { low: 0, medium: 0, high: 0 },
+      status: { backlog: 0, 'in-progress': 0, 'in-review': 0, done: 0 },
+      assignedAgent: {},
+      sprint: {},
+    },
+    pagination: queryResult.data?.pagination || {
+      page,
+      perPage,
+      total: 0,
+      totalPages: 0,
+    },
+    isLoading: queryResult.isLoading,
+    isError: queryResult.isError,
+    error: queryResult.error,
+    hasSearchQuery: debouncedQuery.length > 0,
+    debouncedQuery,
+    setQuery,
+    setFilters: memoizedSetFilters,
+    setPage,
   }
 }
