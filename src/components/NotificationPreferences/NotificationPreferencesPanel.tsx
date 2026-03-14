@@ -1,16 +1,12 @@
 /**
  * Main notification preferences settings panel
- * Surfaces the useNotificationPreferences hook to allow users to control
- * how and when they receive notifications
+ * Displays all notification types with their frequency and channel controls
+ * Connects to useNotificationPreferences hook for data fetching and updates
  */
 
 import { useState, useEffect } from 'react'
-import { useNavigate } from '@tanstack/react-router'
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
-import { useToast } from '../Toast'
-import { PreferencesSkeletonLoader } from './PreferencesSkeletonLoader'
-import { NotificationTypeRow } from './NotificationTypeRow'
-import { PreferencesSaveBar } from './PreferencesSaveBar'
+import { NotificationTypeToggle } from './NotificationTypeToggle'
 import type { NotificationPreferences, NotificationTypePreference, UpdatePreferencesRequest } from '../../types/notification-preferences'
 
 const NOTIFICATION_TYPES = [
@@ -29,26 +25,24 @@ const NOTIFICATION_TYPES = [
 ] as const
 
 export function NotificationPreferencesPanel() {
-  const navigate = useNavigate()
-  const { showToast } = useToast()
-  const { preferences, isLoading, isUpdating, updateError, updatePreferences, resetPreferences } =
-    useNotificationPreferences()
+  const { preferences, isLoading, isError, updatePreferences } = useNotificationPreferences()
 
   const [localPreferences, setLocalPreferences] = useState<Partial<NotificationPreferences> | null>(null)
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
-  const [showSaveBar, setShowSaveBar] = useState(false)
-  const [isResetting, setIsResetting] = useState(false)
 
-  // Sync preferences to local state when loaded
+  // Sync fetched preferences to local state
   useEffect(() => {
     if (preferences && !localPreferences) {
       setLocalPreferences(preferences)
     }
   }, [preferences, localPreferences])
 
-  // Detect unsaved changes
+  // Detect if there are unsaved changes
   useEffect(() => {
-    if (!preferences || !localPreferences) return
+    if (!preferences || !localPreferences) {
+      setHasUnsavedChanges(false)
+      return
+    }
 
     const hasChanges = NOTIFICATION_TYPES.some((type) => {
       const orig = preferences[type as keyof NotificationPreferences]
@@ -57,15 +51,7 @@ export function NotificationPreferencesPanel() {
     })
 
     setHasUnsavedChanges(hasChanges)
-    setShowSaveBar(hasChanges)
   }, [localPreferences, preferences])
-
-  // Handle update error
-  useEffect(() => {
-    if (updateError) {
-      showToast(`Failed to save preferences: ${updateError.message}`, 'error')
-    }
-  }, [updateError, showToast])
 
   const handlePreferenceChange = (type: string, preference: NotificationTypePreference) => {
     setLocalPreferences((prev) => {
@@ -95,82 +81,54 @@ export function NotificationPreferencesPanel() {
 
     if (hasChanges) {
       updatePreferences(patch)
-      showToast('Preferences saved successfully', 'success')
       setHasUnsavedChanges(false)
-      setShowSaveBar(false)
     }
   }
 
   const handleCancel = () => {
-    if (hasUnsavedChanges && !window.confirm('Discard unsaved changes?')) {
-      return
-    }
-
     setLocalPreferences(preferences || null)
     setHasUnsavedChanges(false)
-    setShowSaveBar(false)
   }
 
-  const handleReset = async () => {
-    if (!window.confirm('Reset all preferences to defaults? This cannot be undone.')) {
-      return
-    }
-
-    setIsResetting(true)
-    try {
-      await resetPreferences()
-      showToast('Preferences reset to defaults', 'success')
-      setHasUnsavedChanges(false)
-      setShowSaveBar(false)
-    } catch (error) {
-      showToast(
-        `Failed to reset preferences: ${error instanceof Error ? error.message : 'Unknown error'}`,
-        'error'
-      )
-    } finally {
-      setIsResetting(false)
-    }
-  }
-
-  // Warn on unsaved changes before leaving
-  useEffect(() => {
-    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (hasUnsavedChanges) {
-        e.preventDefault()
-        e.returnValue = ''
-      }
-    }
-
-    window.addEventListener('beforeunload', handleBeforeUnload)
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload)
-  }, [hasUnsavedChanges])
-
+  // Show loading state
   if (isLoading) {
-    return <PreferencesSkeletonLoader />
+    return (
+      <div className="space-y-4">
+        <div className="h-8 bg-slate-200 rounded animate-pulse w-1/3" />
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <div key={i} className="h-16 bg-slate-200 rounded animate-pulse" />
+          ))}
+        </div>
+      </div>
+    )
   }
 
-  if (!preferences || !localPreferences) {
+  // Show error state
+  if (isError || !preferences || !localPreferences) {
     return (
-      <div className="text-center py-12">
-        <p className="text-slate-600">Failed to load preferences. Please try again.</p>
+      <div className="rounded-lg bg-red-50 p-4 border border-red-200">
+        <p className="text-red-800 text-sm">Failed to load notification preferences. Please try again.</p>
       </div>
     )
   }
 
   return (
-    <div className="pb-24">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-900 mb-2">Notification Preferences</h1>
-        <p className="text-slate-600">
-          Control how and when you receive notifications across different notification types.
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-bold text-slate-900 mb-2">Notification Preferences</h2>
+        <p className="text-slate-600 text-sm">
+          Control how and when you receive notifications for each notification type.
         </p>
       </div>
 
+      {/* Settings panel */}
       <fieldset className="border border-slate-200 rounded-lg p-6 space-y-0">
-        <legend className="text-lg font-semibold text-slate-900 mb-6 block">Notification Settings</legend>
+        <legend className="sr-only">Notification Settings</legend>
 
         {NOTIFICATION_TYPES.map((type) => (
-          <NotificationTypeRow
+          <NotificationTypeToggle
             key={type}
             type={type}
             preference={localPreferences[type as keyof NotificationPreferences] as NotificationTypePreference}
@@ -179,14 +137,23 @@ export function NotificationPreferencesPanel() {
         ))}
       </fieldset>
 
-      <PreferencesSaveBar
-        isVisible={showSaveBar}
-        isSaving={isUpdating || isResetting}
-        hasUnsavedChanges={hasUnsavedChanges}
-        onSave={handleSave}
-        onCancel={handleCancel}
-        onReset={handleReset}
-      />
+      {/* Action buttons - shown only if there are unsaved changes */}
+      {hasUnsavedChanges && (
+        <div className="flex gap-3 pt-4 border-t border-slate-200">
+          <button
+            onClick={handleSave}
+            className="px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+          >
+            Save Changes
+          </button>
+          <button
+            onClick={handleCancel}
+            className="px-4 py-2 bg-slate-200 text-slate-900 font-medium text-sm rounded hover:bg-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+          >
+            Cancel
+          </button>
+        </div>
+      )}
     </div>
   )
 }

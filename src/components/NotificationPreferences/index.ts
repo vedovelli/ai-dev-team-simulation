@@ -1,4 +1,3 @@
 export { NotificationPreferencesPanel } from './NotificationPreferencesPanel'
-export { NotificationTypeRow, NOTIFICATION_TYPE_LABELS } from './NotificationTypeRow'
-export { PreferencesSaveBar } from './PreferencesSaveBar'
-export { PreferencesSkeletonLoader } from './PreferencesSkeletonLoader'
+export { NotificationTypeToggle, NOTIFICATION_TYPE_LABELS } from './NotificationTypeToggle'
+export { NotificationFrequencySelect } from './NotificationFrequencySelect'
