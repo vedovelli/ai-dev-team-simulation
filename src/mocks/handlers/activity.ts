@@ -1,71 +1,62 @@
 /**
  * MSW Handlers for Activity Feed
  *
- * Provides realistic paginated activity data:
- * - GET /api/activity - Cursor-based pagination with entity filtering
- * - GET /api/activity/feed - Legacy endpoint (for backward compatibility)
+ * Provides realistic paginated activity data with temporal and type filtering:
+ * - GET /api/activity - Page-based pagination with temporal and type filtering
  * - POST /api/activity/:eventId/reactions - Add reaction to event
  */
 
 import { http, HttpResponse, delay } from 'msw'
-import type { ActivityEvent, ActivityFeedResponse, ReactionEmoji, EntityType } from '../../types/activity'
+import type { ActivityEvent, ReactionEmoji, EntityType } from '../../types/activity'
 
 // Mock event store
 const eventStore: Map<string, ActivityEvent> = new Map()
 
-// Initialize with realistic mock events
+// Initialize with realistic mock events spanning last 30 days
 function initializeMockEvents() {
   const now = new Date()
   const actors = ['alice', 'bob', 'charlie', 'diana', 'eve']
-  const agents = ['agent-1', 'agent-2', 'agent-3']
-
-  // Create realistic activity events
-  const baseEvents: Partial<ActivityEvent>[] = [
-    {
-      type: 'task_assigned',
-      entityType: 'task',
-      actorName: 'alice',
-      payload: { taskId: 'task-123', assignee: 'bob', priority: 'high' },
-    },
-    {
-      type: 'task_status_changed',
-      entityType: 'task',
-      actorName: 'bob',
-      payload: { taskId: 'task-123', from: 'todo', to: 'in_progress' },
-    },
-    {
-      type: 'comment_added',
-      entityType: 'task',
-      actorName: 'charlie',
-      payload: { taskId: 'task-123', comment: 'Working on this now', commentId: 'cmt-1' },
-    },
-    {
-      type: 'sprint_updated',
-      entityType: 'sprint',
-      actorName: 'diana',
-      payload: { sprintId: 'sprint-1', field: 'endDate', value: '2026-03-20' },
-    },
-    {
-      type: 'task_assigned',
-      entityType: 'task',
-      actorName: 'eve',
-      payload: { taskId: 'task-456', assignee: 'agent-1' },
-    },
+  const taskEventTypes: ActivityEvent['type'][] = [
+    'task_assigned',
+    'task_status_changed',
+    'comment_added',
+    'task_completed',
   ]
+  const sprintEventTypes: ActivityEvent['type'][] = ['sprint_updated', 'sprint_archived']
 
-  // Generate 100 events for testing pagination
+  // Generate 50-60 events spanning last 30 days with varied event types
   let eventId = 1
-  for (let i = 0; i < 100; i++) {
-    const baseEvent = baseEvents[i % baseEvents.length]
-    const timestamp = new Date(now.getTime() - (i + 1) * 5 * 60000) // 5 min apart
+  const targetCount = Math.floor(Math.random() * 11) + 50 // 50-60 events
+
+  for (let i = 0; i < targetCount; i++) {
+    // Distribute events across last 30 days
+    const daysAgo = Math.floor(Math.random() * 30)
+    const hoursAgo = Math.floor(Math.random() * 24)
+    const minutesAgo = Math.floor(Math.random() * 60)
+
+    const timestamp = new Date(now)
+    timestamp.setDate(timestamp.getDate() - daysAgo)
+    timestamp.setHours(timestamp.getHours() - hoursAgo)
+    timestamp.setMinutes(timestamp.getMinutes() - minutesAgo)
+
+    // Alternate between task and sprint events
+    const isTaskEvent = Math.random() > 0.4
+    const eventTypes = isTaskEvent ? taskEventTypes : sprintEventTypes
+    const type = eventTypes[Math.floor(Math.random() * eventTypes.length)]
 
     const event: ActivityEvent = {
       id: `evt-${eventId++}`,
-      type: baseEvent.type || 'task_assigned',
-      entityType: baseEvent.entityType || 'sprint',
-      entityId: baseEvent.payload?.taskId || baseEvent.payload?.sprintId || `entity-${i}`,
-      actorName: baseEvent.actorName || actors[i % actors.length],
-      payload: baseEvent.payload || {},
+      type,
+      entityType: isTaskEvent ? 'task' : 'sprint',
+      entityId: isTaskEvent ? `task-${Math.floor(Math.random() * 10) + 1}` : `sprint-${Math.floor(Math.random() * 3) + 1}`,
+      actorName: actors[Math.floor(Math.random() * actors.length)],
+      payload: {
+        taskId: isTaskEvent ? `task-${Math.floor(Math.random() * 10) + 1}` : undefined,
+        sprintId: !isTaskEvent ? `sprint-${Math.floor(Math.random() * 3) + 1}` : undefined,
+        field: type === 'sprint_updated' ? ['name', 'endDate', 'status'][Math.floor(Math.random() * 3)] : undefined,
+        from: type === 'task_status_changed' ? 'todo' : undefined,
+        to: type === 'task_status_changed' ? 'in_progress' : undefined,
+      },
       createdAt: timestamp.toISOString(),
     }
 
@@ -77,43 +68,59 @@ function initializeMockEvents() {
 initializeMockEvents()
 
 /**
- * Encode cursor for pagination
- * Cursor is base64-encoded event ID
+ * Filter events by time range
  */
-function encodeCursor(eventId: string): string {
-  return Buffer.from(eventId).toString('base64')
+function filterByTimeRange(events: ActivityEvent[], timeRange: string): ActivityEvent[] {
+  const now = new Date()
+  let daysBack = 7 // Default to 7 days
+
+  if (timeRange === '24h') {
+    daysBack = 1
+  } else if (timeRange === '30d') {
+    daysBack = 30
+  }
+
+  const cutoffDate = new Date(now)
+  cutoffDate.setDate(cutoffDate.getDate() - daysBack)
+
+  return events.filter((event) => new Date(event.createdAt) >= cutoffDate)
 }
 
 /**
- * Decode cursor for pagination
+ * Filter events by type
  */
-function decodeCursor(cursor: string): string {
-  try {
-    return Buffer.from(cursor, 'base64').toString('utf-8')
-  } catch {
-    return ''
+function filterByEventType(
+  events: ActivityEvent[],
+  eventType: string
+): ActivityEvent[] {
+  if (eventType === 'task') {
+    return events.filter((e) => e.entityType === 'task')
   }
+  if (eventType === 'sprint') {
+    return events.filter((e) => e.entityType === 'sprint')
+  }
+  return events // 'all' or unspecified
 }
 
 export const activityHandlers = [
   /**
    * GET /api/activity
-   * Cursor-based paginated activity feed with entity filtering
+   * Page-based paginated activity feed with temporal and type filtering
    *
    * Query params:
-   * - entityType: 'sprint' | 'task' | 'agent' (optional)
-   * - entityId: string (optional)
-   * - cursor: string (optional, base64-encoded)
-   * - limit: number (default: 50)
+   * - page: number (default: 1)
+   * - limit: number (default: 20)
+   * - timeRange: '24h' | '7d' | '30d' (default: '7d')
+   * - eventType: 'task' | 'sprint' | 'all' (default: 'all')
    */
   http.get('/api/activity', async ({ request }) => {
     await delay(300)
 
     const url = new URL(request.url)
-    const entityType = url.searchParams.get('entityType') as EntityType | null
-    const entityId = url.searchParams.get('entityId')
-    const cursor = url.searchParams.get('cursor')
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '50', 10), 100)
+    const page = Math.max(1, parseInt(url.searchParams.get('page') || '1', 10))
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '20', 10), 100)
+    const timeRange = url.searchParams.get('timeRange') || '7d'
+    const eventType = url.searchParams.get('eventType') || 'all'
 
     // Get all events sorted by createdAt descending
     let events = Array.from(eventStore.values()).sort(
@@ -121,78 +128,22 @@ export const activityHandlers = [
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     )
 
-    // Filter by entity type if specified
-    if (entityType) {
-      events = events.filter((e) => e.entityType === entityType)
-    }
+    // Apply temporal filter
+    events = filterByTimeRange(events, timeRange)
 
-    // Filter by entity ID if specified
-    if (entityId) {
-      events = events.filter((e) => e.entityId === entityId)
-    }
+    // Apply event type filter
+    events = filterByEventType(events, eventType)
 
-    // Find starting position from cursor
-    let startIndex = 0
-    if (cursor) {
-      const decodedCursor = decodeCursor(cursor)
-      startIndex = events.findIndex((e) => e.id === decodedCursor) + 1
-      if (startIndex === 0) {
-        // Cursor not found, start from beginning
-        startIndex = 0
-      }
-    }
-
-    // Get page of events
+    // Calculate pagination
+    const total = events.length
+    const startIndex = (page - 1) * limit
     const pageEvents = events.slice(startIndex, startIndex + limit)
-    const hasMore = startIndex + limit < events.length
-    const nextCursor = hasMore && pageEvents.length > 0
-      ? encodeCursor(pageEvents[pageEvents.length - 1].id)
-      : null
-
-    const response: ActivityFeedResponse = {
-      events: pageEvents,
-      nextCursor,
-      hasMore,
-    }
-
-    return HttpResponse.json(response)
-  }),
-
-  /**
-   * GET /api/activity/feed
-   * Legacy endpoint for backward compatibility
-   * Returns non-paginated feed with optional filter
-   */
-  http.get('/api/activity/feed', async ({ request }) => {
-    await delay(300)
-
-    const url = new URL(request.url)
-    const limit = parseInt(url.searchParams.get('limit') || '50', 10)
-    const filter = url.searchParams.get('filter')
-
-    // Get all events and sort by createdAt descending
-    let events = Array.from(eventStore.values()).sort(
-      (a, b) =>
-        new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
-    )
-
-    // Apply filter if provided
-    if (filter) {
-      events = events.filter(
-        (event) =>
-          event.type === filter ||
-          event.actorName.includes(filter) ||
-          JSON.stringify(event.payload).toLowerCase().includes(filter.toLowerCase())
-      )
-    }
-
-    // Paginate
-    const paginatedEvents = events.slice(0, limit)
 
     return HttpResponse.json({
-      data: paginatedEvents,
-      total: events.length,
-      limit,
+      data: pageEvents,
+      total,
+      page,
+      pageSize: limit,
     })
   }),
 
