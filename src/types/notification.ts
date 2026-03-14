@@ -63,11 +63,21 @@ export interface NotificationMetadata {
 }
 
 /**
- * API response structure for notifications endpoint
+ * API response structure for notifications endpoint (legacy offset-based)
  */
 export interface NotificationsResponse {
   data: Notification[]
   total: number
+  unreadCount: number
+}
+
+/**
+ * Cursor-based paginated response for infinite scroll
+ */
+export interface PaginatedNotificationsResponse {
+  items: Notification[]
+  nextCursor: string | null
+  hasMore: boolean
   unreadCount: number
 }
 
