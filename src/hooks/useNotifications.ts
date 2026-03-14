@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { Notification, NotificationCenter } from '../types/notification'
+import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
+import type { Notification, NotificationCenter, PaginatedNotificationsResponse } from '../types/notification'
 import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
@@ -39,17 +39,18 @@ interface MarkAsReadRequest {
 }
 
 /**
- * Fetch real-time notifications with polling and provide mutations for interaction
+ * Fetch real-time notifications with infinite scroll and provide mutations for interaction
  *
  * Features:
- * - Automatic polling every 30 seconds (configurable)
- * - Refetch on window focus for fresh data
+ * - Cursor-based pagination for unbounded notification lists
+ * - Automatic polling every 30 seconds on first page only (configurable)
+ * - Refetch on window focus for fresh data on first page
  * - Stale-while-revalidate strategy: 30s stale, 2min gc
- * - Caps notifications at 20 most recent entries
- * - Unread count computed from notification state
- * - Mark-as-read mutation with optimistic updates
+ * - Unread count computed from all loaded pages
+ * - Mark-as-read mutation with optimistic updates across all pages
  * - Support for filtering by unread status
  * - Exponential backoff retry logic
+ * - Expose fetchNextPage, hasNextPage, isFetchingNextPage for infinite scroll
  */
 export function useNotifications(options: UseNotificationsOptions = {}) {
   const {
@@ -60,11 +61,17 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
   const queryClient = useQueryClient()
 
-  // Query to fetch notifications with polling
-  const query = useQuery<NotificationCenter, Error>({
+  // Infinite query to fetch notifications with cursor-based pagination
+  const query = useInfiniteQuery<PaginatedNotificationsResponse, Error>({
     queryKey: ['notifications', { unreadOnly }],
-    queryFn: async () => {
+    queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams()
+      params.append('limit', '10')
+
+      if (pageParam) {
+        params.append('cursor', pageParam)
+      }
+
       if (unreadOnly) {
         params.append('unread', 'true')
       }
@@ -77,22 +84,21 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
         throw new Error(`Failed to fetch notifications: ${response.statusText}`)
       }
 
-      const data = (await response.json()) as NotificationCenter
-
-      // Cap notifications at 20 most recent entries
-      if (data.notifications.length > 20) {
-        data.notifications = data.notifications.slice(0, 20)
-      }
-
-      return data
+      return response.json() as Promise<PaginatedNotificationsResponse>
     },
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 2 * 60 * 1000, // 2 minutes (was cacheTime in v4)
-    refetchInterval, // Polling configuration
-    refetchOnWindowFocus, // Refetch when window regains focus
-    refetchOnReconnect: true, // Refetch when connection is restored
-    retry: 3, // Retry failed requests up to 3 times
-    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
+    refetchInterval: (query) => {
+      // Only poll first page for fresh notifications
+      const isFirstPage = !query.state.variables?.pageParam
+      return isFirstPage ? refetchInterval : false
+    },
+    refetchOnWindowFocus: 'stale',
+    refetchOnReconnect: 'stale',
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
 
   // Mutation for marking a notification as read
@@ -113,27 +119,33 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       // Cancel any pending requests for notifications
       await queryClient.cancelQueries({ queryKey: ['notifications'] })
 
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
+      // Snapshot previous data across all pages
+      const previousData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
+        { queryKey: ['notifications', { unreadOnly: false }] }
+      )
 
-      // Optimistically update notification cache
+      // Optimistically update notification cache across all pages
       if (previousData) {
         const updated = {
           ...previousData,
-          notifications: previousData.notifications.map((notif) =>
-            notif.id === id ? { ...notif, read: true } : notif
-          ),
-          unreadCount: Math.max(0, previousData.unreadCount - 1),
+          pages: previousData.pages.map((page) => ({
+            ...page,
+            items: page.items.map((notif) =>
+              notif.id === id ? { ...notif, read: true } : notif
+            ),
+          })),
         }
         queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: NotificationCenter) => {
-          if (!old) return old
+        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: any) => {
+          if (!old?.pages) return old
           return {
             ...old,
-            notifications: old.notifications.filter((notif) => notif.id !== id),
-            unreadCount: Math.max(0, old.unreadCount - 1),
+            pages: old.pages.map((page: PaginatedNotificationsResponse) => ({
+              ...page,
+              items: page.items.filter((notif: Notification) => notif.id !== id),
+            })),
           }
         })
       }
@@ -147,8 +159,11 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       }
     },
     onSuccess: () => {
-      // Invalidate to refetch fresh data after successful mutation
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      // Refetch first page to get updated unread count
+      queryClient.invalidateQueries({
+        queryKey: ['notifications'],
+        refetchType: 'active',
+      })
     },
   })
 
@@ -204,26 +219,37 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       // Cancel any pending requests for notifications
       await queryClient.cancelQueries({ queryKey: ['notifications'] })
 
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
+      // Snapshot previous data across all pages
+      const previousData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
+        { queryKey: ['notifications', { unreadOnly: false }] }
+      )
 
-      // Optimistically remove notification from cache
+      // Optimistically remove notification from cache across all pages
       if (previousData) {
-        const notification = previousData.notifications.find((n) => n.id === id)
         const updated = {
           ...previousData,
-          notifications: previousData.notifications.filter((n) => n.id !== id),
-          unreadCount: notification && !notification.read ? Math.max(0, previousData.unreadCount - 1) : previousData.unreadCount,
+          pages: previousData.pages.map((page) => {
+            const itemIndex = page.items.findIndex((n) => n.id === id)
+            if (itemIndex !== -1) {
+              return {
+                ...page,
+                items: page.items.filter((n) => n.id !== id),
+              }
+            }
+            return page
+          }),
         }
         queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: NotificationCenter) => {
-          if (!old) return old
+        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: any) => {
+          if (!old?.pages) return old
           return {
             ...old,
-            notifications: old.notifications.filter((n) => n.id !== id),
-            unreadCount: notification && !notification.read ? Math.max(0, old.unreadCount - 1) : old.unreadCount,
+            pages: old.pages.map((page: PaginatedNotificationsResponse) => ({
+              ...page,
+              items: page.items.filter((n: Notification) => n.id !== id),
+            })),
           }
         })
       }
@@ -237,8 +263,11 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       }
     },
     onSuccess: () => {
-      // Invalidate to refetch fresh data after successful mutation
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      // Refetch first page to get updated unread count
+      queryClient.invalidateQueries({
+        queryKey: ['notifications'],
+        refetchType: 'active',
+      })
     },
   })
 
@@ -260,15 +289,19 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       // Cancel any pending requests for notifications
       await queryClient.cancelQueries({ queryKey: ['notifications'] })
 
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<NotificationCenter>(['notifications', { unreadOnly: false }])
+      // Snapshot previous data across all pages
+      const previousData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
+        { queryKey: ['notifications', { unreadOnly: false }] }
+      )
 
-      // Optimistically remove all read notifications
+      // Optimistically remove all read notifications across all pages
       if (previousData) {
         const updated = {
           ...previousData,
-          notifications: previousData.notifications.filter((n) => !n.read),
-          total: previousData.notifications.filter((n) => !n.read).length,
+          pages: previousData.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((n) => !n.read),
+          })),
         }
         queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
       }
@@ -282,8 +315,11 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
       }
     },
     onSuccess: () => {
-      // Invalidate to refetch fresh data after successful mutation
-      queryClient.invalidateQueries({ queryKey: ['notifications'] })
+      // Refetch first page to get updated unread count
+      queryClient.invalidateQueries({
+        queryKey: ['notifications'],
+        refetchType: 'active',
+      })
     },
   })
 
@@ -301,14 +337,25 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     dismissAllReadMutation.mutate({})
   }
 
+  // Flatten all notifications from all pages
+  const allNotifications = query.data?.pages.flatMap((page) => page.items) ?? []
+
+  // Compute unread count from first page (all pages have same unreadCount)
+  const unreadCount = query.data?.pages[0]?.unreadCount ?? 0
+
   return {
     // Query state
     ...query,
 
-    // Computed values
-    notifications: query.data?.notifications ?? [],
-    unreadCount: query.data?.unreadCount ?? 0,
-    total: query.data?.total ?? 0,
+    // Computed values for backward compatibility
+    notifications: allNotifications,
+    unreadCount,
+    total: allNotifications.length,
+
+    // Infinite scroll methods
+    fetchNextPage: query.fetchNextPage,
+    hasNextPage: query.hasNextPage ?? false,
+    isFetchingNextPage: query.isFetchingNextPage,
 
     // Mutation state
     markAsReadLoading: markAsReadMutation.isLoading,
