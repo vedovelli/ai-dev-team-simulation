@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import type { SprintHealthData } from '../types/sprint'
+import { usePollingWithFocus } from './usePollingWithFocus'
 
 export interface SprintMetricsCalculated {
   totalTasks: number
@@ -88,6 +89,9 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
     refetchOnWindowFocus = true,
   } = options
 
+  // Use polling hook to pause polling when window is hidden
+  const polling = usePollingWithFocus({ interval: refetchInterval, enabled: !!sprintId })
+
   const query = useQuery<SprintHealthData, Error>({
     queryKey: ['sprints', sprintId, 'metrics'],
     queryFn: async () => {
@@ -100,7 +104,7 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
     enabled: !!sprintId,
     staleTime: 30 * 1000, // 30 seconds
     gcTime: 5 * 60 * 1000, // 5 minutes (was cacheTime in v4)
-    refetchInterval, // Polling configuration
+    ...polling, // Spread polling configuration (includes refetchInterval that pauses when unfocused)
     refetchOnWindowFocus, // Refetch when window regains focus
     refetchOnReconnect: true, // Refetch when connection is restored
     retry: 3, // Retry failed requests up to 3 times
