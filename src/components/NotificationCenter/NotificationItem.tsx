@@ -133,7 +133,7 @@ export function NotificationItem({
 
   return (
     <div
-      className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
+      className={`px-4 py-3 hover:bg-gray-50 transition-colors ${
         !notification.read ? 'bg-blue-50' : ''
       }`}
       role="menuitem"

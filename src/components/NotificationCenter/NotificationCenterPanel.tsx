@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect, useMemo } from 'react'
-import type { NotificationType } from '../../types/notification'
+import { useState, useRef, useEffect, useMemo, useCallback } from 'react'
+import type { NotificationType, Notification } from '../../types/notification'
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationBell } from './NotificationBell'
 import { NotificationList } from './NotificationList'
@@ -28,6 +28,7 @@ type TabType = 'all' | 'unread' | 'byType'
 export function NotificationCenterPanel() {
   const [isOpen, setIsOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<TabType>('all')
+  const [markAllError, setMarkAllError] = useState<string | null>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const bellRef = useRef<HTMLButtonElement>(null)
 
@@ -91,9 +92,12 @@ export function NotificationCenterPanel() {
 
   // Group notifications by type for "By Type" tab
   const groupedByType = useMemo(() => {
-    if (activeTab !== 'byType') return {}
+    if (activeTab !== 'byType') return {} as Record<NotificationType, Notification[]>
 
-    const groups: Record<NotificationType, typeof notifications> = {} as any
+    const groups: Record<NotificationType, Notification[]> = {} as Record<
+      NotificationType,
+      Notification[]
+    >
     filteredNotifications.forEach((notif) => {
       if (!groups[notif.type]) {
         groups[notif.type] = []
@@ -103,11 +107,12 @@ export function NotificationCenterPanel() {
     return groups
   }, [filteredNotifications, activeTab])
 
-  const handleMarkAsRead = (notificationId: string) => {
+  const handleMarkAsRead = useCallback((notificationId: string) => {
     markAsRead(notificationId)
-  }
+  }, [markAsRead])
 
-  const handleMarkAllAsRead = async () => {
+  const handleMarkAllAsRead = useCallback(async () => {
+    setMarkAllError(null)
     const unreadIds = filteredNotifications
       .filter((n) => !n.read)
       .map((n) => n.id)
@@ -115,10 +120,11 @@ export function NotificationCenterPanel() {
       try {
         await markMultipleAsRead(unreadIds)
       } catch (error) {
-        console.error('Failed to mark all as read:', error)
+        const errorMessage = error instanceof Error ? error.message : 'Failed to mark all as read'
+        setMarkAllError(errorMessage)
       }
     }
-  }
+  }, [filteredNotifications, markMultipleAsRead])
 
   return (
     <div className="relative" ref={dropdownRef}>
@@ -189,15 +195,22 @@ export function NotificationCenterPanel() {
             </div>
 
             {/* Mark All As Read Button */}
-            {unreadCount > 0 && (
-              <button
-                onClick={handleMarkAllAsRead}
-                className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                aria-label="Mark all as read"
-              >
-                Mark all as read
-              </button>
-            )}
+            <div className="space-y-2">
+              {unreadCount > 0 && (
+                <button
+                  onClick={handleMarkAllAsRead}
+                  className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  aria-label="Mark all as read"
+                >
+                  Mark all as read
+                </button>
+              )}
+              {markAllError && (
+                <div className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded">
+                  {markAllError}
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Content Area */}
@@ -258,24 +271,41 @@ export function NotificationCenterPanel() {
                         {typeNotifications.map((notification) => (
                           <div key={notification.id} role="listitem">
                             <div
-                              className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer ${
+                              className={`px-4 py-3 hover:bg-gray-50 transition-colors ${
                                 !notification.read ? 'bg-blue-50' : ''
                               }`}
                             >
                               <div className="flex gap-2 items-start">
-                                <span className="text-xs text-gray-500">
+                                <span className="text-xs text-gray-500 flex-shrink-0">
                                   {notification.timestamp
                                     ? new Date(notification.timestamp).toLocaleTimeString()
                                     : ''}
                                 </span>
-                                <button
-                                  onClick={() => handleMarkAsRead(notification.id)}
-                                  className="flex-1 text-left text-sm text-gray-800 hover:text-gray-900"
-                                >
+                                <span className="flex-1 text-sm text-gray-800">
                                   {notification.message}
-                                </button>
+                                </span>
                                 {!notification.read && (
-                                  <span className="w-2 h-2 bg-blue-600 rounded-full flex-shrink-0 mt-1" />
+                                  <button
+                                    onClick={() => handleMarkAsRead(notification.id)}
+                                    className="flex-shrink-0 p-1 text-blue-600 hover:text-blue-700 hover:bg-blue-100 rounded transition-colors"
+                                    aria-label="Mark as read"
+                                    title="Mark as read"
+                                  >
+                                    <svg
+                                      className="w-4 h-4"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                      aria-hidden="true"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M5 13l4 4L19 7"
+                                      />
+                                    </svg>
+                                  </button>
                                 )}
                               </div>
                             </div>
