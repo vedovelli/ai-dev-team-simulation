@@ -9,6 +9,7 @@ import type { Employee } from '../types/employee'
 import type { SprintTask } from '../types/sprint'
 import { optimisticUpdateHandlers } from './optimisticUpdateHandlers'
 import { formSubmissionHandlers } from './formSubmissionHandlers'
+import { latencyMiddleware } from './middleware/latency'
 import { metricsHandlers } from './handlers/metrics'
 import { bulkOperationHandlers } from './handlers/bulk-operations'
 import { agentCapacityHandlers } from './handlers/agentCapacity'
@@ -549,6 +550,9 @@ function generateAgentHistory(agentId: string): HistoryEntry[] {
   return entries
 }
 export const handlers = [
+  // Latency middleware: adds configurable delay to all /api/* responses
+  latencyMiddleware,
+
   http.get('/api/health', () => {
     return HttpResponse.json({ status: 'ok' })
   }),
