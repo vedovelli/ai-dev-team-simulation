@@ -63,7 +63,8 @@ export type { UseActivityFeedOptions } from './useActivityFeed'
 export { useTaskDependencies } from './queries/dependencies'
 export type { TaskDependenciesResponse } from './queries/dependencies'
 export { useDependencyMutations, detectCircularDependency } from './mutations/useDependencyMutations'
-export { useAgentAvailability, useAgentAvailabilityMultiple, detectConflicts } from './useAgentAvailability'
+export { useAgentAvailability } from './useAgentAvailability'
+export type { UseAgentAvailabilityOptions, UseAgentAvailabilityReturn } from './useAgentAvailability'
 export type {
   AgentAvailabilityData,
   AvailabilitySlot,

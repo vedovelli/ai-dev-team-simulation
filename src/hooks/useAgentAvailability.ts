@@ -1,222 +1,172 @@
-/**
- * Agent Availability Hook & Utilities
- *
- * Provides custom hooks for fetching and managing agent availability data,
- * including single-agent and multi-agent queries with conflict detection.
- */
-
-import { useQueries, useQuery } from '@tanstack/react-query'
-import type {
-  AgentAvailabilityData,
-  AvailabilitySlot,
-  BatchAvailabilityResponse,
-  ConflictEntry,
-  ConflictMap,
-  DateRange,
-} from '../types/agentAvailability'
-import type { Task } from '../types/task'
-
-const AVAILABILITY_STALE_TIME = 5 * 60 * 1000 // 5 minutes
-const AVAILABILITY_GC_TIME = 10 * 60 * 1000 // 10 minutes
+import { useQuery, useQueryClient } from '@tanstack/react-query'
+import type { AgentAvailabilityStatus } from '../types/agent'
+import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
- * Fetch availability data for a single agent
- *
- * Query key: ['agents', agentId, 'availability', { from, to }]
- *
- * @param agentId - The agent ID to fetch availability for
- * @param dateRange - Date range for availability query
- * @returns useQuery result with availability slots normalized by date
+ * Agent availability status information
  */
-export function useAgentAvailability(agentId: string, dateRange: DateRange) {
-  const queryKey = ['agents', agentId, 'availability', dateRange] as const
+export interface AgentAvailabilityInfo {
+  id: string
+  name: string
+  status: AgentAvailabilityStatus
+  lastSeen: string
+  currentTaskCount: number
+}
 
-  return useQuery<AgentAvailabilityData>({
-    queryKey,
+/**
+ * Response from GET /api/agents/status
+ */
+interface AgentStatusResponse {
+  agents: AgentAvailabilityInfo[]
+}
+
+/**
+ * Configuration options for useAgentAvailability hook
+ */
+export interface UseAgentAvailabilityOptions {
+  /** Refetch interval in milliseconds (default: 30000 = 30s) */
+  refetchInterval?: number
+  /** Enable automatic refetch on window focus (default: true) */
+  refetchOnWindowFocus?: boolean
+}
+
+/**
+ * Fetch real-time agent availability status with polling
+ *
+ * Features:
+ * - Automatic polling every 30 seconds (configurable)
+ * - Refetch on window focus for fresh data
+ * - Stale-while-revalidate strategy: 30s stale, 5min gc
+ * - Manual status toggle mutation for testing/demo
+ * - Exponential backoff retry logic
+ * - Full TypeScript type safety
+ */
+export function useAgentAvailability(options: UseAgentAvailabilityOptions = {}) {
+  const {
+    refetchInterval = 30 * 1000, // 30 seconds
+    refetchOnWindowFocus = true,
+  } = options
+
+  const queryClient = useQueryClient()
+
+  // Query to fetch agent availability status
+  const query = useQuery<AgentStatusResponse, Error>({
+    queryKey: ['agents', 'status'],
     queryFn: async () => {
-      const url = new URL(
-        `/api/agents/${agentId}/availability`,
-        window.location.origin
-      )
-      url.searchParams.set('from', dateRange.from)
-      url.searchParams.set('to', dateRange.to)
-
-      const response = await fetch(url.toString())
-      if (!response.ok) {
-        throw new Error(
-          `Failed to fetch availability for agent ${agentId}: ${response.statusText}`
-        )
-      }
-
-      const data = (await response.json()) as AvailabilitySlot[]
-
-      // Normalize availability slots by date for easier lookup
-      const availabilityByDate: Record<string, AvailabilitySlot> = {}
-      data.forEach((slot) => {
-        availabilityByDate[slot.date] = slot
+      const response = await fetch('/api/agents/status', {
+        headers: { 'Content-Type': 'application/json' },
       })
 
-      return {
-        agentId,
-        availabilityByDate,
+      if (!response.ok) {
+        throw new Error(`Failed to fetch agent availability: ${response.statusText}`)
+      }
+
+      return response.json() as Promise<AgentStatusResponse>
+    },
+    staleTime: 30 * 1000, // 30 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes (was cacheTime in v4)
+    refetchInterval,
+    refetchOnWindowFocus: refetchOnWindowFocus ? 'stale' : false,
+    refetchOnReconnect: 'stale',
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
+  })
+
+  // Mutation for manual status toggle
+  const toggleStatusMutation = useMutationWithRetry<AgentAvailabilityInfo, { status: AgentAvailabilityStatus }>({
+    mutationFn: async ({ status }) => {
+      const response = await fetch('/api/agents/status', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to update agent status: ${response.statusText}`)
+      }
+
+      return response.json() as Promise<AgentAvailabilityInfo>
+    },
+    onMutate: async ({ status }) => {
+      // Cancel any pending requests
+      await queryClient.cancelQueries({ queryKey: ['agents', 'status'] })
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<AgentStatusResponse>({
+        queryKey: ['agents', 'status'],
+      })
+
+      // Optimistically update the first agent (current user)
+      if (previousData && previousData.agents.length > 0) {
+        const updated = {
+          ...previousData,
+          agents: previousData.agents.map((agent, index) =>
+            index === 0 ? { ...agent, status } : agent
+          ),
+        }
+        queryClient.setQueryData(['agents', 'status'], updated)
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      // Revert optimistic updates on error
+      if (context?.previousData) {
+        queryClient.setQueryData(['agents', 'status'], context.previousData)
       }
     },
-    staleTime: AVAILABILITY_STALE_TIME,
-    gcTime: AVAILABILITY_GC_TIME,
-    retry: 3,
-    retryDelay: (attemptIndex) =>
-      Math.min(1000 * 2 ** attemptIndex, 30000), // Exponential backoff
-  })
-}
-
-/**
- * Fetch availability data for multiple agents in parallel
- *
- * Uses TanStack Query's useQueries for efficient parallel fetching.
- *
- * @param agentIds - Array of agent IDs to fetch availability for
- * @param dateRange - Date range for availability queries
- * @returns Array of useQuery results, one per agent
- */
-export function useAgentAvailabilityMultiple(
-  agentIds: string[],
-  dateRange: DateRange
-) {
-  return useQueries({
-    queries: agentIds.map((agentId) => ({
-      queryKey: ['agents', agentId, 'availability', dateRange] as const,
-      queryFn: async (): Promise<AgentAvailabilityData> => {
-        const url = new URL(
-          `/api/agents/${agentId}/availability`,
-          window.location.origin
-        )
-        url.searchParams.set('from', dateRange.from)
-        url.searchParams.set('to', dateRange.to)
-
-        const response = await fetch(url.toString())
-        if (!response.ok) {
-          throw new Error(
-            `Failed to fetch availability for agent ${agentId}: ${response.statusText}`
-          )
-        }
-
-        const data = (await response.json()) as AvailabilitySlot[]
-
-        // Normalize availability slots by date
-        const availabilityByDate: Record<string, AvailabilitySlot> = {}
-        data.forEach((slot) => {
-          availabilityByDate[slot.date] = slot
-        })
-
-        return {
-          agentId,
-          availabilityByDate,
-        }
-      },
-      staleTime: AVAILABILITY_STALE_TIME,
-      gcTime: AVAILABILITY_GC_TIME,
-      retry: 3,
-      retryDelay: (attemptIndex) =>
-        Math.min(1000 * 2 ** attemptIndex, 30000),
-    })),
-  })
-}
-
-/**
- * Detect conflicts between tasks and agent availability
- *
- * Identifies dates where agents have tasks assigned but are marked as unavailable,
- * or where task count exceeds reasonable capacity.
- *
- * @param tasks - Array of tasks with deadline information
- * @param availabilityData - Normalized availability data for agents
- * @returns ConflictMap with identified conflicts organized by agent and date
- */
-export function detectConflicts(
-  tasks: Task[],
-  availabilityData: AgentAvailabilityData[]
-): ConflictMap {
-  const conflicts: ConflictEntry[] = []
-  const conflictsByAgent: Record<string, ConflictEntry[]> = {}
-  const conflictsByDate: Record<string, ConflictEntry[]> = {}
-
-  // Build a map of availability data for quick lookup
-  const availabilityMap: Record<string, AgentAvailabilityData> = {}
-  availabilityData.forEach((data) => {
-    availabilityMap[data.agentId] = data
+    onSuccess: () => {
+      // Refetch to get latest data after successful mutation
+      queryClient.invalidateQueries({ queryKey: ['agents', 'status'] })
+    },
   })
 
-  // Check each task for conflicts
-  tasks.forEach((task) => {
-    const agentId = task.assignee
-    if (!agentId) return
+  /**
+   * Toggle current user's availability status
+   */
+  const toggleStatus = (status: AgentAvailabilityStatus) => {
+    toggleStatusMutation.mutate({ status })
+  }
 
-    const availability = availabilityMap[agentId]
-    if (!availability) return
+  /**
+   * Get agent by ID
+   */
+  const getAgent = (agentId: string): AgentAvailabilityInfo | undefined => {
+    return query.data?.agents.find((agent) => agent.id === agentId)
+  }
 
-    // Extract deadline date (YYYY-MM-DD format)
-    const deadline = task.deadline
-    if (!deadline) return
+  /**
+   * Get all agents with a specific status
+   */
+  const getAgentsByStatus = (status: AgentAvailabilityStatus): AgentAvailabilityInfo[] => {
+    return query.data?.agents.filter((agent) => agent.status === status) ?? []
+  }
 
-    const deadlineDate = deadline.split('T')[0] // Extract date part
-
-    const slot = availability.availabilityByDate[deadlineDate]
-    if (!slot) return
-
-    // Conflict if agent is unavailable on deadline
-    if (!slot.isAvailable) {
-      const conflict: ConflictEntry = {
-        taskId: task.id,
-        agentId,
-        date: deadlineDate,
-        reason: `Agent unavailable: ${slot.reason || 'scheduled off'}`,
-      }
-
-      conflicts.push(conflict)
-
-      // Index by agent
-      if (!conflictsByAgent[agentId]) {
-        conflictsByAgent[agentId] = []
-      }
-      conflictsByAgent[agentId].push(conflict)
-
-      // Index by date
-      if (!conflictsByDate[deadlineDate]) {
-        conflictsByDate[deadlineDate] = []
-      }
-      conflictsByDate[deadlineDate].push(conflict)
-    }
-
-    // Check if task count exceeds reasonable threshold (> 5 tasks per day)
-    if (slot.taskCount > 5) {
-      const conflict: ConflictEntry = {
-        taskId: task.id,
-        agentId,
-        date: deadlineDate,
-        reason: `Overbooked: ${slot.taskCount} tasks scheduled`,
-      }
-
-      // Only add if not already added for availability conflict
-      if (!conflicts.some((c) => c.taskId === task.id && c.agentId === agentId)) {
-        conflicts.push(conflict)
-
-        if (!conflictsByAgent[agentId]) {
-          conflictsByAgent[agentId] = []
-        }
-        conflictsByAgent[agentId].push(conflict)
-
-        if (!conflictsByDate[deadlineDate]) {
-          conflictsByDate[deadlineDate] = []
-        }
-        conflictsByDate[deadlineDate].push(conflict)
-      }
-    }
-  })
+  /**
+   * Check if agent is available (online or busy)
+   */
+  const isAvailable = (agentId: string): boolean => {
+    const agent = getAgent(agentId)
+    return agent ? agent.status !== 'offline' : false
+  }
 
   return {
-    hasConflicts: conflicts.length > 0,
-    conflicts,
-    conflictsByAgent,
-    conflictsByDate,
+    // Query state
+    ...query,
+
+    // Computed values
+    agents: query.data?.agents ?? [],
+
+    // Mutation state
+    toggleStatusLoading: toggleStatusMutation.isLoading,
+    toggleStatusError: toggleStatusMutation.error,
+
+    // Actions
+    toggleStatus,
+    getAgent,
+    getAgentsByStatus,
+    isAvailable,
   }
 }
+
+export type UseAgentAvailabilityReturn = ReturnType<typeof useAgentAvailability>
