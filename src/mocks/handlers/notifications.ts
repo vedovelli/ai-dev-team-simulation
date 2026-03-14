@@ -1,5 +1,5 @@
 import { http, HttpResponse } from 'msw'
-import type { Notification, NotificationEventType } from '../../types/notification'
+import type { Notification, NotificationEventType, PaginatedNotificationsResponse } from '../../types/notification'
 
 /**
  * Discriminated union type for structured notification messages
@@ -32,6 +32,28 @@ function getRelatedId(item: StructuredMessageItem): string {
  * Increments with each GET request to /api/notifications
  */
 let pollCount = 0
+
+/**
+ * Generate a cursor token from a notification index
+ * Format: base64-encoded "timestamp:id" for realistic cursor behavior
+ */
+function generateCursor(notif: Notification): string {
+  const token = `${notif.timestamp}:${notif.id}`
+  return Buffer.from(token).toString('base64')
+}
+
+/**
+ * Decode a cursor to extract timestamp:id for comparison
+ */
+function decodeCursor(cursor: string): { timestamp: string; id: string } | null {
+  try {
+    const token = Buffer.from(cursor, 'base64').toString('utf-8')
+    const [timestamp, id] = token.split(':')
+    return { timestamp, id }
+  } catch {
+    return null
+  }
+}
 
 /**
  * Generate richer, more realistic notification data with varied timestamps and event types.
@@ -302,29 +324,27 @@ const webSocketClients = new Set<string>()
 export const notificationHandlers = [
   /**
    * GET /api/notifications
-   * Fetch notifications with optional filtering by unread status and type
-   * Returns paginated results capped at 20 most recent entries
+   * Fetch notifications with cursor-based pagination for infinite scroll
+   * Returns paginated results with cursor tokens for fetching next page
    *
    * Supports:
+   * - Cursor-based pagination: ?cursor=<base64>&limit=10
+   * - First page: no cursor (or cursor=null)
    * - Filtering by ?unread=true
    * - Filtering by ?type=<event_type>
    * - Scenario query param: ?scenario=burst|empty|all-read|default
-   *   - burst: Multiple notifications arriving at once (stress test)
-   *   - empty: No notifications
-   *   - all-read: All notifications marked as read
-   *   - default: Mix of read/unread with varied timestamps
-   * - Pagination with ?pageIndex=0&pageSize=20
    *
-   * Simulates new notifications appearing between polls:
-   * On even poll counts, adds 1-2 new notifications (newest)
+   * Response: { items: Notification[], nextCursor: string | null, hasMore: boolean, unreadCount: number }
+   *
+   * Simulates new notifications appearing on first page between polls
    */
   http.get('/api/notifications', ({ request }) => {
     const url = new URL(request.url)
     const scenario = (url.searchParams.get('scenario') as 'default' | 'burst' | 'empty' | 'all-read') || 'default'
+    const cursor = url.searchParams.get('cursor')
+    const limit = Math.min(parseInt(url.searchParams.get('limit') || '10', 10), 100) // Cap at 100
     const unread = url.searchParams.get('unread')
     const type = url.searchParams.get('type')
-    const pageIndex = parseInt(url.searchParams.get('pageIndex') || '0', 10)
-    const pageSize = parseInt(url.searchParams.get('pageSize') || '20', 10)
 
     // Regenerate store if scenario changed
     if (scenario !== currentScenario) {
@@ -333,8 +353,8 @@ export const notificationHandlers = [
       pollCount = 0 // Reset poll counter for new scenario
     }
 
-    // Simulate new notifications appearing between polls (for 'default' and 'burst' scenarios)
-    if ((currentScenario === 'default' || currentScenario === 'burst') && pollCount % 3 === 2) {
+    // Simulate new notifications appearing between polls (first page only)
+    if (!cursor && (currentScenario === 'default' || currentScenario === 'burst') && pollCount % 3 === 2) {
       const newNotificationCount = Math.random() > 0.5 ? 1 : 2
       const agents = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry']
       const eventTypes: NotificationEventType[] = ['assignment_changed', 'task_reassigned', 'deadline_approaching', 'sprint_updated']
@@ -406,14 +426,12 @@ export const notificationHandlers = [
           notificationsStore.unshift(newNotif)
         }
       }
-
-      // Enforce max 20 notifications cap
-      if (notificationsStore.length > 20) {
-        notificationsStore = notificationsStore.slice(0, 20)
-      }
     }
 
-    pollCount++
+    // Only increment pollCount on first page (for new notifications simulation)
+    if (!cursor) {
+      pollCount++
+    }
 
     let filtered = [...notificationsStore]
 
@@ -433,19 +451,35 @@ export const notificationHandlers = [
     // Count unread from all notifications
     const unreadCount = notificationsStore.filter((n) => !n.read).length
 
-    // Cap at 20 most recent entries
-    const capped = filtered.slice(0, 20)
+    // Find start position based on cursor
+    let startIndex = 0
+    if (cursor) {
+      const decoded = decodeCursor(cursor)
+      if (decoded) {
+        // Find the index of the cursor notification
+        const cursorIndex = filtered.findIndex(
+          (n) => n.timestamp === decoded.timestamp && n.id === decoded.id
+        )
+        // Start after the cursor notification
+        startIndex = cursorIndex !== -1 ? cursorIndex + 1 : 0
+      }
+    }
 
-    // Apply pagination
-    const start = pageIndex * pageSize
-    const end = start + pageSize
-    const paginated = capped.slice(start, end)
+    // Get page of notifications
+    const items = filtered.slice(startIndex, startIndex + limit)
+
+    // Determine if there are more notifications
+    const hasMore = startIndex + limit < filtered.length
+
+    // Generate next cursor from last item if there are more
+    const nextCursor = hasMore && items.length > 0 ? generateCursor(items[items.length - 1]) : null
 
     return HttpResponse.json({
-      notifications: paginated,
+      items,
+      nextCursor,
+      hasMore,
       unreadCount,
-      total: capped.length,
-    })
+    } as PaginatedNotificationsResponse)
   }),
 
   /**
