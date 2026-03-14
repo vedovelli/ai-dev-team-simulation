@@ -11,8 +11,9 @@ import type { NotificationType } from '../../types/notification'
  * to provide real-time visual feedback.
  *
  * Features:
+ * - Only shows first high-priority (deadline_approaching) notification
+ * - Toast suppressed if notification center is open
  * - Auto-dismiss after 5s (default, configurable)
- * - Max 3 visible toasts at once
  * - Dismissible with close button
  * - Success, info, warning, error variants mapped from notification types
  * - Accessible: ARIA live region, role="alert"
@@ -22,19 +23,26 @@ export function ToastContainer() {
     Set<string>
   >(new Set())
   const [dismissedToasts, setDismissedToasts] = useState<Set<string>>(new Set())
+  const [firstDeadlineNotificationShown, setFirstDeadlineNotificationShown] = useState(false)
 
   const { notifications } = useNotifications({
     refetchInterval: 30 * 1000,
   })
 
-  // Track which notifications have been shown as toasts
+  // Only show the first high-priority deadline_approaching notification
+  // Track which deadline notifications have been shown as toasts
   const notificationsToShow = notifications
     .filter((notif) => {
+      // Only show deadline_approaching notifications
+      if (notif.type !== 'deadline_approaching') {
+        return false
+      }
+
       const isNew = !displayedNotificationIds.has(notif.id)
       const isDismissed = dismissedToasts.has(notif.id)
       return isNew && !isDismissed && !notif.read
     })
-    .slice(0, 3) // Max 3 visible toasts
+    .slice(0, 1) // Only show first high-priority notification
 
   // Update displayed notifications
   useEffect(() => {
