@@ -60,7 +60,11 @@ export const queryKeys = {
   activity: {
     all: ['activity'] as const,
     feeds: () => [...queryKeys.activity.all, 'feeds'] as const,
-    feed: (entityType?: string, entityId?: string) =>
-      [...queryKeys.activity.feeds(), { entityType, entityId }] as const,
+    feed: (
+      entityType?: string,
+      entityId?: string,
+      pagination?: { page?: number; timeRange?: string; eventType?: string }
+    ) =>
+      [...queryKeys.activity.feeds(), { entityType, entityId, ...pagination }] as const,
   },
 } as const
