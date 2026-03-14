@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationItem } from './NotificationItem'
 
@@ -20,15 +20,18 @@ export interface NotificationCenterModalProps {
  * - Relative timestamps
  *
  * Features:
- * - Keyboard accessible (Escape to close)
+ * - Keyboard accessible (Escape to close, arrow keys to navigate)
+ * - Focus trap when modal is open
  * - Optimistic UI updates via useNotifications mutations
  * - Loading skeleton while fetching
  * - Empty state when no notifications
  */
 export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterModalProps) {
-  const [filterUnread, setFilterUnread] = useRef(false)
+  const [filterUnread, setFilterUnread] = useState(false)
+  const [focusedIndex, setFocusedIndex] = useState(-1)
   const panelRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const notificationRefs = useRef<(HTMLDivElement | null)[]>([])
 
   const {
     notifications,
@@ -42,11 +45,51 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
     refetchInterval: 30 * 1000,
   })
 
-  // Handle Escape key to close
+  // Handle keyboard navigation (Escape, Arrow Up/Down)
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && isOpen) {
-        onClose()
+      if (!isOpen) return
+
+      switch (event.key) {
+        case 'Escape':
+          event.preventDefault()
+          onClose()
+          break
+        case 'ArrowDown':
+          event.preventDefault()
+          setFocusedIndex((prev) => {
+            const nextIndex = prev + 1
+            return nextIndex < notificationRefs.current.length ? nextIndex : prev
+          })
+          break
+        case 'ArrowUp':
+          event.preventDefault()
+          setFocusedIndex((prev) => (prev > 0 ? prev - 1 : -1))
+          break
+        case 'Tab':
+          // Implement focus trap for modal
+          const focusableElements = panelRef.current?.querySelectorAll(
+            'button, [role="menuitem"]'
+          ) as NodeListOf<HTMLElement>
+          if (!focusableElements || focusableElements.length === 0) return
+
+          const firstElement = focusableElements[0]
+          const lastElement = focusableElements[focusableElements.length - 1]
+
+          if (event.shiftKey) {
+            // Shift + Tab
+            if (document.activeElement === firstElement) {
+              event.preventDefault()
+              lastElement.focus()
+            }
+          } else {
+            // Tab
+            if (document.activeElement === lastElement) {
+              event.preventDefault()
+              firstElement.focus()
+            }
+          }
+          break
       }
     }
 
@@ -60,8 +103,16 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
   useEffect(() => {
     if (isOpen && closeButtonRef.current) {
       closeButtonRef.current.focus()
+      setFocusedIndex(-1)
     }
   }, [isOpen])
+
+  // Focus on notification item when arrow key navigates
+  useEffect(() => {
+    if (focusedIndex >= 0 && notificationRefs.current[focusedIndex]) {
+      notificationRefs.current[focusedIndex]?.focus()
+    }
+  }, [focusedIndex])
 
   const handleMarkAsRead = (notificationId: string) => {
     markAsRead(notificationId)
@@ -98,7 +149,7 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
   }
 
   // Filter notifications based on filter state
-  const displayedNotifications = filterUnread.current
+  const displayedNotifications = filterUnread
     ? notifications.filter((n) => !n.read)
     : notifications
 
@@ -172,11 +223,9 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
           {/* Filter Toggle */}
           <div className="flex gap-2">
             <button
-              onClick={() => {
-                filterUnread.current = false
-              }}
+              onClick={() => setFilterUnread(false)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                !filterUnread.current
+                !filterUnread
                   ? 'bg-blue-100 text-blue-700'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -184,11 +233,9 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
               All
             </button>
             <button
-              onClick={() => {
-                filterUnread.current = true
-              }}
+              onClick={() => setFilterUnread(true)}
               className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                filterUnread.current
+                filterUnread
                   ? 'bg-blue-100 text-blue-700'
                   : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
               }`}
@@ -245,7 +292,7 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
                 />
               </svg>
               <p className="text-sm font-medium text-gray-900">
-                {filterUnread.current ? 'No unread notifications' : 'No notifications yet'}
+                {filterUnread ? 'No unread notifications' : 'No notifications yet'}
               </p>
               <p className="text-xs text-gray-500 mt-1">You're all caught up!</p>
             </div>
@@ -253,8 +300,16 @@ export function NotificationCenterModal({ isOpen, onClose }: NotificationCenterM
 
           {!isLoading && !error && displayedNotifications.length > 0 && (
             <div className="divide-y divide-gray-200">
-              {displayedNotifications.map((notification) => (
-                <div key={notification.id} className="relative">
+              {displayedNotifications.map((notification, index) => (
+                <div
+                  key={notification.id}
+                  ref={(el) => {
+                    notificationRefs.current[index] = el
+                  }}
+                  className="relative outline-none focus-within:bg-blue-50 transition-colors"
+                  tabIndex={-1}
+                  role="menuitem"
+                >
                   <NotificationItem
                     notification={notification}
                     onMarkAsRead={handleMarkAsRead}
