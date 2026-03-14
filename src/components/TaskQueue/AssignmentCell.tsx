@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import { useAgentAvailability } from '../../hooks/useAgentAvailability'
 import type { Agent } from '../../types/agent'
 import type { Task } from '../../types/task'
 
@@ -24,6 +25,7 @@ export function AssignmentCell({
   isLoading = false,
 }: AssignmentCellProps) {
   const [error, setError] = useState<string | null>(null)
+  const { getAgent, isAvailable } = useAgentAvailability()
   const currentAgent = agents.find((a) => a.id === task.assignee)
 
   const handleAssign = async (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -50,11 +52,23 @@ export function AssignmentCell({
           autoFocus
         >
           <option value="">Select agent...</option>
-          {agents.map((agent) => (
-            <option key={agent.id} value={agent.id}>
-              {agent.name} ({agent.role})
-            </option>
-          ))}
+          {agents.map((agent) => {
+            const availability = getAgent(agent.id)
+            const isAgentAvailable = isAvailable(agent.id)
+            const statusLabel = availability ? ` (${availability.status})` : ''
+
+            return (
+              <option
+                key={agent.id}
+                value={agent.id}
+                disabled={!isAgentAvailable}
+                title={!isAgentAvailable ? `Agent is ${availability?.status || 'unavailable'}` : ''}
+                className={!isAgentAvailable ? 'opacity-50' : ''}
+              >
+                {agent.name} ({agent.role}){statusLabel}
+              </option>
+            )
+          })}
         </select>
         {error && <div className="text-xs text-red-400">{error}</div>}
       </div>
