@@ -12,6 +12,7 @@ import { formSubmissionHandlers } from './formSubmissionHandlers'
 import { metricsHandlers } from './handlers/metrics'
 import { bulkOperationHandlers } from './handlers/bulk-operations'
 import { agentCapacityHandlers } from './handlers/agentCapacity'
+import { agentCapacityV1Handlers } from './handlers/agent-capacity-v1'
 import { agentAvailabilityHandlers } from './handlers/agentAvailability'
 import { taskQueueHandlers } from './handlers/taskQueue'
 import { taskHandlers } from './handlers/tasks'
@@ -2567,6 +2568,7 @@ export const paginatedHandlers = [
   ...metricsHandlers,
   ...bulkOperationHandlers,
   ...agentCapacityHandlers,
+  ...agentCapacityV1Handlers,
   ...agentAvailabilityHandlers,
   ...taskQueueHandlers,
   ...taskHandlers,
