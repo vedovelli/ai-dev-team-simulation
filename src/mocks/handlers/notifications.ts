@@ -65,11 +65,85 @@ function decodeCursor(cursor: string): { timestamp: string; id: string } | null 
  * - burst: Multiple notifications arriving at once (for toast queue stress testing)
  * - empty: No notifications
  * - all-read: All notifications marked as read (for empty state testing)
+ * - large: 100+ notifications for virtual scrolling performance testing
  */
-function generateMockNotifications(scenario: 'default' | 'burst' | 'empty' | 'all-read' = 'default'): Notification[] {
+function generateMockNotifications(scenario: 'default' | 'burst' | 'empty' | 'all-read' | 'large' = 'default'): Notification[] {
   // Return empty list for 'empty' scenario
   if (scenario === 'empty') {
     return []
+  }
+
+  // Generate 100+ notifications for virtual scrolling performance testing
+  if (scenario === 'large') {
+    const largeNotifications: Notification[] = []
+    const agents = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry', 'Ivan', 'Julia']
+    const tasks = [
+      'Implement authentication',
+      'Database optimization',
+      'API refactoring',
+      'User profile',
+      'Payment integration',
+      'Search functionality',
+      'Email notifications',
+      'File upload',
+      'Analytics dashboard',
+      'Real-time sync',
+    ]
+    const sprints = ['Sprint 4', 'Sprint 5', 'Sprint 6', 'Sprint 7', 'Sprint 8']
+    const eventTypes: NotificationEventType[] = ['assignment_changed', 'sprint_updated', 'task_reassigned', 'deadline_approaching']
+
+    const now = new Date()
+
+    // Generate 150 notifications with varied timestamps
+    for (let i = 0; i < 150; i++) {
+      const eventType = eventTypes[Math.floor(Math.random() * eventTypes.length)]
+      const agent = agents[Math.floor(Math.random() * agents.length)]
+      const task = tasks[Math.floor(Math.random() * tasks.length)]
+      const sprint = sprints[Math.floor(Math.random() * sprints.length)]
+      const minutesAgo = i * Math.floor(Math.random() * 10) + Math.floor(Math.random() * 60)
+      const timestamp = new Date(now.getTime() - minutesAgo * 60 * 1000).toISOString()
+      const isRead = i > 10 || Math.random() > 0.3 // First 10 are unread, then 30% unread
+
+      let message = ''
+      let relatedId = ''
+
+      switch (eventType) {
+        case 'assignment_changed':
+          message = `Task "${task}" assigned to ${agent}`
+          relatedId = `agent-${i % 10}`
+          break
+        case 'sprint_updated':
+          message = `${sprint} checkpoint: ${Math.floor(Math.random() * 50) + 10} points completed`
+          relatedId = `sprint-${i % 5}`
+          break
+        case 'task_reassigned':
+          message = `Task "${task}" reassigned to ${agent}`
+          relatedId = `task-${i}`
+          break
+        case 'deadline_approaching':
+          message = `Deadline approaching: "${task}" due ${Math.random() > 0.5 ? 'in 1 hour' : 'tomorrow'}`
+          relatedId = `task-${i}`
+          break
+      }
+
+      largeNotifications.push({
+        id: `notif-large-${i}`,
+        type: eventType,
+        eventType,
+        message,
+        timestamp,
+        read: isRead,
+        priority: eventType === 'deadline_approaching' ? 'high' : 'normal',
+        relatedId,
+        metadata: {
+          eventType,
+          source: 'system',
+          priority: eventType === 'deadline_approaching' ? 'high' : 'normal',
+        },
+      })
+    }
+
+    return largeNotifications
   }
 
   const agents = ['Alice', 'Bob', 'Charlie', 'Diana', 'Eve', 'Frank', 'Grace', 'Henry']
@@ -313,7 +387,7 @@ function generateMockNotifications(scenario: 'default' | 'burst' | 'empty' | 'al
 
 // In-memory store for notifications with scenario state
 let notificationsStore: Notification[] = generateMockNotifications('default')
-let currentScenario: 'default' | 'burst' | 'empty' | 'all-read' = 'default'
+let currentScenario: 'default' | 'burst' | 'empty' | 'all-read' | 'large' = 'default'
 
 /**
  * WebSocket clients store - simulates connected WebSocket clients
@@ -340,7 +414,7 @@ export const notificationHandlers = [
    */
   http.get('/api/notifications', ({ request }) => {
     const url = new URL(request.url)
-    const scenario = (url.searchParams.get('scenario') as 'default' | 'burst' | 'empty' | 'all-read') || 'default'
+    const scenario = (url.searchParams.get('scenario') as 'default' | 'burst' | 'empty' | 'all-read' | 'large') || 'default'
     const cursor = url.searchParams.get('cursor')
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '10', 10), 100) // Cap at 100
     const unread = url.searchParams.get('unread')
@@ -425,6 +499,12 @@ export const notificationHandlers = [
           // Add to beginning so it appears as most recent
           notificationsStore.unshift(newNotif)
         }
+      }
+
+      // Enforce max 20 notifications cap for default scenarios, allow more for 'large' scenario
+      const maxNotifications = scenario === 'large' ? 150 : 20
+      if (notificationsStore.length > maxNotifications) {
+        notificationsStore = notificationsStore.slice(0, maxNotifications)
       }
     }
 
