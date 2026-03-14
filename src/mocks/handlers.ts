@@ -14,6 +14,7 @@ import { bulkOperationHandlers } from './handlers/bulk-operations'
 import { agentCapacityHandlers } from './handlers/agentCapacity'
 import { agentCapacityV1Handlers } from './handlers/agent-capacity-v1'
 import { agentAvailabilityHandlers } from './handlers/agentAvailability'
+import { agentAvailabilityStatusHandlers } from './handlers/agent-availability'
 import { taskQueueHandlers } from './handlers/taskQueue'
 import { taskHandlers } from './handlers/tasks'
 import { sprintHandlers } from './handlers/sprints'
@@ -2583,6 +2584,7 @@ export const paginatedHandlers = [
   ...notificationHandlers,
   ...taskExecutionHandlers,
   ...agentPresenceHandlers,
+  ...agentAvailabilityStatusHandlers,
   ...workloadHandlers,
   ...activityHandlers,
   ...agentAnalyticsHandlers,

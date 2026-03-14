@@ -1,6 +1,6 @@
 export type AgentRole = 'sr-dev' | 'junior' | 'pm'
 export type AgentStatus = 'idle' | 'working' | 'blocked' | 'completed'
-export type AgentAvailabilityStatus = 'idle' | 'active' | 'busy' | 'offline'
+export type AgentAvailabilityStatus = 'online' | 'busy' | 'offline'
 export type AgentTaskStatus = 'active' | 'idle' | 'busy' | 'offline'
 export type TaskHistoryStatus = 'completed' | 'failed' | 'cancelled'
 export type AgentPresenceStatus = 'online' | 'away' | 'offline' | 'busy'

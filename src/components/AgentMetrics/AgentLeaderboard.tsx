@@ -1,5 +1,7 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useTable } from '../../hooks/useTable'
+import { useAgentAvailability } from '../../hooks/useAgentAvailability'
+import { AgentStatusBadge } from '../AgentStatusBadge/AgentStatusBadge'
 import type { AgentMetrics } from '../../types/metrics'
 
 interface AgentLeaderboardProps {
@@ -16,6 +18,7 @@ export function AgentLeaderboard({
   onRowClick,
 }: AgentLeaderboardProps) {
   const navigate = useNavigate()
+  const { agents: availabilityData } = useAgentAvailability()
   const { sortedAndFilteredData, sortKey, sortOrder, filterValue, handleSort, handleFilter } =
     useTable<AgentMetrics>({
       data: metrics,
@@ -32,13 +35,14 @@ export function AgentLeaderboard({
   }
 
   const columns: {
-    key: keyof AgentMetrics
+    key: keyof AgentMetrics | 'availability'
     label: string
     sortable: boolean
     format?: (value: any) => string
   }[] = [
     { key: 'agentName', label: 'Agent Name', sortable: true },
     { key: 'agentRole', label: 'Role', sortable: true },
+    { key: 'availability', label: 'Status', sortable: false },
     {
       key: 'completedTasks',
       label: 'Tasks Completed',
@@ -137,6 +141,16 @@ export function AgentLeaderboard({
                   {index + 1}. {metric.agentName}
                 </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{metric.agentRole}</td>
+                <td className="px-6 py-4 text-sm">
+                  {(() => {
+                    const agent = availabilityData.find((a) => a.id === metric.agentId)
+                    return agent ? (
+                      <AgentStatusBadge status={agent.status} />
+                    ) : (
+                      <span className="text-slate-400 text-xs">—</span>
+                    )
+                  })()}
+                </td>
                 <td className="px-6 py-4 text-sm text-slate-600">{metric.completedTasks}</td>
                 <td className="px-6 py-4 text-sm">
                   <span
