@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Bell } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationCenterModal } from '../NotificationCenter/NotificationCenterModal'
@@ -10,6 +10,7 @@ import { NotificationCenterModal } from '../NotificationCenter/NotificationCente
  *
  * Features:
  * - Bell icon with unread count badge (hidden when 0)
+ * - Pulse animation on badge (stops when modal opens, resets on new unread)
  * - Badge turns red for high-priority notifications
  * - Accessible: `aria-label` with unread count, keyboard operable
  * - Clicking opens the NotificationCenterModal
@@ -18,10 +19,27 @@ import { NotificationCenterModal } from '../NotificationCenter/NotificationCente
 export function NotificationBell() {
   const { unreadCount } = useNotifications()
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [shouldPulse, setShouldPulse] = useState(unreadCount > 0)
+  const [previousUnreadCount, setPreviousUnreadCount] = useState(unreadCount)
 
   // Check if there are high-priority/urgent notifications
   const { notifications } = useNotifications()
   const hasUrgentNotifications = notifications.some((n) => n.priority === 'high')
+
+  // Stop pulse when modal opens
+  useEffect(() => {
+    if (isModalOpen) {
+      setShouldPulse(false)
+    }
+  }, [isModalOpen])
+
+  // Reset pulse when new unread notification arrives
+  useEffect(() => {
+    if (unreadCount > previousUnreadCount && !isModalOpen) {
+      setShouldPulse(true)
+    }
+    setPreviousUnreadCount(unreadCount)
+  }, [unreadCount, previousUnreadCount, isModalOpen])
 
   const badgeLabel = unreadCount > 9 ? '9+' : String(unreadCount)
   const ariaLabel = `Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`
@@ -43,7 +61,7 @@ export function NotificationBell() {
           <span
             className={`absolute top-0 right-0 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white rounded-full ${
               hasUrgentNotifications ? 'bg-red-500' : 'bg-red-500'
-            }`}
+            } ${shouldPulse ? 'animate-pulse-badge' : ''}`}
             aria-label={`${unreadCount} unread notification${unreadCount !== 1 ? 's' : ''}`}
           >
             {badgeLabel}
