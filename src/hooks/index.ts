@@ -30,6 +30,8 @@ export { useNotifications, useDismissNotification, useDismissAllNotifications } 
 export type { UseNotificationsOptions, UseNotificationsReturn } from './useNotifications'
 export { useNotificationCenter } from './useNotificationCenter'
 export type { UseNotificationCenterOptions, UseNotificationCenterReturn } from './useNotificationCenter'
+export { useNotificationCenterDisplay } from './useNotificationCenterDisplay'
+export type { UseNotificationCenterDisplayOptions, UseNotificationCenterDisplayReturn } from './useNotificationCenterDisplay'
 export { useNotificationPreferences } from './useNotificationPreferences'
 export type { UseNotificationPreferencesOptions, UseNotificationPreferencesReturn } from './useNotificationPreferences'
 export { useAgentPerformance } from './useAgentPerformance'
