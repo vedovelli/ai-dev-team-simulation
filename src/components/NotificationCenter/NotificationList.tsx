@@ -1,4 +1,5 @@
-import type { Notification, NotificationType } from '../../types/notification'
+import { CheckCircle } from 'lucide-react'
+import type { Notification } from '../../types/notification'
 import { NotificationItem } from './NotificationItem'
 
 interface NotificationListProps {
@@ -13,12 +14,13 @@ interface NotificationListProps {
 /**
  * NotificationList Component
  *
- * Renders a list of notifications with:
+ * Renders a scrollable list of notifications with:
  * - Loading skeleton while fetching data
  * - Error state with message
- * - Empty state with custom message
+ * - Empty state when no notifications
  * - NotificationItem components for each notification
- * - Accessible markup with proper ARIA roles
+ * - Proper ARIA roles and semantics (role="list")
+ * - Max height with overflow scrolling
  */
 export function NotificationList({
   notifications,
@@ -26,35 +28,37 @@ export function NotificationList({
   error,
   onMarkAsRead,
   onDismiss,
-  emptyMessage = 'You have no notifications',
+  emptyMessage = "You're all caught up!",
 }: NotificationListProps) {
-  if (isLoading) {
+  if (isLoading && notifications.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto" aria-live="polite" aria-busy="true">
-        <div className="space-y-2 p-2">
-          {/* Loading skeleton - 3 items */}
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="px-4 py-3 animate-pulse">
-              <div className="flex gap-3">
-                <div className="w-5 h-5 bg-gray-200 rounded-full flex-shrink-0" />
-                <div className="flex-1">
-                  <div className="h-4 bg-gray-200 rounded w-24 mb-2" />
-                  <div className="h-3 bg-gray-200 rounded w-full mb-1" />
-                  <div className="h-2 bg-gray-200 rounded w-20" />
-                </div>
+      <div
+        className="flex-1 overflow-y-auto divide-y divide-slate-200"
+        aria-live="polite"
+        aria-busy="true"
+      >
+        {/* Loading skeleton - 3 items */}
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="px-4 py-3 animate-pulse">
+            <div className="flex gap-3">
+              <div className="w-6 h-6 bg-slate-200 rounded flex-shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 bg-slate-200 rounded w-3/4" />
+                <div className="h-3 bg-slate-200 rounded w-1/2" />
               </div>
             </div>
-          ))}
-        </div>
+          </div>
+        ))}
       </div>
     )
   }
 
-  if (error) {
+  if (error && notifications.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="px-4 py-3 text-sm text-red-600 bg-red-50 rounded">
-          Failed to load notifications. Please try again.
+      <div className="flex-1 overflow-y-auto flex items-center justify-center p-4">
+        <div className="text-center">
+          <p className="text-sm text-red-600 font-medium">Failed to load notifications</p>
+          <p className="text-xs text-red-500 mt-1">Please try again later</p>
         </div>
       </div>
     )
@@ -62,41 +66,32 @@ export function NotificationList({
 
   if (notifications.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto">
-        <div className="flex flex-col items-center justify-center h-40 text-gray-500">
-          <svg
-            className="w-12 h-12 text-gray-300 mb-2"
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
-            aria-hidden="true"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={1.5}
-              d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-            />
-          </svg>
-          <p className="text-sm">{emptyMessage}</p>
+      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6">
+        <div className="flex justify-center mb-3">
+          <div className="p-2 bg-slate-100 rounded-full">
+            <CheckCircle className="w-6 h-6 text-slate-400" />
+          </div>
         </div>
+        <h3 className="text-sm font-medium text-slate-900 mb-1">All caught up!</h3>
+        <p className="text-xs text-slate-500 text-center">{emptyMessage}</p>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="divide-y divide-gray-200" role="list">
-        {notifications.map((notification) => (
-          <div key={notification.id} role="listitem">
-            <NotificationItem
-              notification={notification}
-              onMarkAsRead={onMarkAsRead}
-              onDismiss={onDismiss}
-            />
-          </div>
-        ))}
-      </div>
+    <div
+      className="flex-1 overflow-y-auto divide-y divide-slate-200"
+      role="list"
+      aria-label="Notifications list"
+    >
+      {notifications.map((notification) => (
+        <NotificationItem
+          key={notification.id}
+          notification={notification}
+          onMarkAsRead={onMarkAsRead}
+          onDismiss={onDismiss}
+        />
+      ))}
     </div>
   )
 }
