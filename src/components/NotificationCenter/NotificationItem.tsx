@@ -4,7 +4,7 @@ import { getRelativeTime } from '../../lib/utils'
 interface NotificationItemProps {
   notification: Notification
   onMarkAsRead: (id: string) => void
-  onDismiss: (id: string) => void
+  onDismiss?: (id: string) => void
 }
 
 function getEventIcon(type: Notification['type']): React.ReactNode {
@@ -129,23 +129,25 @@ export function NotificationItem({
             <p className="text-sm text-slate-200 leading-snug">{notification.message}</p>
 
             {/* Dismiss Button */}
-            <button
-              onClick={(e) => {
-                e.stopPropagation()
-                onDismiss(notification.id)
-              }}
-              className="flex-shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
-              aria-label={`Dismiss notification: ${notification.message}`}
-            >
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+            {onDismiss && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onDismiss(notification.id)
+                }}
+                className="flex-shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+                aria-label={`Dismiss notification: ${notification.message}`}
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            )}
           </div>
 
           {/* Timestamp and Read Indicator */}

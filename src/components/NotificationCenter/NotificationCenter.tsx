@@ -1,29 +1,38 @@
 'use client'
 
-import React, { useCallback, useMemo } from 'react'
+import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react'
 import { AlertCircle, X, Check, RefreshCw } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
+import { NotificationBadge } from './NotificationBadge'
+import { NotificationList } from './NotificationList'
 
 interface NotificationCenterProps {
-  isOpen?: boolean
-  onClose?: () => void
+  /** Container className for positioning */
+  className?: string
 }
 
 /**
  * NotificationCenter component
  *
- * Displays real-time notifications fetched via useNotifications() hook.
- * Features:
- * - Loading state with skeleton items
- * - Error state with retry button
- * - Empty state when no notifications
- * - Mark all as read / Clear all actions
- * - Unread count badge in header
- * - Responsive layout
+ * Main container for notification dropdown/panel UI.
+ * Manages the bell icon, unread count badge, and dropdown panel state.
  *
- * Can be used as a standalone component or as a modal/dropdown when isOpen and onClose are provided.
+ * Features:
+ * - Bell icon with unread count badge
+ * - Dropdown panel opens on click (toggle behavior)
+ * - Closes on Escape key and outside click
+ * - Scrollable notification list with max-height
+ * - Mark all as read button
+ * - Individual notification mark-as-read and dismiss
+ * - Empty and loading states
+ * - Keyboard navigation with focus trap
+ * - Accessible with ARIA attributes
  */
-export function NotificationCenter({ isOpen = true, onClose }: NotificationCenterProps = {}) {
+export function NotificationCenter({ className = '' }: NotificationCenterProps = {}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const containerRef = useRef<HTMLDivElement>(null)
+  const panelRef = useRef<HTMLDivElement>(null)
+
   const {
     notifications,
     unreadCount,
@@ -34,13 +43,74 @@ export function NotificationCenter({ isOpen = true, onClose }: NotificationCente
     markAsRead,
     markMultipleAsRead,
     dismissNotification,
-    dismissAllReadNotifications,
   } = useNotifications()
 
-  // Return null if modal mode and not open
-  if (!isOpen) {
-    return null
-  }
+  // Toggle dropdown open/close
+  const toggleOpen = useCallback(() => {
+    setIsOpen((prev) => !prev)
+  }, [])
+
+  // Close dropdown
+  const handleClose = useCallback(() => {
+    setIsOpen(false)
+  }, [])
+
+  // Close on outside click
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        handleClose()
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [isOpen, handleClose])
+
+  // Close on Escape key and focus trap
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Close on Escape
+      if (e.key === 'Escape') {
+        handleClose()
+        return
+      }
+
+      // Focus trap: cycle through focusable elements within panel
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusableElements = panelRef.current.querySelectorAll(
+          'button, a, [tabindex]:not([tabindex="-1"])'
+        )
+        const focusArray = Array.from(focusableElements) as HTMLElement[]
+
+        if (focusArray.length === 0) return
+
+        const currentFocus = document.activeElement
+        const focusedIndex = focusArray.indexOf(currentFocus as HTMLElement)
+
+        if (e.shiftKey) {
+          // Shift + Tab - move to previous focusable element
+          if (focusedIndex <= 0) {
+            e.preventDefault()
+            focusArray[focusArray.length - 1].focus()
+          }
+        } else {
+          // Tab - move to next focusable element
+          if (focusedIndex === focusArray.length - 1) {
+            e.preventDefault()
+            focusArray[0].focus()
+          }
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => document.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, handleClose])
 
   const handleRetry = useCallback(() => {
     refetch()
@@ -67,254 +137,73 @@ export function NotificationCenter({ isOpen = true, onClose }: NotificationCente
     dismissNotification(id)
   }, [dismissNotification])
 
-  const handleClearAllRead = useCallback(() => {
-    dismissAllReadNotifications()
-  }, [dismissAllReadNotifications])
-
-  // Loading state
-  if (isLoading && notifications.length === 0) {
-    return (
-      <div className="w-full max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
-              <div className="h-6 w-12 bg-slate-200 rounded animate-pulse" />
-            </div>
-          </div>
-
-          {/* Loading skeleton */}
-          <div className="divide-y divide-slate-200">
-            {Array.from({ length: 3 }).map((_, i) => (
-              <div key={i} className="px-4 sm:px-6 py-4 hover:bg-slate-50">
-                <div className="flex items-start gap-3">
-                  <div className="h-10 w-10 bg-slate-200 rounded animate-pulse flex-shrink-0" />
-                  <div className="flex-1 min-w-0 space-y-2">
-                    <div className="h-4 bg-slate-200 rounded w-3/4 animate-pulse" />
-                    <div className="h-3 bg-slate-200 rounded w-1/2 animate-pulse" />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Error state
-  if (isError) {
-    return (
-      <div className="w-full max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg border border-red-200 shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="px-4 sm:px-6 py-4 border-b border-red-200 bg-red-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
-            </div>
-          </div>
-
-          {/* Error banner */}
-          <div className="px-4 sm:px-6 py-4">
-            <div className="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 p-4">
-              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <h3 className="text-sm font-medium text-red-900">Failed to load notifications</h3>
-                <p className="text-sm text-red-700 mt-1">
-                  {error instanceof Error ? error.message : 'An error occurred while fetching notifications'}
-                </p>
-              </div>
-              <button
-                onClick={handleRetry}
-                className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors"
-              >
-                <RefreshCw className="h-4 w-4" />
-                Retry
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  // Empty state
-  if (notifications.length === 0) {
-    return (
-      <div className="w-full max-w-2xl mx-auto">
-        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
-          {/* Header */}
-          <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
-                0
-              </span>
-            </div>
-          </div>
-
-          {/* Empty state */}
-          <div className="px-4 sm:px-6 py-12 text-center">
-            <div className="flex justify-center mb-4">
-              <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
-                <Check className="h-6 w-6 text-slate-400" />
-              </div>
-            </div>
-            <h3 className="text-sm font-medium text-slate-900 mb-1">All caught up!</h3>
-            <p className="text-sm text-slate-500">You have no new notifications</p>
-          </div>
-        </div>
-      </div>
-    )
-  }
-
-  const outerDivClass = onClose
-    ? 'absolute right-0 mt-2 w-96 border border-slate-200 rounded-lg shadow-xl z-50 max-h-[600px] overflow-auto'
-    : 'w-full max-w-2xl mx-auto'
-
-  const innerDivClass = onClose
-    ? 'bg-white flex flex-col'
-    : 'bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden'
-
   return (
-    <div className={outerDivClass}>
-      <div className={innerDivClass}>
-        {/* Header */}
-        <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
-            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-              {unreadCount}
-            </span>
-          </div>
-        </div>
+    <div ref={containerRef} className={`relative inline-block ${className}`}>
+      {/* Bell icon badge button */}
+      <NotificationBadge onClick={toggleOpen} isOpen={isOpen} />
 
-        {/* Notifications list */}
-        <div className="divide-y divide-slate-200">
-          {notifications.map((notification) => (
-            <div
-              key={notification.id}
-              className={`px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors ${
-                !notification.read ? 'bg-blue-50' : ''
-              }`}
-            >
-              <div className="flex items-start gap-3">
-                {/* Status indicator */}
-                <div className="flex-shrink-0 mt-1">
-                  {!notification.read ? (
-                    <div className="h-3 w-3 rounded-full bg-blue-500" />
-                  ) : (
-                    <div className="h-3 w-3 rounded-full bg-slate-300" />
-                  )}
-                </div>
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm ${!notification.read ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
-                        {notification.message}
-                      </p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-xs text-slate-500">
-                          {formatRelativeTime(notification.timestamp)}
-                        </span>
-                        {notification.type && (
-                          <span className="inline-block px-2 py-0.5 text-xs rounded bg-slate-100 text-slate-600">
-                            {formatNotificationType(notification.type)}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                      {!notification.read && (
-                        <button
-                          onClick={() => handleMarkAsReadSingle(notification.id)}
-                          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition-colors"
-                          title="Mark as read"
-                        >
-                          <Check className="h-4 w-4" />
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleDismissNotification(notification.id)}
-                        className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition-colors"
-                        title="Dismiss"
-                      >
-                        <X className="h-4 w-4" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
-
-        {/* Footer with actions */}
-        {(unreadCount > 0 || notifications.some((n) => n.read)) && (
-          <div className="px-4 sm:px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
-            {unreadCount > 0 && (
+      {/* Dropdown panel */}
+      {isOpen && (
+        <div
+          ref={panelRef}
+          className="absolute right-0 mt-2 w-96 bg-white rounded-lg border border-slate-200 shadow-xl z-50 max-h-[600px] flex flex-col"
+          role="dialog"
+          aria-label="Notifications"
+          aria-modal="true"
+        >
+          {/* Header with unread count and mark all as read */}
+          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-shrink-0">
+            <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
+            {unreadCount > 0 && !isLoading && (
               <button
                 onClick={handleMarkAllAsRead}
-                className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+                className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
+                aria-label="Mark all notifications as read"
               >
                 Mark all as read
               </button>
             )}
-            {notifications.some((n) => n.read) && (
-              <button
-                onClick={handleClearAllRead}
-                className="text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-200 px-3 py-1.5 rounded transition-colors ml-auto"
-              >
-                Clear read
-              </button>
+            {unreadCount === 0 && !isLoading && (
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
+                {notifications.length}
+              </span>
             )}
           </div>
-        )}
-      </div>
+
+          {/* Error state */}
+          {isError && (
+            <div className="px-4 py-3 border-b border-slate-200">
+              <div className="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 p-3">
+                <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium text-red-900">Failed to load</p>
+                  <p className="text-xs text-red-700 mt-1">
+                    {error instanceof Error ? error.message : 'An error occurred'}
+                  </p>
+                  <button
+                    onClick={handleRetry}
+                    className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors"
+                  >
+                    <RefreshCw className="h-3 w-3" />
+                    Retry
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Notification list */}
+          <NotificationList
+            notifications={notifications}
+            isLoading={isLoading}
+            error={isError ? error : null}
+            onMarkAsRead={handleMarkAsReadSingle}
+            onDismiss={handleDismissNotification}
+            emptyMessage="You're all caught up!"
+          />
+        </div>
+      )}
     </div>
   )
 }
 
-/**
- * Format ISO timestamp to relative time (e.g., "5m ago")
- */
-function formatRelativeTime(isoString: string): string {
-  const date = new Date(isoString)
-  const now = new Date()
-  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
-
-  if (seconds < 60) return 'now'
-  const minutes = Math.floor(seconds / 60)
-  if (minutes < 60) return `${minutes}m ago`
-  const hours = Math.floor(minutes / 60)
-  if (hours < 24) return `${hours}h ago`
-  const days = Math.floor(hours / 24)
-  if (days < 7) return `${days}d ago`
-  return date.toLocaleDateString()
-}
-
-/**
- * Format notification type to human-readable label
- */
-function formatNotificationType(type: string): string {
-  const labels: Record<string, string> = {
-    'task_assigned': 'Task Assigned',
-    'task_unassigned': 'Task Unassigned',
-    'sprint_started': 'Sprint Started',
-    'sprint_completed': 'Sprint Completed',
-    'comment_added': 'Comment Added',
-    'status_changed': 'Status Changed',
-    'agent_event': 'Agent Event',
-    'performance_alert': 'Performance Alert',
-    'assignment_changed': 'Assignment Changed',
-    'sprint_updated': 'Sprint Updated',
-    'task_reassigned': 'Task Reassigned',
-    'deadline_approaching': 'Deadline Approaching',
-  }
-  return labels[type] || type
-}

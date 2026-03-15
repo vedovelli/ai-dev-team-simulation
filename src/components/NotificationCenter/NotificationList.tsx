@@ -6,7 +6,8 @@ interface NotificationListProps {
   isLoading: boolean
   error: Error | null
   onMarkAsRead: (id: string) => void
-  emptyMessage: string
+  onDismiss?: (id: string) => void
+  emptyMessage?: string
 }
 
 /**
@@ -24,7 +25,8 @@ export function NotificationList({
   isLoading,
   error,
   onMarkAsRead,
-  emptyMessage,
+  onDismiss,
+  emptyMessage = 'You have no notifications',
 }: NotificationListProps) {
   if (isLoading) {
     return (
@@ -90,6 +92,7 @@ export function NotificationList({
             <NotificationItem
               notification={notification}
               onMarkAsRead={onMarkAsRead}
+              onDismiss={onDismiss}
             />
           </div>
         ))}
