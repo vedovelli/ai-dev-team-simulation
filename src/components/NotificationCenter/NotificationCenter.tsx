@@ -169,9 +169,17 @@ export function NotificationCenter({ isOpen = true, onClose }: NotificationCente
     )
   }
 
+  const outerDivClass = onClose
+    ? 'absolute right-0 mt-2 w-96 border border-slate-200 rounded-lg shadow-xl z-50 max-h-[600px] overflow-auto'
+    : 'w-full max-w-2xl mx-auto'
+
+  const innerDivClass = onClose
+    ? 'bg-white flex flex-col'
+    : 'bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden'
+
   return (
-    <div className="w-full max-w-2xl mx-auto">
-      <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+    <div className={outerDivClass}>
+      <div className={innerDivClass}>
         {/* Header */}
         <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
           <div className="flex items-center justify-between">
