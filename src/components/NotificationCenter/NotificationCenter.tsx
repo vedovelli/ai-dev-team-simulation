@@ -1,202 +1,320 @@
-import { useRef, useEffect, useState } from 'react'
+'use client'
+
+import React, { useCallback, useMemo } from 'react'
+import { AlertCircle, X, Check, RefreshCw } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
-import { NotificationItem } from './NotificationItem'
 
 interface NotificationCenterProps {
-  isOpen: boolean
-  onClose: () => void
+  isOpen?: boolean
+  onClose?: () => void
 }
 
-function LoadingSkeleton() {
-  return (
-    <div className="space-y-3 p-4">
-      {[...Array(3)].map((_, i) => (
-        <div key={i} className="flex gap-3">
-          <div className="w-5 h-5 bg-slate-700 rounded animate-pulse flex-shrink-0" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 bg-slate-700 rounded animate-pulse w-3/4" />
-            <div className="h-3 bg-slate-700 rounded animate-pulse w-1/2" />
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const [filter, setFilter] = useState<'all' | 'unread'>('all')
-  const [markAllError, setMarkAllError] = useState<string | null>(null)
+/**
+ * NotificationCenter component
+ *
+ * Displays real-time notifications fetched via useNotifications() hook.
+ * Features:
+ * - Loading state with skeleton items
+ * - Error state with retry button
+ * - Empty state when no notifications
+ * - Mark all as read / Clear all actions
+ * - Unread count badge in header
+ * - Responsive layout
+ *
+ * Can be used as a standalone component or as a modal/dropdown when isOpen and onClose are provided.
+ */
+export function NotificationCenter({ isOpen = true, onClose }: NotificationCenterProps = {}) {
   const {
     notifications,
     unreadCount,
     isLoading,
+    isError,
     error,
     refetch,
     markAsRead,
-    dismissNotification,
     markMultipleAsRead,
+    dismissNotification,
+    dismissAllReadNotifications,
   } = useNotifications()
 
-  // Refetch when dropdown opens
-  useEffect(() => {
-    if (isOpen) {
-      refetch()
+  // Return null if modal mode and not open
+  if (!isOpen) {
+    return null
+  }
+
+  const handleRetry = useCallback(() => {
+    refetch()
+  }, [refetch])
+
+  // Compute unread IDs separately to keep callback stable
+  const unreadIds = useMemo(() => {
+    return notifications
+      .filter((n) => !n.read)
+      .map((n) => n.id)
+  }, [notifications])
+
+  const handleMarkAllAsRead = useCallback(async () => {
+    if (unreadIds.length > 0) {
+      await markMultipleAsRead(unreadIds)
     }
-  }, [isOpen, refetch])
+  }, [unreadIds, markMultipleAsRead])
 
-  // Handle click outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        onClose()
-      }
-    }
+  const handleMarkAsReadSingle = useCallback((id: string) => {
+    markAsRead(id)
+  }, [markAsRead])
 
-    if (isOpen) {
-      document.addEventListener('mousedown', handleClickOutside)
-      return () => document.removeEventListener('mousedown', handleClickOutside)
-    }
-  }, [isOpen, onClose])
+  const handleDismissNotification = useCallback((id: string) => {
+    dismissNotification(id)
+  }, [dismissNotification])
 
-  // Handle keyboard navigation
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === 'Escape' && isOpen) {
-        onClose()
-      }
-    }
+  const handleClearAllRead = useCallback(() => {
+    dismissAllReadNotifications()
+  }, [dismissAllReadNotifications])
 
-    if (isOpen) {
-      document.addEventListener('keydown', handleKeyDown)
-      return () => document.removeEventListener('keydown', handleKeyDown)
-    }
-  }, [isOpen, onClose])
+  // Loading state
+  if (isLoading && notifications.length === 0) {
+    return (
+      <div className="w-full max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
+              <div className="h-6 w-12 bg-slate-200 rounded animate-pulse" />
+            </div>
+          </div>
 
-  if (!isOpen) return null
-
-  const filteredNotifications =
-    filter === 'unread' ? notifications.filter((n) => !n.read) : notifications
-
-  return (
-    <div
-      ref={dropdownRef}
-      className="absolute right-0 mt-2 w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 flex flex-col max-h-[600px]"
-      role="dialog"
-      aria-label="Notifications"
-      aria-modal="false"
-    >
-      {/* Header */}
-      <div className="border-b border-slate-700 px-4 py-3 flex items-center justify-between bg-slate-900/80 rounded-t-lg sticky top-0 z-10">
-        <h2 className="text-sm font-semibold text-slate-200">Notifications</h2>
-
-        {/* Filter Tabs */}
-        <div className="flex gap-2" role="tablist">
-          {(['all', 'unread'] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setFilter(tab)}
-              className={`text-xs px-2 py-1 rounded transition-colors ${
-                filter === tab
-                  ? 'bg-slate-700 text-white'
-                  : 'text-slate-400 hover:text-slate-200'
-              }`}
-              role="tab"
-              aria-selected={filter === tab}
-              aria-label={`Show ${tab} notifications`}
-            >
-              {tab === 'all' ? 'All' : unreadCount > 0 ? `Unread (${unreadCount})` : 'Unread'}
-            </button>
-          ))}
+          {/* Loading skeleton */}
+          <div className="divide-y divide-slate-200">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="px-4 sm:px-6 py-4 hover:bg-slate-50">
+                <div className="flex items-start gap-3">
+                  <div className="h-10 w-10 bg-slate-200 rounded animate-pulse flex-shrink-0" />
+                  <div className="flex-1 min-w-0 space-y-2">
+                    <div className="h-4 bg-slate-200 rounded w-3/4 animate-pulse" />
+                    <div className="h-3 bg-slate-200 rounded w-1/2 animate-pulse" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
+    )
+  }
 
-      {/* Content */}
-      <div className="flex-1 overflow-y-auto">
-        {error ? (
-          <div className="px-4 py-8 text-center">
-            <svg
-              className="w-12 h-12 text-red-500 mx-auto mb-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 8v4m0 4v.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-              />
-            </svg>
-            <p className="text-slate-400 text-sm mb-3">Failed to load notifications</p>
-            <button
-              onClick={() => refetch()}
-              className="text-xs px-3 py-1 bg-slate-700 text-slate-200 hover:text-white hover:bg-slate-600 rounded transition-colors"
-            >
-              Try again
-            </button>
+  // Error state
+  if (isError) {
+    return (
+      <div className="w-full max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg border border-red-200 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-4 sm:px-6 py-4 border-b border-red-200 bg-red-50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
+            </div>
           </div>
-        ) : isLoading && filteredNotifications.length === 0 ? (
-          <LoadingSkeleton />
-        ) : filteredNotifications.length === 0 ? (
-          <div className="px-4 py-8 text-center">
-            <svg
-              className="w-12 h-12 text-slate-600 mx-auto mb-2"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-              />
-            </svg>
-            <p className="text-slate-400 text-sm">No notifications yet</p>
+
+          {/* Error banner */}
+          <div className="px-4 sm:px-6 py-4">
+            <div className="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 p-4">
+              <AlertCircle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-red-900">Failed to load notifications</h3>
+                <p className="text-sm text-red-700 mt-1">
+                  {error instanceof Error ? error.message : 'An error occurred while fetching notifications'}
+                </p>
+              </div>
+              <button
+                onClick={handleRetry}
+                className="flex-shrink-0 inline-flex items-center gap-2 px-3 py-2 text-sm font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </button>
+            </div>
           </div>
-        ) : (
-          <div role="list" className="divide-y divide-slate-700">
-            {filteredNotifications.map((notification) => (
-              <NotificationItem
-                key={notification.id}
-                notification={notification}
-                onMarkAsRead={markAsRead}
-                onDismiss={dismissNotification}
-              />
-            ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Empty state
+  if (notifications.length === 0) {
+    return (
+      <div className="w-full max-w-2xl mx-auto">
+        <div className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden">
+          {/* Header */}
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
+              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-700">
+                0
+              </span>
+            </div>
+          </div>
+
+          {/* Empty state */}
+          <div className="px-4 sm:px-6 py-12 text-center">
+            <div className="flex justify-center mb-4">
+              <div className="h-12 w-12 rounded-full bg-slate-100 flex items-center justify-center">
+                <Check className="h-6 w-6 text-slate-400" />
+              </div>
+            </div>
+            <h3 className="text-sm font-medium text-slate-900 mb-1">All caught up!</h3>
+            <p className="text-sm text-slate-500">You have no new notifications</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  const outerDivClass = onClose
+    ? 'absolute right-0 mt-2 w-96 border border-slate-200 rounded-lg shadow-xl z-50 max-h-[600px] overflow-auto'
+    : 'w-full max-w-2xl mx-auto'
+
+  const innerDivClass = onClose
+    ? 'bg-white flex flex-col'
+    : 'bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden'
+
+  return (
+    <div className={outerDivClass}>
+      <div className={innerDivClass}>
+        {/* Header */}
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-200 bg-slate-50">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-slate-900">Notifications</h2>
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              {unreadCount}
+            </span>
+          </div>
+        </div>
+
+        {/* Notifications list */}
+        <div className="divide-y divide-slate-200">
+          {notifications.map((notification) => (
+            <div
+              key={notification.id}
+              className={`px-4 sm:px-6 py-4 hover:bg-slate-50 transition-colors ${
+                !notification.read ? 'bg-blue-50' : ''
+              }`}
+            >
+              <div className="flex items-start gap-3">
+                {/* Status indicator */}
+                <div className="flex-shrink-0 mt-1">
+                  {!notification.read ? (
+                    <div className="h-3 w-3 rounded-full bg-blue-500" />
+                  ) : (
+                    <div className="h-3 w-3 rounded-full bg-slate-300" />
+                  )}
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1 min-w-0">
+                      <p className={`text-sm ${!notification.read ? 'font-semibold text-slate-900' : 'font-medium text-slate-700'}`}>
+                        {notification.message}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-xs text-slate-500">
+                          {formatRelativeTime(notification.timestamp)}
+                        </span>
+                        {notification.type && (
+                          <span className="inline-block px-2 py-0.5 text-xs rounded bg-slate-100 text-slate-600">
+                            {formatNotificationType(notification.type)}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {!notification.read && (
+                        <button
+                          onClick={() => handleMarkAsReadSingle(notification.id)}
+                          className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition-colors"
+                          title="Mark as read"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDismissNotification(notification.id)}
+                        className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition-colors"
+                        title="Dismiss"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer with actions */}
+        {(unreadCount > 0 || notifications.some((n) => n.read)) && (
+          <div className="px-4 sm:px-6 py-3 border-t border-slate-200 bg-slate-50 flex items-center justify-between gap-2">
+            {unreadCount > 0 && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-sm font-medium text-blue-600 hover:text-blue-700 hover:bg-blue-50 px-3 py-1.5 rounded transition-colors"
+              >
+                Mark all as read
+              </button>
+            )}
+            {notifications.some((n) => n.read) && (
+              <button
+                onClick={handleClearAllRead}
+                className="text-sm font-medium text-slate-600 hover:text-slate-700 hover:bg-slate-200 px-3 py-1.5 rounded transition-colors ml-auto"
+              >
+                Clear read
+              </button>
+            )}
           </div>
         )}
       </div>
-
-      {/* Footer */}
-      {notifications.length > 0 && (
-        <div className="border-t border-slate-700 px-4 py-3 bg-slate-900/80 rounded-b-lg sticky bottom-0">
-          <div className="space-y-2">
-            <button
-              onClick={async () => {
-                try {
-                  setMarkAllError(null)
-                  const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
-                  if (unreadIds.length > 0) {
-                    await markMultipleAsRead(unreadIds)
-                  }
-                } catch (err) {
-                  setMarkAllError('Failed to mark all as read')
-                }
-              }}
-              disabled={unreadCount === 0}
-              className="w-full px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-              aria-label="Mark all notifications as read"
-            >
-              Mark all as read
-            </button>
-            {markAllError && (
-              <p className="text-xs text-red-400 text-center">{markAllError}</p>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   )
+}
+
+/**
+ * Format ISO timestamp to relative time (e.g., "5m ago")
+ */
+function formatRelativeTime(isoString: string): string {
+  const date = new Date(isoString)
+  const now = new Date()
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (seconds < 60) return 'now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return date.toLocaleDateString()
+}
+
+/**
+ * Format notification type to human-readable label
+ */
+function formatNotificationType(type: string): string {
+  const labels: Record<string, string> = {
+    'task_assigned': 'Task Assigned',
+    'task_unassigned': 'Task Unassigned',
+    'sprint_started': 'Sprint Started',
+    'sprint_completed': 'Sprint Completed',
+    'comment_added': 'Comment Added',
+    'status_changed': 'Status Changed',
+    'agent_event': 'Agent Event',
+    'performance_alert': 'Performance Alert',
+    'assignment_changed': 'Assignment Changed',
+    'sprint_updated': 'Sprint Updated',
+    'task_reassigned': 'Task Reassigned',
+    'deadline_approaching': 'Deadline Approaching',
+  }
+  return labels[type] || type
 }
