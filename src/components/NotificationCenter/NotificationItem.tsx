@@ -1,195 +1,177 @@
-import type { Notification, NotificationType } from '../../types/notification'
-import { getRelativeTime } from '../../lib/utils'
+import type { Notification } from '../../types/notification'
 
 interface NotificationItemProps {
   notification: Notification
   onMarkAsRead: (id: string) => void
+  onDismiss: (id: string) => void
 }
 
-/**
- * NotificationItem Component
- *
- * Individual notification card with:
- * - Event type icon
- * - Message
- * - Relative timestamp
- * - Read/unread indicator
- * - Mark as read action
- */
+function getRelativeTime(timestamp: string): string {
+  const now = new Date()
+  const date = new Date(timestamp)
+  const seconds = Math.floor((now.getTime() - date.getTime()) / 1000)
+
+  if (seconds < 60) return 'just now'
+  const minutes = Math.floor(seconds / 60)
+  if (minutes < 60) return `${minutes}m ago`
+  const hours = Math.floor(minutes / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  return `${days}d ago`
+}
+
+function getEventIcon(type: Notification['type']): React.ReactNode {
+  switch (type) {
+    case 'assignment_changed':
+    case 'task_assigned':
+    case 'task_reassigned':
+      return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+          />
+        </svg>
+      )
+    case 'sprint_updated':
+    case 'sprint_started':
+    case 'sprint_completed':
+      return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M13 10V3L4 14h7v7l9-11h-7z"
+          />
+        </svg>
+      )
+    case 'deadline_approaching':
+      return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      )
+    case 'comment_added':
+      return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M7 8h10M7 12h4m1 8l-4-2H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 2z"
+          />
+        </svg>
+      )
+    case 'status_changed':
+      return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      )
+    default:
+      return (
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+          />
+        </svg>
+      )
+  }
+}
+
+function getEventColor(type: Notification['type']): string {
+  switch (type) {
+    case 'deadline_approaching':
+      return 'text-orange-400'
+    case 'sprint_completed':
+    case 'sprint_started':
+      return 'text-green-400'
+    case 'task_assigned':
+    case 'task_reassigned':
+    case 'assignment_changed':
+      return 'text-blue-400'
+    default:
+      return 'text-slate-400'
+  }
+}
+
 export function NotificationItem({
   notification,
   onMarkAsRead,
+  onDismiss,
 }: NotificationItemProps) {
-  // Reusable SVG icon components
-  const taskIcon = (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
-      <path
-        fillRule="evenodd"
-        d="M4 5a2 2 0 012-2 1 1 0 000-2 4 4 0 00-4 4v10a4 4 0 004 4h12a4 4 0 004-4V5a4 4 0 00-4-4 1 1 0 000 2 2 2 0 012 2v10a2 2 0 01-2 2H6a2 2 0 01-2-2V5z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-
-  const sprintIcon = (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path
-        fillRule="evenodd"
-        d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v2a1 1 0 001 1h1v3H4a2 2 0 00-2 2v2a1 1 0 001 1h1v1a1 1 0 102 0v-1h6v1a1 1 0 102 0v-1h1a1 1 0 100-2h-1v-3h1a1 1 0 100-2h-1V7h1a1 1 0 100-2h-1V4a2 2 0 00-2-2h-1V3a1 1 0 00-1-1zm2 5a1 1 0 011 1v1a1 1 0 11-2 0v-1a1 1 0 011-1z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-
-  const commentIcon = (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path
-        fillRule="evenodd"
-        d="M2 5a2 2 0 012-2h12a2 2 0 012 2v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5zm3.707 1.293a1 1 0 00-1.414 1.414L5.586 10l-1.293 1.293a1 1 0 101.414 1.414L7 11.414l1.293 1.293a1 1 0 001.414-1.414L8.414 10l1.293-1.293a1 1 0 00-1.414-1.414L7 8.586 5.707 7.293z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-
-  const statusIcon = (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path
-        fillRule="evenodd"
-        d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 1111.601 2.566 1 1 0 11-1.885.666A5.002 5.002 0 105.199 7.99V4a1 1 0 01-1-1V2a1 1 0 011-1zm7 5a1 1 0 011 1v5a1 1 0 11-2 0V8a1 1 0 011-1z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-
-  const agentIcon = (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path d="M13 6a3 3 0 11-6 0 3 3 0 016 0zM18 8a2 2 0 11-4 0 2 2 0 014 0zM14 15a4 4 0 00-8 0v3h8v-3zM6 8a2 2 0 11-4 0 2 2 0 014 0zM16 18v-3a5.972 5.972 0 00-.75-2.906A3.005 3.005 0 0119 15v3h-3zM4.75 12.094A5.973 5.973 0 004 15v3H1v-3a3 3 0 013.75-2.906z" />
-    </svg>
-  )
-
-  const alertIcon = (
-    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-      <path
-        fillRule="evenodd"
-        d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z"
-        clipRule="evenodd"
-      />
-    </svg>
-  )
-
-  // SVG icon components for each notification type
-  const iconMap: Record<NotificationType, React.ReactNode> = {
-    task_assigned: taskIcon,
-    task_unassigned: taskIcon,
-    sprint_started: sprintIcon,
-    sprint_completed: sprintIcon,
-    comment_added: commentIcon,
-    status_changed: statusIcon,
-    agent_event: agentIcon,
-    performance_alert: alertIcon,
+  const handleMarkAsRead = () => {
+    if (!notification.read) {
+      onMarkAsRead(notification.id)
+    }
   }
-
-  // Label map for each notification type
-  const labelMap: Record<NotificationType, string> = {
-    task_assigned: 'Task Assigned',
-    task_unassigned: 'Task Unassigned',
-    sprint_started: 'Sprint Started',
-    sprint_completed: 'Sprint Completed',
-    comment_added: 'Comment',
-    status_changed: 'Status Changed',
-    agent_event: 'Agent',
-    performance_alert: 'Performance',
-  }
-
-  // Badge color map for each notification type
-  const badgeColorMap: Record<NotificationType, string> = {
-    task_assigned: 'bg-cyan-100 text-cyan-700',
-    task_unassigned: 'bg-cyan-100 text-cyan-700',
-    sprint_started: 'bg-purple-100 text-purple-700',
-    sprint_completed: 'bg-purple-100 text-purple-700',
-    comment_added: 'bg-emerald-100 text-emerald-700',
-    status_changed: 'bg-indigo-100 text-indigo-700',
-    agent_event: 'bg-blue-100 text-blue-700',
-    performance_alert: 'bg-orange-100 text-orange-700',
-  }
-
-  // Icon color map for each notification type
-  const iconColorMap: Record<NotificationType, string> = {
-    task_assigned: 'text-cyan-600',
-    task_unassigned: 'text-cyan-600',
-    sprint_started: 'text-purple-600',
-    sprint_completed: 'text-purple-600',
-    comment_added: 'text-emerald-600',
-    status_changed: 'text-indigo-600',
-    agent_event: 'text-blue-600',
-    performance_alert: 'text-orange-600',
-  }
-
-  const categoryLabel = labelMap[notification.type]
-  const badgeColor = badgeColorMap[notification.type]
-  const iconColor = iconColorMap[notification.type]
-  const icon = iconMap[notification.type]
 
   return (
     <div
-      className={`px-4 py-3 hover:bg-gray-50 transition-colors ${
-        !notification.read ? 'bg-blue-50' : ''
+      className={`px-4 py-3 border-b border-slate-700 hover:bg-slate-800 transition-colors cursor-pointer ${
+        !notification.read ? 'bg-slate-800/50' : ''
       }`}
-      role="menuitem"
+      role="listitem"
+      onClick={handleMarkAsRead}
     >
       <div className="flex gap-3">
-        {/* Category Icon */}
-        <div className={`flex-shrink-0 mt-0.5 ${iconColor}`}>
-          {icon}
+        {/* Icon */}
+        <div className={`flex-shrink-0 mt-0.5 ${getEventColor(notification.type)}`}>
+          {getEventIcon(notification.type)}
         </div>
 
         {/* Content */}
         <div className="flex-1 min-w-0">
-          {/* Category Badge */}
-          <div className="flex items-center gap-2 mb-1">
-            <span
-              className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badgeColor}`}
+          <div className="flex items-start justify-between gap-2">
+            <p className="text-sm text-slate-200 leading-snug">{notification.message}</p>
+
+            {/* Dismiss Button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDismiss(notification.id)
+              }}
+              className="flex-shrink-0 text-slate-500 hover:text-slate-300 transition-colors"
+              aria-label={`Dismiss notification: ${notification.message}`}
             >
-              {categoryLabel}
-            </span>
-            {!notification.read && (
-              <span className="inline-block w-2 h-2 bg-blue-600 rounded-full" aria-label="Unread" />
-            )}
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              </svg>
+            </button>
           </div>
 
-          {/* Message */}
-          <p className="text-sm text-gray-800 line-clamp-2">{notification.message}</p>
-
-          {/* Timestamp */}
-          <p className="text-xs text-gray-500 mt-1">
-            {getRelativeTime(new Date(notification.timestamp))}
-          </p>
-        </div>
-
-        {/* Mark as Read Action */}
-        {!notification.read && (
-          <button
-            onClick={() => onMarkAsRead(notification.id)}
-            className="flex-shrink-0 ml-2 text-gray-400 hover:text-gray-600 transition-colors"
-            aria-label="Mark as read"
-            title="Mark as read"
-          >
-            <svg
-              className="w-5 h-5"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M5 13l4 4L19 7"
+          {/* Timestamp and Read Indicator */}
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-slate-400">{getRelativeTime(notification.timestamp)}</span>
+            {!notification.read && (
+              <span
+                className="w-2 h-2 bg-blue-500 rounded-full"
+                aria-label="Unread notification"
               />
-            </svg>
-          </button>
-        )}
+            )}
+          </div>
+        </div>
       </div>
     </div>
   )

@@ -1,50 +1,53 @@
-import { useState, useRef, useEffect } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationItem } from './NotificationItem'
 
-/**
- * NotificationCenter Component
- *
- * A slide-in drawer panel showing user notifications with:
- * - Unread badge count indicator on bell icon
- * - Filter toggle (All / Unread)
- * - Mark individual as read
- * - Mark all as read button
- * - Empty state and loading states
- * - Notification categories with icons
- * - Relative timestamps
- *
- * Features:
- * - Click outside to close
- * - Keyboard accessible (Escape to close)
- * - Optimistic UI updates via useNotifications mutations
- */
-export function NotificationCenter() {
-  const [isOpen, setIsOpen] = useState(false)
-  const [filterUnread, setFilterUnread] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-  const buttonRef = useRef<HTMLButtonElement>(null)
+interface NotificationCenterProps {
+  isOpen: boolean
+  onClose: () => void
+}
 
+function LoadingSkeleton() {
+  return (
+    <div className="space-y-3 p-4">
+      {[...Array(3)].map((_, i) => (
+        <div key={i} className="flex gap-3">
+          <div className="w-5 h-5 bg-slate-700 rounded animate-pulse flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 bg-slate-700 rounded animate-pulse w-3/4" />
+            <div className="h-3 bg-slate-700 rounded animate-pulse w-1/2" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
+  const dropdownRef = useRef<HTMLDivElement>(null)
+  const [filter, setFilter] = useState<'all' | 'unread'>('all')
   const {
     notifications,
-    isLoading,
-    error,
     unreadCount,
+    isLoading,
+    refetch,
     markAsRead,
+    dismissNotification,
     markMultipleAsRead,
-  } = useNotifications({
-    refetchInterval: 30 * 1000,
-  })
+  } = useNotifications()
 
-  // Handle click outside to close dropdown
+  // Refetch when dropdown opens
+  useEffect(() => {
+    if (isOpen) {
+      refetch()
+    }
+  }, [isOpen, refetch])
+
+  // Handle click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
-      if (
-        dropdownRef.current &&
-        !dropdownRef.current.contains(event.target as Node) &&
-        !buttonRef.current?.contains(event.target as Node)
-      ) {
-        setIsOpen(false)
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        onClose()
       }
     }
 
@@ -52,14 +55,13 @@ export function NotificationCenter() {
       document.addEventListener('mousedown', handleClickOutside)
       return () => document.removeEventListener('mousedown', handleClickOutside)
     }
-  }, [isOpen])
+  }, [isOpen, onClose])
 
   // Handle keyboard navigation
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === 'Escape' && isOpen) {
-        setIsOpen(false)
-        buttonRef.current?.focus()
+        onClose()
       }
     }
 
@@ -67,183 +69,92 @@ export function NotificationCenter() {
       document.addEventListener('keydown', handleKeyDown)
       return () => document.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen])
+  }, [isOpen, onClose])
 
-  const handleMarkAsRead = (notificationId: string) => {
-    markAsRead(notificationId)
-  }
+  if (!isOpen) return null
 
-  const handleMarkAllAsRead = async () => {
-    const unreadIds = notifications.filter((n) => !n.read).map((n) => n.id)
-    if (unreadIds.length > 0) {
-      try {
-        await markMultipleAsRead(unreadIds)
-      } catch (error) {
-        console.error('Failed to mark all as read:', error)
-      }
-    }
-  }
-
-  // Filter notifications based on filter state
-  const displayedNotifications = filterUnread
-    ? notifications.filter((n) => !n.read)
-    : notifications
+  const filteredNotifications =
+    filter === 'unread' ? notifications.filter((n) => !n.read) : notifications
 
   return (
-    <div className="relative" ref={dropdownRef}>
-      {/* Notification Bell Button */}
-      <button
-        ref={buttonRef}
-        onClick={() => setIsOpen(!isOpen)}
-        className="relative p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
-        aria-label={`Notifications ${unreadCount > 0 ? `(${unreadCount} unread)` : ''}`}
-        aria-expanded={isOpen}
-        aria-haspopup="true"
-      >
-        <svg
-          className="w-6 h-6"
-          fill="none"
-          stroke="currentColor"
-          viewBox="0 0 24 24"
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
-          />
-        </svg>
+    <div
+      ref={dropdownRef}
+      className="absolute right-0 mt-2 w-96 bg-slate-900 border border-slate-700 rounded-lg shadow-xl z-50 flex flex-col max-h-[600px]"
+      role="dialog"
+      aria-label="Notifications"
+      aria-modal="false"
+    >
+      {/* Header */}
+      <div className="border-b border-slate-700 px-4 py-3 flex items-center justify-between bg-slate-900/80 rounded-t-lg sticky top-0 z-10">
+        <h2 className="text-sm font-semibold text-slate-200">Notifications</h2>
 
-        {/* Badge Count */}
-        {unreadCount > 0 && (
-          <span
-            className="absolute top-0 right-0 inline-flex items-center justify-center px-2 py-1 text-xs font-bold leading-none text-white transform translate-x-1/2 -translate-y-1/2 bg-red-600 rounded-full"
-            aria-label={`${unreadCount} unread notifications`}
-          >
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
+        {/* Filter Tabs */}
+        <div className="flex gap-2" role="tablist">
+          {(['all', 'unread'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setFilter(tab)}
+              className={`text-xs px-2 py-1 rounded transition-colors ${
+                filter === tab
+                  ? 'bg-slate-700 text-white'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+              role="tab"
+              aria-selected={filter === tab}
+              aria-label={`Show ${tab} notifications`}
+            >
+              {tab === 'all' ? 'All' : `Unread (${unreadCount})`}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Content */}
+      <div className="flex-1 overflow-y-auto">
+        {isLoading && filteredNotifications.length === 0 ? (
+          <LoadingSkeleton />
+        ) : filteredNotifications.length === 0 ? (
+          <div className="px-4 py-8 text-center">
+            <svg
+              className="w-12 h-12 text-slate-600 mx-auto mb-2"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+              />
+            </svg>
+            <p className="text-slate-400 text-sm">No notifications yet</p>
+          </div>
+        ) : (
+          <div role="list" className="divide-y divide-slate-700">
+            {filteredNotifications.map((notification) => (
+              <NotificationItem
+                key={notification.id}
+                notification={notification}
+                onMarkAsRead={markAsRead}
+                onDismiss={dismissNotification}
+              />
+            ))}
+          </div>
         )}
-      </button>
+      </div>
 
-      {/* Dropdown Panel */}
-      {isOpen && (
-        <div
-          className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-xl z-50 border border-gray-200 max-h-[600px] flex flex-col"
-          role="menu"
-          aria-orientation="vertical"
-          aria-labelledby="notification-button"
-        >
-          {/* Header */}
-          <div className="px-4 py-3 border-b border-gray-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="font-semibold text-gray-900">Notifications</h3>
-              {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllAsRead}
-                  className="text-sm text-blue-600 hover:text-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  aria-label="Mark all as read"
-                >
-                  Mark all as read
-                </button>
-              )}
-            </div>
-
-            {/* Filter Toggle */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilterUnread(false)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  !filterUnread
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => setFilterUnread(true)}
-                className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
-                  filterUnread
-                    ? 'bg-blue-100 text-blue-700'
-                    : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-                }`}
-              >
-                Unread
-              </button>
-            </div>
-          </div>
-
-          {/* Content Area */}
-          <div className="flex-1 overflow-y-auto">
-            {isLoading && (
-              <div className="flex items-center justify-center h-40">
-                <div className="animate-spin">
-                  <svg
-                    className="w-6 h-6 text-gray-600"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"
-                    />
-                  </svg>
-                </div>
-              </div>
-            )}
-
-            {error && (
-              <div className="px-4 py-3 text-sm text-red-600 bg-red-50">
-                Failed to load notifications
-              </div>
-            )}
-
-            {!isLoading && !error && displayedNotifications.length === 0 && (
-              <div className="flex flex-col items-center justify-center h-40 text-gray-500">
-                <svg
-                  className="w-12 h-12 text-gray-300 mb-2"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                  />
-                </svg>
-                <p className="text-sm">{filterUnread ? 'No unread notifications' : 'No notifications yet'}</p>
-              </div>
-            )}
-
-            {!isLoading && !error && displayedNotifications.length > 0 && (
-              <div className="divide-y divide-gray-200">
-                {displayedNotifications.map((notification) => (
-                  <NotificationItem
-                    key={notification.id}
-                    notification={notification}
-                    onMarkAsRead={handleMarkAsRead}
-                  />
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Footer */}
-          {!isLoading && notifications.length > 0 && (
-            <div className="px-4 py-3 border-t border-gray-200 text-center">
-              <button
-                onClick={() => setIsOpen(false)}
-                className="text-sm text-gray-600 hover:text-gray-900 font-medium"
-              >
-                Close
-              </button>
-            </div>
-          )}
+      {/* Footer */}
+      {notifications.length > 0 && (
+        <div className="border-t border-slate-700 px-4 py-3 bg-slate-900/80 rounded-b-lg sticky bottom-0">
+          <button
+            onClick={() => markMultipleAsRead(notifications.filter((n) => !n.read).map((n) => n.id))}
+            disabled={unreadCount === 0}
+            className="w-full px-3 py-2 text-xs font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            aria-label="Mark all notifications as read"
+          >
+            Mark all as read
+          </button>
         </div>
       )}
     </div>
