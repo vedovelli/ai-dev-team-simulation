@@ -1,8 +1,13 @@
 'use client'
 
-import React, { useCallback } from 'react'
+import React, { useCallback, useMemo } from 'react'
 import { AlertCircle, X, Check, RefreshCw } from 'lucide-react'
 import { useNotifications } from '../../hooks/useNotifications'
+
+interface NotificationCenterProps {
+  isOpen?: boolean
+  onClose?: () => void
+}
 
 /**
  * NotificationCenter component
@@ -15,8 +20,10 @@ import { useNotifications } from '../../hooks/useNotifications'
  * - Mark all as read / Clear all actions
  * - Unread count badge in header
  * - Responsive layout
+ *
+ * Can be used as a standalone component or as a modal/dropdown when isOpen and onClose are provided.
  */
-export function NotificationCenter() {
+export function NotificationCenter({ isOpen = true, onClose }: NotificationCenterProps = {}) {
   const {
     notifications,
     unreadCount,
@@ -30,19 +37,31 @@ export function NotificationCenter() {
     dismissAllReadNotifications,
   } = useNotifications()
 
+  // Return null if modal mode and not open
+  if (!isOpen) {
+    return null
+  }
+
   const handleRetry = useCallback(() => {
     refetch()
   }, [refetch])
 
-  const handleMarkAllAsRead = useCallback(async () => {
-    const unreadIds = notifications
+  // Compute unread IDs separately to keep callback stable
+  const unreadIds = useMemo(() => {
+    return notifications
       .filter((n) => !n.read)
       .map((n) => n.id)
+  }, [notifications])
 
+  const handleMarkAllAsRead = useCallback(async () => {
     if (unreadIds.length > 0) {
       await markMultipleAsRead(unreadIds)
     }
-  }, [notifications, markMultipleAsRead])
+  }, [unreadIds, markMultipleAsRead])
+
+  const handleMarkAsReadSingle = useCallback((id: string) => {
+    markAsRead(id)
+  }, [markAsRead])
 
   const handleDismissNotification = useCallback((id: string) => {
     dismissNotification(id)
@@ -205,7 +224,7 @@ export function NotificationCenter() {
                     <div className="flex items-center gap-2 flex-shrink-0">
                       {!notification.read && (
                         <button
-                          onClick={() => markAsRead(notification.id)}
+                          onClick={() => handleMarkAsReadSingle(notification.id)}
                           className="p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition-colors"
                           title="Mark as read"
                         >
