@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
-import { useNotifications } from '../../hooks/useNotifications'
-import { useNotificationCenter } from '../../hooks/useNotificationCenter'
+import { useNotificationCenter as useNotificationCenterHook } from '../../hooks/useNotificationCenter'
+import { useNotificationCenter } from '../../contexts/NotificationCenterProvider'
 
 /**
  * NotificationBell Component
@@ -17,7 +17,7 @@ import { useNotificationCenter } from '../../hooks/useNotificationCenter'
  * - Smooth CSS transitions when count changes
  */
 export function NotificationBell() {
-  const { unreadCount } = useNotifications()
+  const { unreadCount } = useNotificationCenterHook()
   const { isPanelOpen, togglePanel } = useNotificationCenter()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [prevCount, setPrevCount] = useState(unreadCount)
@@ -54,7 +54,7 @@ export function NotificationBell() {
           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
       }`}
       aria-label={ariaLabel}
-      aria-pressed={isPanelOpen}
+      aria-expanded={isPanelOpen}
     >
       {/* Bell icon */}
       <svg
