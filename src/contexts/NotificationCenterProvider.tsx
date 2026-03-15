@@ -3,6 +3,7 @@ import { useNotifications } from '../hooks/useNotifications'
 import { useNotificationPreferences } from '../hooks/useNotificationPreferences'
 import type { Notification, NotificationFilter } from '../types/notification'
 import type { NotificationPreferences } from '../types/notification-preferences'
+import type { TransportConfig } from '../types/notification-transport'
 
 /**
  * Context value shape for NotificationCenter
@@ -41,6 +42,13 @@ const NotificationCenterContext = createContext<NotificationCenterContextValue |
 
 interface NotificationCenterProviderProps {
   children: React.ReactNode
+  /**
+   * Optional transport configuration for notification delivery
+   * Defaults to PollingTransport if not provided
+   *
+   * Future: will allow swapping to WebSocketTransport for real-time delivery
+   */
+  transportConfig?: TransportConfig
 }
 
 /**
@@ -51,8 +59,17 @@ interface NotificationCenterProviderProps {
  * - Provides filtering (all, unread, by type)
  * - Panel open/close state
  * - Preferences management
+ * - Pluggable transport layer (polling, WebSocket, etc.)
  */
-export function NotificationCenterProvider({ children }: NotificationCenterProviderProps) {
+export function NotificationCenterProvider({
+  children,
+  transportConfig,
+}: NotificationCenterProviderProps) {
+  // TODO: Integrate transportConfig into useNotifications hook
+  // This will allow swapping transport implementations at runtime
+  // Currently unused but ready for future WebSocket integration
+  void transportConfig
+
   const notificationsHook = useNotifications()
   const preferencesHook = useNotificationPreferences()
 
