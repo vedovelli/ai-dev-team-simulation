@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { useNotifications } from '../../hooks/useNotifications'
 import { NotificationItem } from './NotificationItem'
+import { Link } from '@tanstack/react-router'
 
 interface NotificationDropdownProps {
   isOpen: boolean
@@ -40,7 +41,17 @@ function EmptyState() {
 
 /**
  * NotificationDropdown displays a panel with recent notifications
- * Appears below the notification bell icon
+ * Appears below the notification bell icon with smooth fade/slide animation
+ *
+ * Features:
+ * - Dropdown panel positioned absolutely relative to bell
+ * - Smooth open/close fade and scale animations
+ * - Click-outside, Escape, and bell-click close handlers
+ * - Max height with scrollable content
+ * - Header with "Mark all as read" button
+ * - Footer with link to settings page
+ * - Responsive: full-width on mobile, fixed-width on desktop
+ * - Accessible with proper ARIA labels and keyboard navigation
  */
 export function NotificationDropdown({
   isOpen,
@@ -56,6 +67,8 @@ export function NotificationDropdown({
 
   const dropdownRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
+  const firstFocusableRef = useRef<HTMLButtonElement>(null)
+  const lastFocusableRef = useRef<HTMLAnchorElement>(null)
 
   // Close on outside click
   useEffect(() => {
@@ -84,6 +97,33 @@ export function NotificationDropdown({
       if (e.key === 'Escape') {
         onClose()
       }
+
+      // Focus trap: cycle through focusable elements
+      if (e.key === 'Tab' && panelRef.current) {
+        const focusableElements = panelRef.current.querySelectorAll(
+          'button, a, [tabindex]:not([tabindex="-1"])'
+        )
+        const focusArray = Array.from(focusableElements) as HTMLElement[]
+
+        if (focusArray.length === 0) return
+
+        const currentFocus = document.activeElement
+        const focusedIndex = focusArray.indexOf(currentFocus as HTMLElement)
+
+        if (e.shiftKey) {
+          // Shift + Tab
+          if (focusedIndex === 0) {
+            e.preventDefault()
+            focusArray[focusArray.length - 1].focus()
+          }
+        } else {
+          // Tab
+          if (focusedIndex === focusArray.length - 1) {
+            e.preventDefault()
+            focusArray[0].focus()
+          }
+        }
+      }
     }
 
     document.addEventListener('keydown', handleKeyDown)
@@ -105,22 +145,28 @@ export function NotificationDropdown({
   return (
     <>
       {/* Backdrop for focus containment */}
-      <div className="fixed inset-0 z-40" ref={dropdownRef} />
+      <div
+        className="fixed inset-0 z-40"
+        ref={dropdownRef}
+        aria-hidden="true"
+      />
 
-      {/* Dropdown Panel */}
+      {/* Dropdown Panel with fade + scale animation */}
       <div
         ref={panelRef}
-        className={`absolute right-0 top-full mt-2 w-96 bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-[600px] flex flex-col ${className}`}
-        role="region"
+        className={`absolute right-0 top-full mt-2 w-full sm:w-96 bg-white rounded-lg shadow-lg border border-slate-200 z-50 max-h-[600px] flex flex-col transform transition-all duration-200 ease-out animate-in fade-in zoom-in-95 origin-top-right ${className}`}
+        role="dialog"
         aria-label="Notifications"
+        aria-modal="true"
       >
         {/* Header */}
         <div className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
           <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
           {notifications.length > 0 && !isLoading && (
             <button
+              ref={firstFocusableRef}
               onClick={handleMarkAllAsRead}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors"
+              className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
               aria-label="Mark all notifications as read"
             >
               Mark all as read
@@ -149,6 +195,19 @@ export function NotificationDropdown({
               ))}
             </div>
           )}
+        </div>
+
+        {/* Footer */}
+        <div className="border-t px-4 py-3 flex-shrink-0">
+          <Link
+            ref={lastFocusableRef}
+            to="/settings"
+            onClick={onClose}
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1 inline-block"
+            aria-label="Go to notification settings"
+          >
+            View all settings
+          </Link>
         </div>
       </div>
     </>
