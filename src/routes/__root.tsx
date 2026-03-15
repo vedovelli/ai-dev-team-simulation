@@ -90,6 +90,15 @@ function NavbarContent() {
                 >
                   Create
                 </Link>
+                <Link
+                  to="/settings"
+                  className="text-sm hover:text-slate-300 transition-colors"
+                  activeProps={{
+                    className: 'text-blue-400 font-semibold',
+                  }}
+                >
+                  Settings
+                </Link>
               </div>
             </div>
             <NotificationBell />
