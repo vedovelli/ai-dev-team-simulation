@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useMemo } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
-import { useNotificationCenter } from '../../hooks/useNotificationCenter'
+import { useNotificationCenterDisplay } from '../../hooks/useNotificationCenterDisplay'
 import { NotificationItem } from './NotificationItem'
 import type { Notification } from '../../types/notification'
 
@@ -39,7 +39,7 @@ export function NotificationCenterVirtualized() {
     markAllAsRead,
     groupedByDate,
     groupedByType,
-  } = useNotificationCenter({
+  } = useNotificationCenterDisplay({
     refetchInterval: 30 * 1000,
     enableVirtualization: true,
     virtualWindowSize: 400,
