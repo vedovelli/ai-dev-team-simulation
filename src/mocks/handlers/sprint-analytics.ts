@@ -261,7 +261,7 @@ function generateSprintAnalytics(
 /**
  * MSW handler for sprint analytics endpoint
  */
-export const sprintAnalyticsHandlers = [
+export const sprintHistoricalAnalyticsHandlers = [
   /**
    * GET /api/sprints/:id/analytics?range=5&metrics=velocity,capacity
    *
@@ -287,7 +287,9 @@ export const sprintAnalyticsHandlers = [
     const rangeParam = url.searchParams.get('range')
     const range = rangeParam ? Math.min(12, Math.max(1, parseInt(rangeParam))) : 5
 
-    // Optional metrics filter (can be used in future for optimization)
+    // TODO: Implement metrics filtering as performance optimization
+    // Currently returns all metrics; can filter by 'velocity', 'capacity', 'burndown', 'forecast'
+    // to reduce payload size for clients that only need specific metrics
     const metricsParam = url.searchParams.get('metrics')
 
     // Simulate 200ms latency for realistic data fetching
