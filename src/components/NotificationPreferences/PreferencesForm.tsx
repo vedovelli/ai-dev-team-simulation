@@ -1,9 +1,15 @@
+/**
+ * Notification Preferences Form
+ * Main form component for managing notification preferences
+ * Uses PreferenceRow for individual notification type controls
+ */
+
 import { useForm } from '@tanstack/react-form'
 import { useState, useEffect, useCallback } from 'react'
 import type { NotificationPreferences, NotificationTypePreference } from '../../types/notification-preferences'
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
 import { useToast } from '../Toast'
-import { NotificationTypeToggle, NOTIFICATION_TYPE_LABELS } from './NotificationTypeToggle'
+import { PreferenceRow } from './PreferenceRow'
 import { ResetPreferencesDialog } from './ResetPreferencesDialog'
 
 /**
@@ -30,15 +36,15 @@ const NOTIFICATION_CATEGORIES = {
   ] as const,
 }
 
-interface NotificationPreferencesFormData {
+interface PreferencesFormData {
   preferences: Record<string, NotificationTypePreference>
 }
 
-interface NotificationPreferencesFormProps {
+interface PreferencesFormProps {
   onUnsavedChangesChange?: (hasChanges: boolean) => void
 }
 
-export function NotificationPreferencesForm({ onUnsavedChangesChange }: NotificationPreferencesFormProps) {
+export function PreferencesForm({ onUnsavedChangesChange }: PreferencesFormProps) {
   const { preferences, isLoading, isUpdating, updatePreferences, resetPreferences } = useNotificationPreferences()
   const { showToast } = useToast()
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
@@ -46,7 +52,7 @@ export function NotificationPreferencesForm({ onUnsavedChangesChange }: Notifica
   const [isResetting, setIsResetting] = useState(false)
 
   // Initialize form with preferences data
-  const form = useForm<NotificationPreferencesFormData>({
+  const form = useForm<PreferencesFormData>({
     defaultValues: {
       preferences: preferences
         ? {
@@ -136,12 +142,6 @@ export function NotificationPreferencesForm({ onUnsavedChangesChange }: Notifica
 
   return (
     <div className="space-y-8">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-white mb-2">Notification Preferences</h1>
-        <p className="text-slate-400">Manage how and when you receive notifications</p>
-      </div>
-
       {/* Form */}
       <form
         onSubmit={(e) => {
@@ -152,14 +152,16 @@ export function NotificationPreferencesForm({ onUnsavedChangesChange }: Notifica
       >
         {/* Notification Categories */}
         {Object.entries(NOTIFICATION_CATEGORIES).map(([category, notificationTypes]) => (
-          <div key={category} className="space-y-3">
-            <h2 className="text-lg font-semibold text-white border-b border-slate-700 pb-2">{category}</h2>
-            <div className="space-y-1">
+          <fieldset key={category} className="space-y-3">
+            <legend className="text-lg font-semibold text-slate-900 border-b border-slate-200 pb-2">
+              {category}
+            </legend>
+            <div className="bg-white rounded border border-slate-200">
               {notificationTypes.map((type) => {
                 const typePreference = form.getFieldValue('preferences')[type]
                 return (
                   <div key={type}>
-                    <NotificationTypeToggle
+                    <PreferenceRow
                       type={type}
                       preference={typePreference}
                       onChange={(newPref) => handlePreferenceChange(type, newPref)}
@@ -168,18 +170,18 @@ export function NotificationPreferencesForm({ onUnsavedChangesChange }: Notifica
                 )
               })}
             </div>
-          </div>
+          </fieldset>
         ))}
 
         {/* Action Buttons */}
-        <div className="flex items-center gap-4 pt-4 border-t border-slate-700">
+        <div className="flex items-center gap-4 pt-4 border-t border-slate-200">
           <form.Subscribe
             selector={(formState) => [formState.isSubmitting]}
             children={([isSubmitting]) => (
               <button
                 type="submit"
                 disabled={!hasUnsavedChanges || isUpdating || isSubmitting}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-400 disabled:text-slate-600 disabled:cursor-not-allowed text-white rounded font-medium transition-colors"
               >
                 {isUpdating || isSubmitting ? 'Saving...' : 'Save Changes'}
               </button>
@@ -190,13 +192,13 @@ export function NotificationPreferencesForm({ onUnsavedChangesChange }: Notifica
             type="button"
             onClick={() => setShowResetDialog(true)}
             disabled={isUpdating || isResetting}
-            className="px-4 py-2 text-slate-300 hover:text-white hover:bg-slate-800 disabled:text-slate-600 disabled:cursor-not-allowed rounded transition-colors"
+            className="px-4 py-2 text-slate-700 hover:text-slate-900 hover:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed rounded transition-colors"
           >
             Reset to Defaults
           </button>
 
           {hasUnsavedChanges && (
-            <span className="text-sm text-slate-400 ml-auto">Unsaved changes</span>
+            <span className="text-sm text-slate-500 ml-auto">Unsaved changes</span>
           )}
         </div>
       </form>
