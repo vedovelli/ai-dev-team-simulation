@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { useNotifications } from '../../hooks/useNotifications'
-import { useNotificationCenter } from '../../contexts/NotificationCenterProvider'
+import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 
 /**
  * NotificationBell Component

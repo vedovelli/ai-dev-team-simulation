@@ -8,7 +8,8 @@ import { AppNotificationCenter } from '../components/AppNotificationCenter'
 import { Sidebar } from '../components/Sidebar'
 import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
 import { PermissionProvider } from '../contexts/PermissionContext'
-import { NotificationCenterProvider, useNotificationCenter } from '../contexts/NotificationCenterProvider'
+import { NotificationCenterProvider } from '../contexts/NotificationCenterContext'
+import { useNotificationCenter } from '../hooks/useNotificationCenter'
 import { NotificationCenterModal } from '../components/NotificationCenter/NotificationCenterModal'
 
 interface RouterContext {
