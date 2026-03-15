@@ -7,7 +7,9 @@ import type { SprintAnalyticsData } from '../types/sprint'
 export interface UseSprintAnalyticsOptions {
   /** Number of past sprints to include in analysis (default: 5, max: 12) */
   range?: number
-  /** Specific metrics to fetch (optional, fetches all if not specified) */
+  /** Specific metrics to fetch (optional, currently returns all metrics regardless of this parameter)
+   * TODO: Implement actual metric filtering in future optimization
+   */
   metrics?: ('velocity' | 'burndown' | 'capacity' | 'forecast')[]
   /** Enable/disable auto-refetch (default: true) */
   enabled?: boolean
@@ -82,6 +84,7 @@ export function useSprintAnalytics(
     if (metrics && metrics.length > 0) {
       params.append('metrics', metrics.join(','))
     }
+    // Note: sprintId format is validated server-side (expected format: 'sprint-N')
     return `/api/sprints/${sprintId}/analytics?${params.toString()}`
   }
 
