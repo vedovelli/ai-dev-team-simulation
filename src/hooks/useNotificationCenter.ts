@@ -1,11 +1,15 @@
 import React from 'react'
-import { NotificationCenterContext, type NotificationCenterContextValue } from '../context/NotificationCenterContext'
+import { NotificationCenterContext, type NotificationCenterContextValue } from '../contexts/NotificationCenterContext'
 
 /**
  * Configuration options for useNotificationCenter hook
+ *
+ * Note: This interface is intentionally minimal as the hook primarily accesses context.
+ * Future extensions may include options for persistence, custom event handlers, or analytics.
+ * For display-specific options (virtual scrolling, pagination, filtering), use useNotificationCenterDisplay instead.
  */
 export interface UseNotificationCenterOptions {
-  // Could be extended for future use
+  // Reserved for future use: customization options for context behavior
 }
 
 /**

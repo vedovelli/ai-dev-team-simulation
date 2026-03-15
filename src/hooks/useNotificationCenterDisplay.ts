@@ -132,7 +132,7 @@ function isThisMonth(date: Date, now: Date): boolean {
   return (
     date.getFullYear() === now.getFullYear() &&
     date.getMonth() === now.getMonth() &&
-    date < new Date(date.getFullYear(), date.getMonth() + 1, 0)
+    date < new Date(now.getFullYear(), now.getMonth() + 1, 0)
   )
 }
 

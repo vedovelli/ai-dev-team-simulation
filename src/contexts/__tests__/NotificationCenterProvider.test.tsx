@@ -2,7 +2,7 @@ import React from 'react'
 import { render, screen, fireEvent, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import { NotificationCenterProvider } from '../../context/NotificationCenterContext'
+import { NotificationCenterProvider } from '../NotificationCenterContext'
 import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 import type { Notification } from '../../types/notification'
 

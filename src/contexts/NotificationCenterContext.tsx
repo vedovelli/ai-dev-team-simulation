@@ -52,6 +52,9 @@ export interface NotificationCenterProviderProps {
 /**
  * Provider that wraps notification hooks and exposes a clean interface
  *
+ * REQUIRED: This provider must wrap all components using useNotificationCenter hook.
+ * Using useNotificationCenter outside this provider will throw an error.
+ *
  * Features:
  * - Centralizes notification state management
  * - Consolidates useNotifications and useNotificationPreferences into single API
@@ -59,6 +62,18 @@ export interface NotificationCenterProviderProps {
  * - Panel open/close state management
  * - Preferences management with updatePreference action
  * - No duplicate network calls (shared TanStack Query cache keys)
+ *
+ * @example
+ * // In your root layout or app component:
+ * <NotificationCenterProvider>
+ *   <App />
+ * </NotificationCenterProvider>
+ *
+ * // Then in any child component:
+ * function NotificationBell() {
+ *   const { unreadCount, markAsRead } = useNotificationCenter()
+ *   // ...
+ * }
  */
 export function NotificationCenterProvider({ children }: NotificationCenterProviderProps) {
   const notificationsHook = useNotifications()

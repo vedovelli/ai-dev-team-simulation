@@ -1,6 +1,6 @@
 // Notification Center
-export { NotificationCenterProvider } from '../context/NotificationCenterContext'
-export type { NotificationCenterContextValue } from '../context/NotificationCenterContext'
+export { NotificationCenterProvider } from './NotificationCenterContext'
+export type { NotificationCenterContextValue } from './NotificationCenterContext'
 
 // Metrics
 export { MetricsProvider, useMetrics } from './MetricsContext'
