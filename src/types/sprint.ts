@@ -118,3 +118,71 @@ export interface SprintReportRequest {
   startDate: string // ISO 8601 date
   endDate: string // ISO 8601 date
 }
+
+/**
+ * Velocity trend data point for historical velocity analysis
+ */
+export interface VelocityTrendDataPoint {
+  sprintId: string
+  sprintName: string
+  velocity: number // tasks or points completed
+  plannedVelocity: number // originally planned
+  date: string // ISO 8601 date when sprint ended
+}
+
+/**
+ * Capacity utilization data point per sprint
+ */
+export interface CapacityUtilizationDataPoint {
+  sprintId: string
+  sprintName: string
+  utilizationRate: number // 0-100 percentage
+  allocatedCapacity: number
+  availableCapacity: number
+  totalCapacity: number
+  date: string // ISO 8601 date
+}
+
+/**
+ * Burndown pattern analysis showing trends and patterns
+ */
+export interface BurndownPatternAnalysis {
+  sprintId: string
+  sprintName: string
+  avgDailyCompletionRate: number // tasks/day
+  steadiness: number // 0-100, how consistent the completion rate is
+  hasEarlyBurst: boolean // high completion early in sprint
+  hasEndSpurt: boolean // high completion late in sprint
+  peakCompletionDay: number // 0-based day number
+}
+
+/**
+ * Forecast accuracy comparison data
+ */
+export interface ForecastAccuracy {
+  sprintId: string
+  sprintName: string
+  projectedCompletionDate: string // ISO 8601 date
+  actualCompletionDate: string // ISO 8601 date (or null if not completed)
+  daysVariance: number // positive = late, negative = early
+  accuracyScore: number // 0-100, 100 = perfect forecast
+}
+
+/**
+ * Sprint analytics response containing historical metrics and trends
+ */
+export interface SprintAnalyticsData {
+  sprintId: string // current sprint being analyzed against
+  range: number // number of past sprints included
+  velocityTrends: VelocityTrendDataPoint[]
+  capacityUtilization: CapacityUtilizationDataPoint[]
+  burndownPatterns: BurndownPatternAnalysis[]
+  forecastAccuracy: ForecastAccuracy[]
+  summary: {
+    averageVelocity: number
+    velocityTrend: 'improving' | 'stable' | 'declining'
+    averageCapacityUtilization: number
+    forecastAccuracyRate: number // 0-100
+    recommendedVelocity: number // for planning next sprint
+  }
+}
