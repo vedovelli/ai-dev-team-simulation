@@ -727,6 +727,64 @@ export const notificationHandlers = [
       remaining: notificationsStore.length,
     })
   }),
+
+  /**
+   * PATCH /api/notifications/bulk
+   * Bulk notification operations: archive or mark-as-read
+   * Body: { operation: 'archive' | 'mark-read', ids: string[] }
+   * Response: { updated: number, notifications: Notification[] }
+   * Simulates 10% partial failure rate
+   */
+  http.patch('/api/notifications/bulk', async ({ request }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const body = (await request.json()) as {
+      operation: 'archive' | 'mark-read'
+      ids: string[]
+    }
+
+    const { operation, ids } = body
+
+    if (!operation || !Array.isArray(ids) || ids.length === 0) {
+      return HttpResponse.json(
+        { error: 'Invalid request: operation and ids are required' },
+        { status: 400 }
+      )
+    }
+
+    const updated: Notification[] = []
+    const failureCount = Math.max(0, Math.floor(ids.length * 0.1)) // 10% failure rate
+
+    ids.forEach((id, index) => {
+      const notifIndex = notificationsStore.findIndex((n) => n.id === id)
+
+      // Simulate 10% partial failure
+      if (index < failureCount) {
+        return // Skip this notification to simulate failure
+      }
+
+      if (notifIndex !== -1) {
+        const notification = notificationsStore[notifIndex]
+
+        if (operation === 'archive') {
+          // Soft-delete: remove from store
+          notificationsStore.splice(notifIndex, 1)
+          updated.push(notification)
+        } else if (operation === 'mark-read') {
+          // Mark as read
+          const updatedNotif = { ...notification, read: true }
+          notificationsStore[notifIndex] = updatedNotif
+          updated.push(updatedNotif)
+        }
+      }
+    })
+
+    return HttpResponse.json({
+      updated: updated.length,
+      notifications: updated,
+    })
+  }),
 ]
 
 /**
