@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useNotifications } from '../../hooks/useNotifications'
+import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 import { NotificationItem } from './NotificationItem'
 import { Link } from '@tanstack/react-router'
 
@@ -63,7 +63,8 @@ export function NotificationDropdown({
     isLoading,
     markAsRead,
     markMultipleAsRead,
-  } = useNotifications()
+    dismissNotification,
+  } = useNotificationCenter()
 
   const dropdownRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
@@ -142,6 +143,12 @@ export function NotificationDropdown({
     }
   }
 
+  const handleClearAll = () => {
+    notifications.forEach((notification) => {
+      dismissNotification(notification.id)
+    })
+  }
+
   return (
     <>
       {/* Backdrop for focus containment */}
@@ -163,14 +170,23 @@ export function NotificationDropdown({
         <div className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
           <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
           {notifications.length > 0 && !isLoading && (
-            <button
-              ref={firstFocusableRef}
-              onClick={handleMarkAllAsRead}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
-              aria-label="Mark all notifications as read"
-            >
-              Mark all as read
-            </button>
+            <div className="flex gap-2">
+              <button
+                ref={firstFocusableRef}
+                onClick={handleMarkAllAsRead}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
+                aria-label="Mark all notifications as read"
+              >
+                Mark all as read
+              </button>
+              <button
+                onClick={handleClearAll}
+                className="text-xs text-red-600 hover:text-red-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-red-400 rounded px-2 py-1"
+                aria-label="Clear all notifications"
+              >
+                Clear all
+              </button>
+            </div>
           )}
         </div>
 
