@@ -1,206 +1,196 @@
-'use client'
-
-import React, { useCallback, useRef, useEffect } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
-import { useNotificationCenter } from '../../hooks/useNotificationCenter'
-import { NotificationBadge } from './NotificationBadge'
+import { useState, useCallback } from 'react'
+import { useNotifications } from '../../hooks/useNotifications'
+import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
 import { NotificationList } from './NotificationList'
+import { NotificationPreferencesPanel } from './NotificationPreferencesPanel'
 
 interface NotificationCenterProps {
-  /** Container className for positioning */
-  className?: string
+  isOpen: boolean
+  onClose: () => void
 }
 
+type ActiveTab = 'all' | 'unread' | 'preferences'
+
 /**
- * NotificationCenter component
+ * NotificationCenter Modal
  *
- * Main container for notification dropdown/panel UI.
- * Orchestrates notification center state via useNotificationCenter hook.
- * Manages the bell icon, unread count badge, and dropdown panel state.
- *
- * Features:
- * - Bell icon with unread count badge (reactive to unread count changes)
- * - Dropdown panel opens on click (toggle behavior)
- * - Closes on Escape key and outside click
- * - Scrollable notification list with max-height
- * - Mark all as read button with proper cache invalidation
- * - Individual notification mark-as-read and dismiss
- * - Empty and loading states
- * - Keyboard navigation with focus trap
- * - Accessible with ARIA attributes
- * - Cache synchronization across notifications and preferences queries
+ * Full-featured notification management modal with:
+ * - Tabs: All / Unread / Preferences
+ * - TanStack Table with sorting, filtering, pagination
+ * - Bulk mark-as-read action
+ * - Individual dismiss/read per notification
+ * - Quick preference toggles inline
+ * - Accessible with keyboard navigation and focus trap
  */
-export function NotificationCenter({ className = '' }: NotificationCenterProps = {}) {
-  const containerRef = useRef<HTMLDivElement>(null)
-  const panelRef = useRef<HTMLDivElement>(null)
+export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
+  const [activeTab, setActiveTab] = useState<ActiveTab>('all')
+  const [selectedNotificationIds, setSelectedNotificationIds] = useState<Set<string>>(new Set())
 
-  const {
-    isOpen,
-    toggleDropdown,
-    closeDropdown,
-    notifications,
-    unreadCount,
-    isLoading,
-    error,
-    markAsRead,
-    markAllAsRead,
-    dismissNotification,
-    refetch,
-  } = useNotificationCenter()
+  // Fetch all notifications
+  const allNotifications = useNotifications({ unreadOnly: false })
 
-  const isError = error !== null
+  // Fetch unread notifications only
+  const unreadNotifications = useNotifications({ unreadOnly: true })
 
-  // Toggle dropdown open/close from hook
-  const handleToggle = useCallback(() => {
-    toggleDropdown()
-  }, [toggleDropdown])
+  // Get preferences for quick toggles
+  const preferences = useNotificationPreferences()
 
-  // Close dropdown from hook
-  const handleClose = useCallback(() => {
-    closeDropdown()
-  }, [closeDropdown])
+  // Determine which hook data to use based on active tab
+  const currentNotifications = activeTab === 'unread' ? unreadNotifications : allNotifications
 
-  // Close on outside click
-  useEffect(() => {
-    if (!isOpen) return
+  const handleClose = () => {
+    setSelectedNotificationIds(new Set())
+    onClose()
+  }
 
-    const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
-        handleClose()
-      }
+  const handleBackdropClick = (e: React.MouseEvent) => {
+    if (e.target === e.currentTarget) {
+      handleClose()
     }
+  }
 
-    document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [isOpen, handleClose])
-
-  // Close on Escape key and focus trap
-  useEffect(() => {
-    if (!isOpen) return
-
-    const handleKeyDown = (e: KeyboardEvent) => {
-      // Close on Escape
-      if (e.key === 'Escape') {
-        handleClose()
-        return
-      }
-
-      // Focus trap: cycle through focusable elements within panel
-      if (e.key === 'Tab' && panelRef.current) {
-        const focusableElements = panelRef.current.querySelectorAll(
-          'button, a, [tabindex]:not([tabindex="-1"])'
-        )
-        const focusArray = Array.from(focusableElements) as HTMLElement[]
-
-        if (focusArray.length === 0) return
-
-        const currentFocus = document.activeElement
-        const focusedIndex = focusArray.indexOf(currentFocus as HTMLElement)
-
-        if (e.shiftKey) {
-          // Shift + Tab - move to previous focusable element
-          if (focusedIndex <= 0) {
-            e.preventDefault()
-            focusArray[focusArray.length - 1].focus()
-          }
-        } else {
-          // Tab - move to next focusable element
-          if (focusedIndex === focusArray.length - 1) {
-            e.preventDefault()
-            focusArray[0].focus()
-          }
-        }
-      }
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      handleClose()
     }
+  }
 
-    document.addEventListener('keydown', handleKeyDown)
-    return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, handleClose])
+  // Mark selected notifications as read
+  const handleMarkSelectedAsRead = useCallback(async () => {
+    if (selectedNotificationIds.size === 0) return
 
-  // Mark all as read uses hook mutation
-  const handleMarkAllAsRead = useCallback(() => {
-    markAllAsRead()
-  }, [markAllAsRead])
+    try {
+      await allNotifications.markMultipleAsRead(Array.from(selectedNotificationIds))
+      setSelectedNotificationIds(new Set())
+    } catch (error) {
+      console.error('Failed to mark notifications as read:', error)
+    }
+  }, [selectedNotificationIds, allNotifications])
 
-  const handleMarkAsReadSingle = useCallback((id: string) => {
-    markAsRead(id)
-  }, [markAsRead])
+  // Toggle all notifications selection
+  const handleToggleSelectAll = useCallback(() => {
+    if (selectedNotificationIds.size === currentNotifications.notifications.length && selectedNotificationIds.size > 0) {
+      setSelectedNotificationIds(new Set())
+    } else {
+      setSelectedNotificationIds(
+        new Set(currentNotifications.notifications.map((n) => n.id))
+      )
+    }
+  }, [currentNotifications.notifications, selectedNotificationIds])
 
-  const handleDismissNotification = useCallback((id: string) => {
-    dismissNotification(id)
-  }, [dismissNotification])
+  // Handle individual notification selection
+  const handleToggleNotification = useCallback((id: string) => {
+    setSelectedNotificationIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }, [])
 
-  const handleRetry = useCallback(() => {
-    refetch()
-  }, [refetch])
+  if (!isOpen) return null
+
+  const hasSelectableNotifications = currentNotifications.notifications.length > 0
 
   return (
-    <div ref={containerRef} className={`relative inline-block ${className}`}>
-      {/* Bell icon badge button */}
-      <NotificationBadge onClick={handleToggle} isOpen={isOpen} />
-
-      {/* Dropdown panel */}
-      {isOpen && (
-        <div
-          ref={panelRef}
-          className="absolute right-0 mt-2 w-96 bg-white rounded-lg border border-slate-200 shadow-xl z-50 max-h-[600px] flex flex-col"
-          role="dialog"
-          aria-label="Notifications"
-          aria-modal="true"
-        >
-          {/* Header with unread count and mark all as read */}
-          <div className="px-4 py-3 border-b border-slate-200 bg-slate-50 flex items-center justify-between flex-shrink-0">
-            <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
-            {unreadCount > 0 && !isLoading && (
-              <button
-                onClick={handleMarkAllAsRead}
-                className="text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
-                aria-label="Mark all notifications as read"
-              >
-                Mark all as read
-              </button>
-            )}
-            {unreadCount === 0 && !isLoading && (
-              <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600">
-                {notifications.length}
-              </span>
-            )}
+    <div
+      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
+      onClick={handleBackdropClick}
+      onKeyDown={handleKeyDown}
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="notification-center-title"
+    >
+      <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="border-b px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 id="notification-center-title" className="text-xl font-semibold text-gray-900">
+              Notifications
+            </h2>
+            <p className="text-sm text-gray-500 mt-1">
+              {currentNotifications.unreadCount} unread
+            </p>
           </div>
+          <button
+            onClick={handleClose}
+            className="text-gray-400 hover:text-gray-600"
+            aria-label="Close notification center"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-          {/* Error state */}
-          {isError && (
-            <div className="px-4 py-3 border-b border-slate-200">
-              <div className="flex items-start gap-3 rounded-lg bg-red-50 border border-red-200 p-3">
-                <AlertCircle className="h-4 w-4 text-red-600 flex-shrink-0 mt-0.5" />
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-medium text-red-900">Failed to load</p>
-                  <p className="text-xs text-red-700 mt-1">
-                    {error instanceof Error ? error.message : 'An error occurred'}
-                  </p>
+        {/* Tabs */}
+        <div className="border-b flex gap-8 px-6 bg-gray-50">
+          {(['all', 'unread', 'preferences'] as const).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => {
+                setActiveTab(tab)
+                setSelectedNotificationIds(new Set())
+              }}
+              className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${
+                activeTab === tab
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-600 hover:text-gray-900'
+              }`}
+            >
+              {tab}
+              {tab === 'unread' && currentNotifications.unreadCount > 0 && (
+                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
+                  {currentNotifications.unreadCount}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {activeTab === 'preferences' ? (
+            <NotificationPreferencesPanel
+              preferences={preferences}
+              isLoading={preferences.isLoading}
+            />
+          ) : (
+            <>
+              {/* Bulk Actions Toolbar */}
+              {hasSelectableNotifications && selectedNotificationIds.size > 0 && (
+                <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center justify-between border border-blue-200">
+                  <span className="text-sm font-medium text-blue-900">
+                    {selectedNotificationIds.size} selected
+                  </span>
                   <button
-                    onClick={handleRetry}
-                    className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
-                    aria-label="Retry loading notifications"
+                    onClick={handleMarkSelectedAsRead}
+                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
                   >
-                    <RefreshCw className="h-3 w-3" />
-                    Retry
+                    Mark as read
                   </button>
                 </div>
-              </div>
-            </div>
-          )}
+              )}
 
-          {/* Notification list */}
-          <NotificationList
-            notifications={notifications}
-            isLoading={isLoading}
-            error={isError ? error : null}
-            onMarkAsRead={handleMarkAsReadSingle}
-            onDismiss={handleDismissNotification}
-            emptyMessage="You're all caught up!"
-          />
+              <NotificationList
+                notifications={currentNotifications.notifications}
+                isLoading={currentNotifications.isLoading}
+                isError={currentNotifications.isError}
+                selectedIds={selectedNotificationIds}
+                onToggleSelect={handleToggleNotification}
+                onToggleSelectAll={handleToggleSelectAll}
+                onMarkAsRead={allNotifications.markAsRead}
+                onDismiss={allNotifications.dismissNotification}
+                tab={activeTab}
+                hasSelectableNotifications={hasSelectableNotifications}
+              />
+            </>
+          )}
         </div>
-      )}
+      </div>
     </div>
   )
 }

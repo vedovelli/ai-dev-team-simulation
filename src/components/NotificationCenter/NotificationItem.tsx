@@ -1,148 +1,126 @@
-import React from 'react'
-import { X, User, Zap, Clock, MessageSquare, CheckCircle, AlertCircle } from 'lucide-react'
 import type { Notification } from '../../types/notification'
-import { getRelativeTime } from '../../lib/utils'
 
 interface NotificationItemProps {
   notification: Notification
+  isSelected: boolean
+  onToggleSelect: (id: string) => void
   onMarkAsRead: (id: string) => void
-  onDismiss?: (id: string) => void
+  onDismiss: (id: string) => void
 }
 
-/**
- * Get the appropriate icon for a notification type
- */
-function getEventIcon(type: Notification['type']): React.ReactNode {
-  const iconProps = { className: 'w-4 h-4' }
-
-  switch (type) {
-    case 'assignment_changed':
-    case 'task_assigned':
-    case 'task_reassigned':
-      return <User {...iconProps} />
-    case 'sprint_updated':
-    case 'sprint_started':
-    case 'sprint_completed':
-      return <Zap {...iconProps} />
-    case 'deadline_approaching':
-      return <Clock {...iconProps} />
-    case 'comment_added':
-      return <MessageSquare {...iconProps} />
-    case 'status_changed':
-      return <CheckCircle {...iconProps} />
-    default:
-      return <AlertCircle {...iconProps} />
-  }
-}
-
-/**
- * Get the color classes for a notification type
- */
-function getTypeColor(type: Notification['type']): string {
-  switch (type) {
-    case 'deadline_approaching':
-      return 'bg-amber-50 text-amber-600' // Warning: Amber
-    case 'sprint_completed':
-    case 'sprint_started':
-      return 'bg-green-50 text-green-600' // Success: Green
-    case 'task_assigned':
-    case 'task_reassigned':
-    case 'assignment_changed':
-      return 'bg-blue-50 text-blue-600' // Info: Blue
-    case 'comment_added':
-      return 'bg-purple-50 text-purple-600' // Comment: Purple
-    case 'status_changed':
-      return 'bg-cyan-50 text-cyan-600' // Status: Cyan
-    default:
-      return 'bg-slate-50 text-slate-600' // Default: Slate
-  }
-}
-
-/**
- * NotificationItem component
- *
- * Displays a single notification with:
- * - Type icon with color coding
- * - Message text
- * - Relative timestamp
- * - Unread indicator (blue dot)
- * - Dismiss button
- * - Click to mark as read
- */
 export function NotificationItem({
   notification,
+  isSelected,
+  onToggleSelect,
   onMarkAsRead,
   onDismiss,
 }: NotificationItemProps) {
-  const handleClick = () => {
-    if (!notification.read) {
-      onMarkAsRead(notification.id)
+  const getTypeIcon = (type: string) => {
+    const icons: Record<string, JSX.Element> = {
+      assignment_changed: (
+        <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z" />
+        </svg>
+      ),
+      sprint_updated: (
+        <svg className="w-5 h-5 text-green-500" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M5 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2H5zM15 3a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2V5a2 2 0 00-2-2h-2zM5 13a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2H5zM15 13a2 2 0 00-2 2v2a2 2 0 002 2h2a2 2 0 002-2v-2a2 2 0 00-2-2h-2z" />
+        </svg>
+      ),
+      deadline_approaching: (
+        <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.5a1 1 0 002 0V7z" clipRule="evenodd" />
+        </svg>
+      ),
     }
+    return icons[type] || (
+      <svg className="w-5 h-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+        <path d="M9 2a1 1 0 000 2h2a1 1 0 100-2H9z" />
+        <path fillRule="evenodd" d="M4 5a2 2 0 012-2 1 1 0 000-2H6a4 4 0 014 4v10a2 2 0 01-2 2H4a2 2 0 01-2-2V5z" clipRule="evenodd" />
+      </svg>
+    )
   }
 
-  const handleDismiss = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (onDismiss) {
-      onDismiss(notification.id)
-    }
-  }
+  const getRelativeTime = (timestamp: string) => {
+    const date = new Date(timestamp)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffMins = Math.floor(diffMs / 60000)
+    const diffHours = Math.floor(diffMs / 3600000)
+    const diffDays = Math.floor(diffMs / 86400000)
 
-  const [bgColor, textColor] = getTypeColor(notification.type).split(' ')
+    if (diffMins < 1) return 'just now'
+    if (diffMins < 60) return `${diffMins}m ago`
+    if (diffHours < 24) return `${diffHours}h ago`
+    if (diffDays < 7) return `${diffDays}d ago`
+    return date.toLocaleDateString()
+  }
 
   return (
-    <button
-      className={`w-full px-4 py-3 border-b border-slate-200 hover:bg-slate-50 transition-colors text-left focus:outline-none focus:ring-inset focus:ring-2 focus:ring-blue-400 ${
-        !notification.read ? 'bg-blue-50' : ''
-      }`}
-      onClick={handleClick}
-      role="listitem"
-      aria-label={`${notification.message}${!notification.read ? ' (unread)' : ''}`}
+    <div
+      className={`flex items-start gap-3 p-3 rounded-lg border ${
+        notification.read
+          ? 'bg-gray-50 border-gray-200'
+          : 'bg-blue-50 border-blue-200'
+      } hover:shadow-sm transition-shadow`}
     >
-      <div className="flex gap-3">
-        {/* Type Icon */}
-        <div className={`flex-shrink-0 mt-0.5 p-1.5 rounded ${bgColor} ${textColor}`}>
-          {getEventIcon(notification.type)}
-        </div>
+      {/* Checkbox */}
+      <input
+        type="checkbox"
+        checked={isSelected}
+        onChange={() => onToggleSelect(notification.id)}
+        className="w-4 h-4 mt-1 rounded border-gray-300"
+        aria-label={`Select notification: ${notification.message}`}
+      />
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start justify-between gap-2">
-            <p
-              className={`text-sm leading-snug ${
-                !notification.read
-                  ? 'font-semibold text-slate-900'
-                  : 'font-medium text-slate-700'
-              }`}
-            >
-              {notification.message}
-            </p>
+      {/* Icon */}
+      <div className="flex-shrink-0 mt-1">
+        {getTypeIcon(notification.type)}
+      </div>
 
-            {/* Dismiss Button */}
-            {onDismiss && (
-              <button
-                onClick={handleDismiss}
-                className="flex-shrink-0 p-1 text-slate-400 hover:text-slate-600 rounded hover:bg-slate-200 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300"
-                aria-label={`Dismiss notification: ${notification.message}`}
-              >
-                <X className="w-4 h-4" />
-              </button>
-            )}
-          </div>
-
-          {/* Timestamp and Read Indicator */}
-          <div className="flex items-center gap-2 mt-1.5">
-            <span className="text-xs text-slate-500">
-              {getRelativeTime(new Date(notification.timestamp))}
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        <p
+          className={`text-sm ${
+            notification.read ? 'text-gray-600' : 'font-semibold text-gray-900'
+          }`}
+        >
+          {notification.message}
+        </p>
+        <div className="flex items-center gap-2 mt-1">
+          <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-gray-100 text-gray-700">
+            {notification.type}
+          </span>
+          <span className="text-xs text-gray-500">
+            {getRelativeTime(notification.timestamp)}
+          </span>
+          {notification.priority === 'high' && (
+            <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700">
+              High Priority
             </span>
-            {!notification.read && (
-              <span
-                className="w-2 h-2 bg-blue-500 rounded-full flex-shrink-0"
-                aria-label="Unread notification indicator"
-              />
-            )}
-          </div>
+          )}
         </div>
       </div>
-    </button>
+
+      {/* Actions */}
+      <div className="flex gap-2 flex-shrink-0">
+        {!notification.read && (
+          <button
+            onClick={() => onMarkAsRead(notification.id)}
+            className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+            title="Mark as read"
+          >
+            Read
+          </button>
+        )}
+        <button
+          onClick={() => onDismiss(notification.id)}
+          className="px-2 py-1 text-xs bg-gray-300 text-gray-700 rounded hover:bg-gray-400 transition-colors"
+          title="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
+    </div>
   )
 }
