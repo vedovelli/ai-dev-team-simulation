@@ -4,6 +4,16 @@ import { useMutationWithRetry } from './useMutationWithRetry'
 import { usePollingWithFocus } from './usePollingWithFocus'
 
 /**
+ * Query key factory for notifications
+ * Ensures consistency across all hooks that access notification cache
+ */
+export const notificationQueryKeys = {
+  all: ['notifications'] as const,
+  list: (unreadOnly: boolean = false) => [...notificationQueryKeys.all, { unreadOnly }] as const,
+  detail: (id: string) => [...notificationQueryKeys.all, { id }] as const,
+}
+
+/**
  * Request/response types for dismiss operations
  */
 interface DismissNotificationRequest {
@@ -67,7 +77,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
   // Infinite query to fetch notifications with cursor-based pagination
   const query = useInfiniteQuery<PaginatedNotificationsResponse, Error>({
-    queryKey: ['notifications', { unreadOnly }],
+    queryKey: notificationQueryKeys.list(unreadOnly),
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams()
       params.append('limit', '10')
@@ -126,7 +136,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
       // Snapshot previous data across all pages
       const previousData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
-        { queryKey: ['notifications', { unreadOnly: false }] }
+        { queryKey: notificationQueryKeys.list(false) }
       )
 
       // Optimistically update notification cache across all pages
@@ -140,10 +150,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
             ),
           })),
         }
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: any) => {
+        queryClient.setQueryData(notificationQueryKeys.list(true), (old?: any) => {
           if (!old?.pages) return old
           return {
             ...old,
@@ -160,7 +170,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousData) {
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
       }
     },
     onSuccess: () => {
@@ -226,7 +236,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
       // Snapshot previous data across all pages
       const previousData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
-        { queryKey: ['notifications', { unreadOnly: false }] }
+        { queryKey: notificationQueryKeys.list(false) }
       )
 
       // Optimistically remove notification from cache across all pages
@@ -244,10 +254,10 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
             return page
           }),
         }
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: any) => {
+        queryClient.setQueryData(notificationQueryKeys.list(true), (old?: any) => {
           if (!old?.pages) return old
           return {
             ...old,
@@ -264,7 +274,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousData) {
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
       }
     },
     onSuccess: () => {
@@ -296,7 +306,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
 
       // Snapshot previous data across all pages
       const previousData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
-        { queryKey: ['notifications', { unreadOnly: false }] }
+        { queryKey: notificationQueryKeys.list(false) }
       )
 
       // Optimistically remove all read notifications across all pages
@@ -316,7 +326,7 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousData) {
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
       }
     },
     onSuccess: () => {
@@ -415,10 +425,10 @@ export function useDismissNotification() {
           notifications: previousData.notifications.filter((n) => n.id !== id),
           unreadCount: notification && !notification.read ? Math.max(0, previousData.unreadCount - 1) : previousData.unreadCount,
         }
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], updated)
+        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(['notifications', { unreadOnly: true }], (old?: NotificationCenter) => {
+        queryClient.setQueryData(notificationQueryKeys.list(true), (old?: NotificationCenter) => {
           if (!old) return old
           return {
             ...old,
@@ -433,7 +443,7 @@ export function useDismissNotification() {
     onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousData) {
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
       }
     },
     onSuccess: () => {
@@ -485,7 +495,7 @@ export function useDismissAllNotifications() {
     onError: (_, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousData) {
-        queryClient.setQueryData(['notifications', { unreadOnly: false }], context.previousData)
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
       }
     },
     onSuccess: () => {
