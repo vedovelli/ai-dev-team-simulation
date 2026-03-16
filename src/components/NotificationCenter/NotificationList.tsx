@@ -1,64 +1,165 @@
-import { CheckCircle } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import {
+  useReactTable,
+  getCoreRowModel,
+  getSortedRowModel,
+  ColumnDef,
+  SortingState,
+  flexRender,
+} from '@tanstack/react-table'
 import type { Notification } from '../../types/notification'
 import { NotificationItem } from './NotificationItem'
 
 interface NotificationListProps {
   notifications: Notification[]
   isLoading: boolean
-  error: Error | null
+  isError: boolean
+  selectedIds: Set<string>
+  onToggleSelect: (id: string) => void
+  onToggleSelectAll: () => void
   onMarkAsRead: (id: string) => void
-  onDismiss?: (id: string) => void
-  emptyMessage?: string
+  onDismiss: (id: string) => void
+  tab: 'all' | 'unread'
+  hasSelectableNotifications: boolean
 }
 
-/**
- * NotificationList Component
- *
- * Renders a scrollable list of notifications with:
- * - Loading skeleton while fetching data
- * - Error state with message
- * - Empty state when no notifications
- * - NotificationItem components for each notification
- * - Proper ARIA roles and semantics (role="list")
- * - Max height with overflow scrolling
- */
 export function NotificationList({
   notifications,
   isLoading,
-  error,
+  isError,
+  selectedIds,
+  onToggleSelect,
+  onToggleSelectAll,
   onMarkAsRead,
   onDismiss,
-  emptyMessage = "You're all caught up!",
+  tab,
+  hasSelectableNotifications,
 }: NotificationListProps) {
-  if (isLoading && notifications.length === 0) {
-    return (
-      <div
-        className="flex-1 overflow-y-auto divide-y divide-slate-200"
-        aria-live="polite"
-        aria-busy="true"
-      >
-        {/* Loading skeleton - 3 items */}
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={i} className="px-4 py-3 animate-pulse">
-            <div className="flex gap-3">
-              <div className="w-6 h-6 bg-slate-200 rounded flex-shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-4 bg-slate-200 rounded w-3/4" />
-                <div className="h-3 bg-slate-200 rounded w-1/2" />
-              </div>
-            </div>
+  const [sorting, setSorting] = useState<SortingState>([{ id: 'timestamp', desc: true }])
+
+  // Define columns for TanStack Table
+  const columns = useMemo<ColumnDef<Notification>[]>(
+    () => [
+      {
+        id: 'select',
+        header: ({ table }) => (
+          <input
+            type="checkbox"
+            checked={
+              hasSelectableNotifications &&
+              notifications.length > 0 &&
+              selectedIds.size === notifications.length
+            }
+            indeterminate={selectedIds.size > 0 && selectedIds.size < notifications.length}
+            onChange={onToggleSelectAll}
+            className="w-4 h-4 rounded border-gray-300"
+            aria-label="Select all notifications"
+          />
+        ),
+        cell: ({ row }) => (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.original.id)}
+            onChange={() => onToggleSelect(row.original.id)}
+            className="w-4 h-4 rounded border-gray-300"
+            aria-label={`Select notification: ${row.original.message}`}
+          />
+        ),
+        size: 50,
+      },
+      {
+        accessorKey: 'message',
+        header: 'Message',
+        cell: ({ row }) => (
+          <div className="flex-1">
+            <p className={`text-sm ${row.original.read ? 'text-gray-600' : 'font-semibold text-gray-900'}`}>
+              {row.original.message}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              {row.original.type}
+            </p>
           </div>
-        ))}
+        ),
+      },
+      {
+        accessorKey: 'timestamp',
+        header: 'Time',
+        cell: ({ row }) => {
+          const date = new Date(row.original.timestamp)
+          const now = new Date()
+          const diffMs = now.getTime() - date.getTime()
+          const diffMins = Math.floor(diffMs / 60000)
+          const diffHours = Math.floor(diffMs / 3600000)
+          const diffDays = Math.floor(diffMs / 86400000)
+
+          let timeStr = ''
+          if (diffMins < 1) timeStr = 'just now'
+          else if (diffMins < 60) timeStr = `${diffMins}m ago`
+          else if (diffHours < 24) timeStr = `${diffHours}h ago`
+          else if (diffDays < 7) timeStr = `${diffDays}d ago`
+          else timeStr = date.toLocaleDateString()
+
+          return <span className="text-xs text-gray-500">{timeStr}</span>
+        },
+        size: 100,
+      },
+      {
+        id: 'actions',
+        cell: ({ row }) => (
+          <div className="flex gap-2">
+            {!row.original.read && (
+              <button
+                onClick={() => onMarkAsRead(row.original.id)}
+                className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+                aria-label="Mark as read"
+              >
+                Read
+              </button>
+            )}
+            <button
+              onClick={() => onDismiss(row.original.id)}
+              className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
+              aria-label="Dismiss notification"
+            >
+              Dismiss
+            </button>
+          </div>
+        ),
+        size: 150,
+      },
+    ],
+    [selectedIds, onToggleSelect, onToggleSelectAll, onMarkAsRead, onDismiss, hasSelectableNotifications, notifications.length]
+  )
+
+  const table = useReactTable({
+    data: notifications,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    state: {
+      sorting,
+    },
+    onSortingChange: setSorting,
+  })
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="animate-spin">
+          <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </div>
       </div>
     )
   }
 
-  if (error && notifications.length === 0) {
+  if (isError) {
     return (
-      <div className="flex-1 overflow-y-auto flex items-center justify-center p-4">
+      <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <p className="text-sm text-red-600 font-medium">Failed to load notifications</p>
-          <p className="text-xs text-red-500 mt-1">Please try again later</p>
+          <p className="text-red-600 font-medium">Failed to load notifications</p>
+          <p className="text-gray-500 text-sm mt-1">Please try refreshing the page</p>
         </div>
       </div>
     )
@@ -66,28 +167,26 @@ export function NotificationList({
 
   if (notifications.length === 0) {
     return (
-      <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center p-6">
-        <div className="flex justify-center mb-3">
-          <div className="p-2 bg-slate-100 rounded-full">
-            <CheckCircle className="w-6 h-6 text-slate-400" />
-          </div>
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center">
+          <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+          </svg>
+          <p className="text-gray-600 font-medium">No {tab === 'unread' ? 'unread' : ''} notifications</p>
+          <p className="text-gray-500 text-sm mt-1">You're all caught up!</p>
         </div>
-        <h3 className="text-sm font-medium text-slate-900 mb-1">All caught up!</h3>
-        <p className="text-xs text-slate-500 text-center">{emptyMessage}</p>
       </div>
     )
   }
 
   return (
-    <div
-      className="flex-1 overflow-y-auto divide-y divide-slate-200"
-      role="list"
-      aria-label="Notifications list"
-    >
-      {notifications.map((notification) => (
+    <div className="space-y-2 max-h-[500px] overflow-y-auto">
+      {table.getRowModel().rows.map((row) => (
         <NotificationItem
-          key={notification.id}
-          notification={notification}
+          key={row.original.id}
+          notification={row.original}
+          isSelected={selectedIds.has(row.original.id)}
+          onToggleSelect={onToggleSelect}
           onMarkAsRead={onMarkAsRead}
           onDismiss={onDismiss}
         />
