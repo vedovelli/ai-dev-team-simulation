@@ -72,7 +72,7 @@ export function useNotificationCenter(config: NotificationCenterPaginationConfig
 
   /**
    * Filter notifications by enabled preference types
-   * Only includes notification types that are not disabled in user preferences
+   * Excludes only notification types explicitly disabled (frequency === 'off') in user preferences
    */
   const filteredNotifications = useMemo(() => {
     if (!notifications.notifications || !preferences.data) {
@@ -80,24 +80,30 @@ export function useNotificationCenter(config: NotificationCenterPaginationConfig
     }
 
     const prefs = preferences.data as NotificationPreferences
-    const enabledTypes = new Set<NotificationType>()
+    const disabledTypes = new Set<NotificationType>()
 
-    // Build set of enabled notification types from preferences
-    if (prefs.preferences) {
-      Object.entries(prefs.preferences).forEach(([typeKey, typeConfig]) => {
-        // Check if this type is not explicitly disabled
-        // A type is disabled if frequency is 'off'
-        if (typeConfig?.frequency !== 'off') {
-          enabledTypes.add(typeKey as NotificationType)
+    // Build set of disabled notification types from preferences
+    // Only include types that have frequency === 'off'
+    Object.entries(prefs).forEach(([typeKey, value]) => {
+      // Type guard: check if this is a notification type preference (has frequency property)
+      if (
+        value &&
+        typeof value === 'object' &&
+        'frequency' in value &&
+        typeof value.frequency === 'string'
+      ) {
+        if (value.frequency === 'off') {
+          const notifType = typeKey as NotificationType
+          disabledTypes.add(notifType)
         }
-      })
-    }
+      }
+    })
 
-    // Filter notifications to only include enabled types
+    // Filter notifications to exclude only disabled types
+    // Include all others, supporting backward compatibility for new notification types
     return notifications.notifications.filter((notif) => {
-      // Always include notifications with types that don't have preferences defined
-      // (backward compatibility for legacy notification types)
-      return enabledTypes.has(notif.type)
+      // Include notification if its type is NOT explicitly disabled
+      return !disabledTypes.has(notif.type)
     })
   }, [notifications.notifications, preferences.data])
 
