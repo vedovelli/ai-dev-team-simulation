@@ -29,7 +29,11 @@ export type { RetryMetricsHook, AttemptMetadata } from './useRetryMetrics'
 export { useNotifications, useDismissNotification, useDismissAllNotifications, notificationQueryKeys } from './useNotifications'
 export type { UseNotificationsOptions, UseNotificationsReturn } from './useNotifications'
 export { useNotificationCenter } from './useNotificationCenter'
-export type { UseNotificationCenterReturn } from './useNotificationCenter'
+export type {
+  UseNotificationCenterReturn,
+  NotificationCenterPaginationConfig,
+  NotificationCenterPagination,
+} from './useNotificationCenter'
 export { useNotificationCenterDisplay } from './useNotificationCenterDisplay'
 export type { UseNotificationCenterDisplayOptions, UseNotificationCenterDisplayReturn } from './useNotificationCenterDisplay'
 export { useNotificationPreferences } from './useNotificationPreferences'

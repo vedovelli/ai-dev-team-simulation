@@ -1,8 +1,9 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotifications, notificationQueryKeys } from './useNotifications'
 import { useNotificationPreferences } from './useNotificationPreferences'
-import type { Notification, PaginatedNotificationsResponse } from '../types/notification'
+import type { Notification, NotificationType, PaginatedNotificationsResponse } from '../types/notification'
+import type { NotificationPreferences } from '../types/notification-preferences'
 import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
@@ -14,28 +15,119 @@ interface InfiniteQueryState {
 }
 
 /**
+ * Configuration options for client-side pagination
+ */
+export interface NotificationCenterPaginationConfig {
+  /** Current page number (1-indexed, default: 1) */
+  pageNumber: number
+  /** Items per page (default: 10, max: 100) */
+  pageSize: number
+}
+
+/**
+ * Pagination metadata for virtualization and UI control
+ */
+export interface NotificationCenterPagination {
+  /** Current page number */
+  pageNumber: number
+  /** Total items per page */
+  pageSize: number
+  /** Total number of items across all pages */
+  total: number
+  /** Total number of pages */
+  pageCount: number
+  /** Whether there is a next page */
+  hasNextPage: boolean
+  /** Whether there is a previous page */
+  hasPreviousPage: boolean
+}
+
+/**
  * Orchestrates notification center state and actions
  *
  * Combines useNotifications and useNotificationPreferences into a cohesive interface
- * for the notification center UI. Manages local dropdown open/close state and
- * provides unified mutation operations with proper cache invalidation.
+ * for the notification center UI. Provides client-side pagination and preference-based filtering.
  *
  * Features:
- * - Manages dropdown open/close state locally (not persisted in TanStack Query)
- * - Reactive unread count updates as notifications change
+ * - Client-side pagination (configurable page size, default 10)
+ * - Filters notifications by user preferences (enabled notification types)
+ * - Manages dropdown open/close state locally
+ * - Reactive unread count from all notifications
  * - markAllAsRead invalidates both notifications and preferences queries
  * - clearAll performs optimistic remove with rollback on error
  * - Proper cache synchronization across related queries
- * - Exposes refetch for retry capability on error
- * - Returns only UI-relevant properties to avoid confusion
+ * - TanStack Virtual compatible: returns flat list with total count
+ * - Pagination controls: goToPage, nextPage, prevPage
  */
-export function useNotificationCenter() {
+export function useNotificationCenter(config: NotificationCenterPaginationConfig = { pageNumber: 1, pageSize: 10 }) {
   const [isOpen, setIsOpen] = useState(false)
+  const [currentPage, setCurrentPage] = useState(Math.max(1, config.pageNumber))
+  const pageSize = Math.min(Math.max(1, config.pageSize), 100) // Clamp between 1 and 100
+
   const queryClient = useQueryClient()
 
   // Data layer hooks
   const notifications = useNotifications()
   const preferences = useNotificationPreferences()
+
+  /**
+   * Filter notifications by enabled preference types
+   * Only includes notification types that are not disabled in user preferences
+   */
+  const filteredNotifications = useMemo(() => {
+    if (!notifications.notifications || !preferences.data) {
+      return notifications.notifications ?? []
+    }
+
+    const prefs = preferences.data as NotificationPreferences
+    const enabledTypes = new Set<NotificationType>()
+
+    // Build set of enabled notification types from preferences
+    if (prefs.preferences) {
+      Object.entries(prefs.preferences).forEach(([typeKey, typeConfig]) => {
+        // Check if this type is not explicitly disabled
+        // A type is disabled if frequency is 'off'
+        if (typeConfig?.frequency !== 'off') {
+          enabledTypes.add(typeKey as NotificationType)
+        }
+      })
+    }
+
+    // Filter notifications to only include enabled types
+    return notifications.notifications.filter((notif) => {
+      // Always include notifications with types that don't have preferences defined
+      // (backward compatibility for legacy notification types)
+      return enabledTypes.has(notif.type)
+    })
+  }, [notifications.notifications, preferences.data])
+
+  /**
+   * Calculate pagination metadata
+   */
+  const pagination = useMemo<NotificationCenterPagination>(() => {
+    const total = filteredNotifications.length
+    const pageCount = Math.ceil(total / pageSize) || 1
+    const validPageNumber = Math.min(currentPage, pageCount)
+
+    return {
+      pageNumber: validPageNumber,
+      pageSize,
+      total,
+      pageCount,
+      hasNextPage: validPageNumber < pageCount,
+      hasPreviousPage: validPageNumber > 1,
+    }
+  }, [filteredNotifications.length, pageSize, currentPage])
+
+  /**
+   * Get notifications for current page
+   * TanStack Virtual compatible: returns flat list
+   */
+  const paginatedNotifications = useMemo(() => {
+    const start = (pagination.pageNumber - 1) * pageSize
+    const end = start + pageSize
+    return filteredNotifications.slice(start, end)
+  }, [filteredNotifications, pagination.pageNumber, pageSize])
 
   // Mutation for marking all as read
   const markAllAsReadMutation = useMutationWithRetry<{ success: boolean }, void>({
@@ -163,11 +255,52 @@ export function useNotificationCenter() {
   }, [])
 
   /**
+   * Navigate to specific page
+   */
+  const goToPage = useCallback((pageNum: number) => {
+    const validPage = Math.max(1, Math.min(pageNum, pagination.pageCount))
+    setCurrentPage(validPage)
+  }, [pagination.pageCount])
+
+  /**
+   * Go to next page
+   */
+  const nextPage = useCallback(() => {
+    if (pagination.hasNextPage) {
+      setCurrentPage((prev) => prev + 1)
+    }
+  }, [pagination.hasNextPage])
+
+  /**
+   * Go to previous page
+   */
+  const previousPage = useCallback(() => {
+    if (pagination.hasPreviousPage) {
+      setCurrentPage((prev) => prev - 1)
+    }
+  }, [pagination.hasPreviousPage])
+
+  /**
    * Mark single notification as read
    */
   const markAsRead = useCallback(
     (id: string) => {
       notifications.markAsRead(id)
+    },
+    [notifications]
+  )
+
+  /**
+   * Mark multiple notifications as read
+   */
+  const markMultipleAsRead = useCallback(
+    async (ids: string[]) => {
+      try {
+        await notifications.markMultipleAsRead(ids)
+      } catch (error) {
+        // Error is handled in the mutation
+        throw error
+      }
     },
     [notifications]
   )
@@ -193,16 +326,24 @@ export function useNotificationCenter() {
     closeDropdown,
 
     // Data from hooks
-    notifications: notifications.notifications,
+    notifications: paginatedNotifications,
+    filteredNotifications,
     unreadCount: notifications.unreadCount,
 
     // Query states (UI needs to know loading/error status)
     isLoading: notifications.isLoading,
     error: notifications.error,
+    preferencesLoading: preferences.isLoading,
+    preferencesError: preferences.error,
 
-    // Infinite scroll
+    // Pagination
+    pagination,
+    goToPage,
+    nextPage,
+    previousPage,
+
+    // Infinite scroll (for backward compatibility)
     fetchNextPage: notifications.fetchNextPage,
-    hasNextPage: notifications.hasNextPage,
     isFetchingNextPage: notifications.isFetchingNextPage,
 
     // Mutation states
@@ -214,6 +355,7 @@ export function useNotificationCenter() {
 
     // Actions
     markAsRead,
+    markMultipleAsRead,
     markAllAsRead,
     clearAll,
     dismissNotification: notifications.dismissNotification,
