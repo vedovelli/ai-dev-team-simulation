@@ -6,7 +6,8 @@ import { QueryClientProvider } from '@tanstack/react-query'
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools'
 import { queryClient } from './lib/queryClient'
 import { routeTree } from './routeTree.gen'
-import { ToastContainer } from './components/Toast'
+import { ToastProvider } from './contexts/ToastContext'
+import { ToastContainer, NotificationToastProvider } from './components/NotificationToast'
 const router = createRouter({ routeTree, context: { queryClient } })
 
 declare module '@tanstack/react-router' {
@@ -26,9 +27,12 @@ enableMocking().then(() => {
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>
       <QueryClientProvider client={queryClient}>
-        <RouterProvider router={router} />
-        <ToastContainer />
-        {import.meta.env.DEV && <ReactQueryDevtools />}
+        <ToastProvider maxVisible={3}>
+          <NotificationToastProvider />
+          <RouterProvider router={router} />
+          <ToastContainer />
+          {import.meta.env.DEV && <ReactQueryDevtools />}
+        </ToastProvider>
       </QueryClientProvider>
     </React.StrictMode>,
   )

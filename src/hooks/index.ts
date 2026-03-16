@@ -104,3 +104,5 @@ export { PollingTransport, WebSocketTransport, SSETransport } from './transports
 export type { RealtimeTransport, SubscriptionCallback, TransportCapabilities, TransportType, Unsubscriber } from './transports'
 export { useToastNotifications } from './useToastNotifications'
 export type { Toast, UseToastNotificationsOptions, UseToastNotificationsReturn } from './useToastNotifications'
+export { useNotificationEvents } from './useNotificationEvents'
+export type { NotificationEvent, UseNotificationEventsReturn } from './useNotificationEvents'
