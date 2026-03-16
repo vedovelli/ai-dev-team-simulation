@@ -1,4 +1,3 @@
-import { useQueryClient } from '@tanstack/react-query'
 import type { Notification } from '../types/notification'
 import type { NotificationPreferences } from '../types/notification-preferences'
 import { useNotifications, type UseNotificationsOptions } from './useNotifications'
@@ -16,13 +15,12 @@ export interface UseNotificationCenterOptions {
 
 /**
  * Check if a notification type is enabled in user preferences
+ * Note: This function assumes preferences is already defined (checked by caller)
  */
 function isNotificationTypeEnabled(
   notificationType: string,
-  preferences: NotificationPreferences | undefined,
+  preferences: NotificationPreferences,
 ): boolean {
-  if (!preferences) return false
-
   // Get the preference object for this notification type
   const preference = (preferences as any)[notificationType]
 
@@ -58,7 +56,7 @@ function computeUnreadCountForEnabledTypes(
   notifications: Notification[],
   preferences: NotificationPreferences | undefined,
 ): number {
-  if (!preferences) return 0
+  if (!preferences) return notifications.filter((n) => !n.read).length
 
   return filterNotificationsByPreferences(notifications, preferences).filter((n) => !n.read).length
 }
@@ -89,8 +87,6 @@ function computeUnreadCountForEnabledTypes(
  */
 export function useNotificationCenter(options: UseNotificationCenterOptions = {}) {
   const { notificationsOptions = {}, preferencesOptions = {} } = options
-
-  const queryClient = useQueryClient()
 
   // Fetch notifications with infinite scroll support
   const notificationsHook = useNotifications(notificationsOptions)
