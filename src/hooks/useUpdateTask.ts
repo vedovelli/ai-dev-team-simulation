@@ -1,8 +1,86 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { Task, UpdateTaskInput } from '../types/task'
+import type { Notification } from '../types/notification'
 import { useConflictAwareMutation } from './useConflictAwareMutation'
 
-export function useUpdateTask() {
+/**
+ * Configuration options for useUpdateTask hook
+ */
+export interface UseUpdateTaskOptions {
+  /**
+   * Callback when task update succeeds
+   * @param data - The updated task
+   * @param messageOverride - Optional custom message to emit instead of default
+   */
+  onSuccess?: (data: Task, messageOverride?: string) => void
+
+  /**
+   * Callback when task update fails
+   * @param error - The error that occurred
+   * @param messageOverride - Optional custom message to emit instead of default
+   */
+  onError?: (error: Error, messageOverride?: string) => void
+}
+
+/**
+ * Helper to inject a transient notification into the cache and auto-expire after 5 seconds
+ */
+function injectTransientNotification(
+  queryClient: ReturnType<typeof useQueryClient>,
+  notification: Notification
+): void {
+  // Inject notification into the infinite query cache
+  queryClient.setQueryData(
+    ['notifications', { unreadOnly: false }],
+    (oldData: any) => {
+      if (!oldData?.pages) {
+        return oldData
+      }
+
+      return {
+        ...oldData,
+        pages: [
+          {
+            ...oldData.pages[0],
+            items: [notification, ...(oldData.pages[0]?.items ?? [])],
+            unreadCount: (oldData.pages[0]?.unreadCount ?? 0) + (notification.read ? 0 : 1),
+          },
+          ...(oldData.pages.slice(1) ?? []),
+        ],
+      }
+    }
+  )
+
+  // Auto-expire (remove) the notification after 5 seconds
+  setTimeout(() => {
+    queryClient.setQueryData(
+      ['notifications', { unreadOnly: false }],
+      (oldData: any) => {
+        if (!oldData?.pages) {
+          return oldData
+        }
+
+        const wasUnread = !notification.read
+
+        return {
+          ...oldData,
+          pages: oldData.pages.map((page: any, pageIndex: number) => {
+            if (pageIndex === 0) {
+              return {
+                ...page,
+                items: page.items.filter((n: Notification) => n.id !== notification.id),
+                unreadCount: wasUnread ? Math.max(0, page.unreadCount - 1) : page.unreadCount,
+              }
+            }
+            return page
+          }),
+        }
+      }
+    )
+  }, 5000)
+}
+
+export function useUpdateTask(options: UseUpdateTaskOptions = {}) {
   const queryClient = useQueryClient()
 
   return useConflictAwareMutation({
@@ -51,15 +129,58 @@ export function useUpdateTask() {
 
       return { previousTasks }
     },
-    onError: (_, __, context) => {
+    onError: (error, __, context) => {
       // Revert optimistic updates on error
       if (context?.previousTasks) {
         context.previousTasks.forEach(([key, data]) => {
           queryClient.setQueryData(key, data)
         })
       }
+
+      // Emit error notification
+      const errorNotification: Notification = {
+        id: `error-${Date.now()}-${Math.random()}`,
+        type: 'task_reassigned',
+        message: options.onError?.toString().includes('messageOverride') ? '' : 'Failed to update task',
+        timestamp: new Date().toISOString(),
+        read: true,
+        priority: 'high',
+        metadata: {
+          entityType: 'task',
+          source: 'task-mutation',
+        },
+      }
+
+      injectTransientNotification(queryClient, errorNotification)
+
+      // Call user callback if provided
+      if (options.onError) {
+        options.onError(error instanceof Error ? error : new Error(String(error)))
+      }
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      // Emit success notification
+      const successNotification: Notification = {
+        id: `success-${Date.now()}-${Math.random()}`,
+        type: 'task_reassigned',
+        message: 'Task updated',
+        timestamp: new Date().toISOString(),
+        read: true,
+        priority: 'normal',
+        metadata: {
+          entityId: data.id,
+          entityType: 'task',
+          source: 'task-mutation',
+        },
+      }
+
+      injectTransientNotification(queryClient, successNotification)
+
+      // Call user callback if provided
+      if (options.onSuccess) {
+        options.onSuccess(data)
+      }
+
       // Refetch tasks to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       // Invalidate activity feed since task state changed
