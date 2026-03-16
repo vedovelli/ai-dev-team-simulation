@@ -1,4 +1,4 @@
-export type SprintStatus = 'planning' | 'active' | 'completed' | 'archived'
+export type SprintStatus = 'planning' | 'active' | 'in-review' | 'completed' | 'archived'
 
 export interface SprintHistoryEvent {
   id: string
