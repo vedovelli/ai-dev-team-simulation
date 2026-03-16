@@ -398,17 +398,24 @@ const webSocketClients = new Set<string>()
 export const notificationHandlers = [
   /**
    * GET /api/notifications
-   * Fetch notifications with cursor-based pagination for infinite scroll
-   * Returns paginated results with cursor tokens for fetching next page
+   * Fetch notifications with cursor-based or offset-based pagination
+   * Returns paginated results with cursor tokens or page-based response
    *
-   * Supports:
-   * - Cursor-based pagination: ?cursor=<base64>&limit=10
+   * Supports cursor-based pagination:
+   * - Cursor-based: ?cursor=<base64>&limit=10
    * - First page: no cursor (or cursor=null)
+   *
+   * Supports offset-based pagination (for NotificationCenter with client-side filtering):
+   * - Page-based: ?page=1&pageSize=10
+   * - Default pageSize: 10, max: 100
+   *
+   * Filters:
    * - Filtering by ?unread=true
    * - Filtering by ?type=<event_type>
    * - Scenario query param: ?scenario=burst|empty|all-read|default
    *
-   * Response: { items: Notification[], nextCursor: string | null, hasMore: boolean, unreadCount: number }
+   * Cursor Response: { items: Notification[], nextCursor: string | null, hasMore: boolean, unreadCount: number }
+   * Page Response: { notifications: Notification[], total: number, page: number, pageSize: number }
    *
    * Simulates new notifications appearing on first page between polls
    */
@@ -416,6 +423,8 @@ export const notificationHandlers = [
     const url = new URL(request.url)
     const scenario = (url.searchParams.get('scenario') as 'default' | 'burst' | 'empty' | 'all-read' | 'large') || 'default'
     const cursor = url.searchParams.get('cursor')
+    const page = url.searchParams.get('page')
+    const pageSize = Math.min(parseInt(url.searchParams.get('pageSize') || '10', 10), 100)
     const limit = Math.min(parseInt(url.searchParams.get('limit') || '10', 10), 100) // Cap at 100
     const unread = url.searchParams.get('unread')
     const type = url.searchParams.get('type')
@@ -554,6 +563,22 @@ export const notificationHandlers = [
     // Generate next cursor from last item if there are more
     const nextCursor = hasMore && items.length > 0 ? generateCursor(items[items.length - 1]) : null
 
+    // If page-based pagination is requested, return offset-based response
+    if (page !== null) {
+      const pageNum = Math.max(1, parseInt(page, 10))
+      const offsetStart = (pageNum - 1) * pageSize
+      const offsetEnd = offsetStart + pageSize
+      const paginatedItems = filtered.slice(offsetStart, offsetEnd)
+
+      return HttpResponse.json({
+        notifications: paginatedItems,
+        total: filtered.length,
+        page: pageNum,
+        pageSize,
+      })
+    }
+
+    // Otherwise return cursor-based response for infinite scroll
     return HttpResponse.json({
       items,
       nextCursor,
