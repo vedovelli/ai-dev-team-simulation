@@ -884,4 +884,90 @@ export const sprintHandlers = [
 
     return HttpResponse.json<SprintReport>(report, { status: 200 })
   }),
+
+  /**
+   * POST /api/sprints/:id/transition
+   * Transitions a sprint to a new state with validation
+   * - Validates state machine transitions
+   * - Prevents completing sprint with incomplete tasks (hard block)
+   * - Returns error with task count for blocked transitions
+   */
+  http.post('/api/sprints/:id/transition', async ({ params, request }) => {
+    try {
+      const { id } = params
+      const body = await request.json() as { newState: string }
+
+      // Get current sprint state
+      const sprints = generateSprints()
+      const sprint = sprints.find((s) => s.id === id)
+
+      if (!sprint) {
+        return HttpResponse.json(
+          { error: 'Sprint not found' },
+          { status: 404 }
+        )
+      }
+
+      const { newState } = body
+
+      // Validate state transition
+      const validTransitions: Record<string, string[]> = {
+        planning: ['active'],
+        active: ['in-review'],
+        'in-review': ['completed'],
+        completed: [],
+        archived: [],
+      }
+
+      if (!validTransitions[sprint.status]?.includes(newState)) {
+        return HttpResponse.json(
+          {
+            error: {
+              code: 'INVALID_TRANSITION',
+              message: `Cannot transition from ${sprint.status} to ${newState}`,
+            },
+          },
+          { status: 422 }
+        )
+      }
+
+      // Hard block: cannot complete with incomplete tasks
+      if (newState === 'completed') {
+        const incompleteTasks = sprint.taskCount - sprint.completedCount
+
+        if (incompleteTasks > 0) {
+          return HttpResponse.json(
+            {
+              error: {
+                code: 'INCOMPLETE_TASKS',
+                message: `Cannot complete sprint with ${incompleteTasks} incomplete task${incompleteTasks === 1 ? '' : 's'}`,
+                count: incompleteTasks,
+              },
+            },
+            { status: 422 }
+          )
+        }
+      }
+
+      // Perform transition
+      const transitionedSprint: Sprint = {
+        ...sprint,
+        status: newState as any,
+        version: (sprint.version || 1) + 1,
+      }
+
+      // Update version store
+      sprintVersionStore[id] = transitionedSprint.version
+
+      return HttpResponse.json(
+        { success: true, sprint: transitionedSprint },
+        { status: 200 }
+      )
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request body' },
+        { status: 400 }
+      )
+    }
+  }),
 ]
