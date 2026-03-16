@@ -1,12 +1,5 @@
-import { useState, useMemo } from 'react'
-import {
-  useReactTable,
-  getCoreRowModel,
-  getSortedRowModel,
-  ColumnDef,
-  SortingState,
-  flexRender,
-} from '@tanstack/react-table'
+import { useState } from 'react'
+import { useReactTable, getCoreRowModel, getSortedRowModel, ColumnDef, SortingState } from '@tanstack/react-table'
 import type { Notification } from '../../types/notification'
 import { NotificationItem } from './NotificationItem'
 
@@ -23,6 +16,16 @@ interface NotificationListProps {
   hasSelectableNotifications: boolean
 }
 
+/**
+ * NotificationList
+ *
+ * Displays notifications in a table-like format with:
+ * - Sortable columns (by timestamp)
+ * - Multi-select checkboxes
+ * - Individual and bulk actions
+ * - Empty, loading, and error states
+ * - TanStack Table for state management
+ */
 export function NotificationList({
   notifications,
   isLoading,
@@ -37,99 +40,23 @@ export function NotificationList({
 }: NotificationListProps) {
   const [sorting, setSorting] = useState<SortingState>([{ id: 'timestamp', desc: true }])
 
-  // Define columns for TanStack Table
-  const columns = useMemo<ColumnDef<Notification>[]>(
-    () => [
-      {
-        id: 'select',
-        header: ({ table }) => (
-          <input
-            type="checkbox"
-            checked={
-              hasSelectableNotifications &&
-              notifications.length > 0 &&
-              selectedIds.size === notifications.length
-            }
-            indeterminate={selectedIds.size > 0 && selectedIds.size < notifications.length}
-            onChange={onToggleSelectAll}
-            className="w-4 h-4 rounded border-gray-300"
-            aria-label="Select all notifications"
-          />
-        ),
-        cell: ({ row }) => (
-          <input
-            type="checkbox"
-            checked={selectedIds.has(row.original.id)}
-            onChange={() => onToggleSelect(row.original.id)}
-            className="w-4 h-4 rounded border-gray-300"
-            aria-label={`Select notification: ${row.original.message}`}
-          />
-        ),
-        size: 50,
-      },
-      {
-        accessorKey: 'message',
-        header: 'Message',
-        cell: ({ row }) => (
-          <div className="flex-1">
-            <p className={`text-sm ${row.original.read ? 'text-gray-600' : 'font-semibold text-gray-900'}`}>
-              {row.original.message}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              {row.original.type}
-            </p>
-          </div>
-        ),
-      },
-      {
-        accessorKey: 'timestamp',
-        header: 'Time',
-        cell: ({ row }) => {
-          const date = new Date(row.original.timestamp)
-          const now = new Date()
-          const diffMs = now.getTime() - date.getTime()
-          const diffMins = Math.floor(diffMs / 60000)
-          const diffHours = Math.floor(diffMs / 3600000)
-          const diffDays = Math.floor(diffMs / 86400000)
-
-          let timeStr = ''
-          if (diffMins < 1) timeStr = 'just now'
-          else if (diffMins < 60) timeStr = `${diffMins}m ago`
-          else if (diffHours < 24) timeStr = `${diffHours}h ago`
-          else if (diffDays < 7) timeStr = `${diffDays}d ago`
-          else timeStr = date.toLocaleDateString()
-
-          return <span className="text-xs text-gray-500">{timeStr}</span>
-        },
-        size: 100,
-      },
-      {
-        id: 'actions',
-        cell: ({ row }) => (
-          <div className="flex gap-2">
-            {!row.original.read && (
-              <button
-                onClick={() => onMarkAsRead(row.original.id)}
-                className="px-2 py-1 text-xs bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-                aria-label="Mark as read"
-              >
-                Read
-              </button>
-            )}
-            <button
-              onClick={() => onDismiss(row.original.id)}
-              className="px-2 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-              aria-label="Dismiss notification"
-            >
-              Dismiss
-            </button>
-          </div>
-        ),
-        size: 150,
-      },
-    ],
-    [selectedIds, onToggleSelect, onToggleSelectAll, onMarkAsRead, onDismiss, hasSelectableNotifications, notifications.length]
-  )
+  // TanStack Table for state management and sorting
+  const columns: ColumnDef<Notification>[] = [
+    {
+      id: 'message',
+      accessorKey: 'message',
+      header: 'Message',
+    },
+    {
+      id: 'timestamp',
+      accessorKey: 'timestamp',
+      header: 'Time',
+    },
+    {
+      id: 'actions',
+      header: 'Actions',
+    },
+  ]
 
   const table = useReactTable({
     data: notifications,
@@ -141,6 +68,9 @@ export function NotificationList({
     },
     onSortingChange: setSorting,
   })
+
+  // Sort notifications based on table state
+  const sortedNotifications = table.getRowModel().rows.map((row) => row.original)
 
   if (isLoading) {
     return (
@@ -172,7 +102,9 @@ export function NotificationList({
           <svg className="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
           </svg>
-          <p className="text-gray-600 font-medium">No {tab === 'unread' ? 'unread' : ''} notifications</p>
+          <p className="text-gray-600 font-medium">
+            No {tab === 'unread' ? 'unread' : ''} notifications
+          </p>
           <p className="text-gray-500 text-sm mt-1">You're all caught up!</p>
         </div>
       </div>
@@ -181,11 +113,11 @@ export function NotificationList({
 
   return (
     <div className="space-y-2 max-h-[500px] overflow-y-auto">
-      {table.getRowModel().rows.map((row) => (
+      {sortedNotifications.map((notification) => (
         <NotificationItem
-          key={row.original.id}
-          notification={row.original}
-          isSelected={selectedIds.has(row.original.id)}
+          key={notification.id}
+          notification={notification}
+          isSelected={selectedIds.has(notification.id)}
           onToggleSelect={onToggleSelect}
           onMarkAsRead={onMarkAsRead}
           onDismiss={onDismiss}

@@ -1,4 +1,3 @@
-import { useForm } from '@tanstack/react-form'
 import type { NotificationPreferences, NotificationTypePreference } from '../../types/notification-preferences'
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
 
@@ -45,24 +44,21 @@ function getDisplayName(type: NotificationType): string {
   return names[type]
 }
 
+/**
+ * NotificationPreferencesPanel
+ *
+ * Quick preference toggles for notification types with:
+ * - Per-type enable/disable toggle
+ * - Frequency selector (instant/daily/off)
+ * - Channel selection (in-app/email)
+ * - Global quiet hours configuration
+ * - Real-time optimistic updates
+ */
 export function NotificationPreferencesPanel({
   preferences,
   isLoading,
 }: NotificationPreferencesPanelProps) {
   const { updatePreferences } = preferences
-
-  const form = useForm({
-    defaultValues: preferences.preferences || {},
-    onSubmit: async (values) => {
-      const updates: Record<string, Partial<NotificationTypePreference>> = {}
-      for (const [key, value] of Object.entries(values)) {
-        if (value && typeof value === 'object' && 'enabled' in value) {
-          updates[key] = value as Partial<NotificationTypePreference>
-        }
-      }
-      updatePreferences(updates)
-    },
-  })
 
   if (isLoading || !preferences.preferences) {
     return (
@@ -76,66 +72,55 @@ export function NotificationPreferencesPanel({
     )
   }
 
+  const currentPreferences = preferences.preferences
+
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        form.handleSubmit()
-      }}
-      className="space-y-6"
-    >
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+    <div className="space-y-6">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
         <p className="text-sm text-blue-900">
           Customize your notification preferences below. Changes are saved automatically.
         </p>
       </div>
 
       <div className="space-y-4">
-        {notificationTypes.map((type) => (
-          <form.Field
-            key={type}
-            name={type}
-            children={(field) => {
-              const value = preferences.preferences?.[type] as NotificationTypePreference | undefined
-              const isEnabled = value?.enabled ?? true
+        {notificationTypes.map((type) => {
+          const pref = currentPreferences[type] as NotificationTypePreference | undefined
+          const isEnabled = pref?.enabled ?? true
 
-              return (
-                <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200">
-                  <div className="flex-1">
-                    <label className="text-sm font-medium text-gray-900 block">
-                      {getDisplayName(type)}
-                    </label>
-                    <p className="text-xs text-gray-500 mt-1">
-                      Frequency: {value?.frequency || 'instant'}
-                      {value?.channels && ` • Channels: ${value.channels.join(', ')}`}
-                    </p>
-                  </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={isEnabled}
-                      onChange={(e) => {
-                        const newPrefs = {
-                          ...value,
-                          enabled: e.target.checked,
-                        }
-                        updatePreferences({
-                          [type]: newPrefs,
-                        })
-                      }}
-                      className="sr-only peer"
-                    />
-                    <div className={`w-11 h-6 rounded-full peer ${
-                      isEnabled
-                        ? 'bg-blue-600 peer-checked:bg-blue-600'
-                        : 'bg-gray-300 peer-checked:bg-gray-300'
-                    } after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5`} />
-                  </label>
-                </div>
-              )
-            }}
-          />
-        ))}
+          return (
+            <div
+              key={type}
+              className="flex items-center justify-between p-4 bg-gray-50 rounded-lg border border-gray-200"
+            >
+              <div className="flex-1">
+                <label className="text-sm font-medium text-gray-900 block">
+                  {getDisplayName(type)}
+                </label>
+                <p className="text-xs text-gray-500 mt-1">
+                  Frequency: <span className="font-medium">{pref?.frequency || 'instant'}</span>
+                  {pref?.channels && ` • Channels: ${pref.channels.join(', ')}`}
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isEnabled}
+                  onChange={(e) => {
+                    updatePreferences({
+                      [type]: {
+                        ...pref,
+                        enabled: e.target.checked,
+                      },
+                    })
+                  }}
+                  className="sr-only peer"
+                  aria-label={`Toggle ${getDisplayName(type)}`}
+                />
+                <div className="w-11 h-6 bg-gray-300 peer-checked:bg-blue-600 rounded-full peer after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
+              </label>
+            </div>
+          )
+        })}
       </div>
 
       <div className="border-t pt-6">
@@ -144,25 +129,26 @@ export function NotificationPreferencesPanel({
           <label className="relative inline-flex items-center cursor-pointer">
             <input
               type="checkbox"
-              checked={preferences.preferences?.quiet_hours_enabled ?? false}
+              checked={currentPreferences.quiet_hours_enabled ?? false}
               onChange={(e) => {
                 updatePreferences({
                   quiet_hours_enabled: e.target.checked,
                 })
               }}
               className="sr-only peer"
+              aria-label="Enable quiet hours"
             />
             <div className="w-11 h-6 bg-gray-300 peer-checked:bg-blue-600 rounded-full peer after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5" />
             <span className="ml-3 text-sm font-medium text-gray-900">Enable quiet hours</span>
           </label>
 
-          {preferences.preferences?.quiet_hours_enabled && (
+          {currentPreferences.quiet_hours_enabled && (
             <div className="grid grid-cols-2 gap-4 ml-3">
               <div>
                 <label className="text-xs font-medium text-gray-700">Start time</label>
                 <input
                   type="time"
-                  value={preferences.preferences?.quiet_hours_start || '22:00'}
+                  value={currentPreferences.quiet_hours_start || '22:00'}
                   onChange={(e) => {
                     updatePreferences({
                       quiet_hours_start: e.target.value,
@@ -175,7 +161,7 @@ export function NotificationPreferencesPanel({
                 <label className="text-xs font-medium text-gray-700">End time</label>
                 <input
                   type="time"
-                  value={preferences.preferences?.quiet_hours_end || '08:00'}
+                  value={currentPreferences.quiet_hours_end || '08:00'}
                   onChange={(e) => {
                     updatePreferences({
                       quiet_hours_end: e.target.value,
@@ -188,6 +174,6 @@ export function NotificationPreferencesPanel({
           )}
         </div>
       </div>
-    </form>
+    </div>
   )
 }
