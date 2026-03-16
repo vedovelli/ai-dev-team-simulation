@@ -1,8 +1,8 @@
 'use client'
 
-import React, { useCallback, useMemo, useRef, useEffect, useState } from 'react'
-import { AlertCircle, X, Check, RefreshCw } from 'lucide-react'
-import { useNotifications } from '../../hooks/useNotifications'
+import React, { useCallback, useRef, useEffect } from 'react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
+import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 import { NotificationBadge } from './NotificationBadge'
 import { NotificationList } from './NotificationList'
 
@@ -15,45 +15,50 @@ interface NotificationCenterProps {
  * NotificationCenter component
  *
  * Main container for notification dropdown/panel UI.
+ * Orchestrates notification center state via useNotificationCenter hook.
  * Manages the bell icon, unread count badge, and dropdown panel state.
  *
  * Features:
- * - Bell icon with unread count badge
+ * - Bell icon with unread count badge (reactive to unread count changes)
  * - Dropdown panel opens on click (toggle behavior)
  * - Closes on Escape key and outside click
  * - Scrollable notification list with max-height
- * - Mark all as read button
+ * - Mark all as read button with proper cache invalidation
  * - Individual notification mark-as-read and dismiss
  * - Empty and loading states
  * - Keyboard navigation with focus trap
  * - Accessible with ARIA attributes
+ * - Cache synchronization across notifications and preferences queries
  */
 export function NotificationCenter({ className = '' }: NotificationCenterProps = {}) {
-  const [isOpen, setIsOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
 
   const {
+    isOpen,
+    toggleDropdown,
+    closeDropdown,
     notifications,
     unreadCount,
     isLoading,
-    isError,
     error,
-    refetch,
     markAsRead,
-    markMultipleAsRead,
+    markAllAsRead,
     dismissNotification,
-  } = useNotifications()
+    refetch,
+  } = useNotificationCenter()
 
-  // Toggle dropdown open/close
-  const toggleOpen = useCallback(() => {
-    setIsOpen((prev) => !prev)
-  }, [])
+  const isError = error !== null
 
-  // Close dropdown
+  // Toggle dropdown open/close from hook
+  const handleToggle = useCallback(() => {
+    toggleDropdown()
+  }, [toggleDropdown])
+
+  // Close dropdown from hook
   const handleClose = useCallback(() => {
-    setIsOpen(false)
-  }, [])
+    closeDropdown()
+  }, [closeDropdown])
 
   // Close on outside click
   useEffect(() => {
@@ -112,22 +117,10 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps =
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, handleClose])
 
-  const handleRetry = useCallback(() => {
-    refetch()
-  }, [refetch])
-
-  // Compute unread IDs separately to keep callback stable
-  const unreadIds = useMemo(() => {
-    return notifications
-      .filter((n) => !n.read)
-      .map((n) => n.id)
-  }, [notifications])
-
-  const handleMarkAllAsRead = useCallback(async () => {
-    if (unreadIds.length > 0) {
-      await markMultipleAsRead(unreadIds)
-    }
-  }, [unreadIds, markMultipleAsRead])
+  // Mark all as read uses hook mutation
+  const handleMarkAllAsRead = useCallback(() => {
+    markAllAsRead()
+  }, [markAllAsRead])
 
   const handleMarkAsReadSingle = useCallback((id: string) => {
     markAsRead(id)
@@ -137,10 +130,14 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps =
     dismissNotification(id)
   }, [dismissNotification])
 
+  const handleRetry = useCallback(() => {
+    refetch()
+  }, [refetch])
+
   return (
     <div ref={containerRef} className={`relative inline-block ${className}`}>
       {/* Bell icon badge button */}
-      <NotificationBadge onClick={toggleOpen} isOpen={isOpen} />
+      <NotificationBadge onClick={handleToggle} isOpen={isOpen} />
 
       {/* Dropdown panel */}
       {isOpen && (
@@ -182,7 +179,8 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps =
                   </p>
                   <button
                     onClick={handleRetry}
-                    className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors"
+                    className="mt-2 inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-red-700 bg-red-100 hover:bg-red-200 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-red-400"
+                    aria-label="Retry loading notifications"
                   >
                     <RefreshCw className="h-3 w-3" />
                     Retry
@@ -206,4 +204,3 @@ export function NotificationCenter({ className = '' }: NotificationCenterProps =
     </div>
   )
 }
-
