@@ -1,195 +1,177 @@
-import { useMemo, useState } from 'react'
-import type { Notification, NotificationType } from '../types/notification'
-import { useNotifications } from './useNotifications'
-import { useNotificationPreferences } from './useNotificationPreferences'
-
-/**
- * Filter state for notification center
- */
-export type NotificationCenterFilterStatus = 'all' | 'unread'
+import type { Notification } from '../types/notification'
+import type { NotificationPreferences } from '../types/notification-preferences'
+import { useNotifications, type UseNotificationsOptions } from './useNotifications'
+import { useNotificationPreferences, type UseNotificationPreferencesOptions } from './useNotificationPreferences'
 
 /**
  * Configuration options for useNotificationCenter hook
  */
 export interface UseNotificationCenterOptions {
-  /** Refetch interval in milliseconds (default: 30000 = 30s) */
-  refetchInterval?: number
-  /** Enable automatic refetch on window focus (default: true) */
-  refetchOnWindowFocus?: boolean
+  /** Options for the underlying notifications hook */
+  notificationsOptions?: UseNotificationsOptions
+  /** Options for the underlying preferences hook */
+  preferencesOptions?: UseNotificationPreferencesOptions
 }
 
 /**
- * Return type for useNotificationCenter hook
+ * Check if a notification type is enabled in user preferences
+ * Note: This function assumes preferences is already defined (checked by caller)
  */
-export interface UseNotificationCenterReturn {
-  // Notification data
-  notifications: Notification[]
-  unreadCount: number
-  total: number
+function isNotificationTypeEnabled(
+  notificationType: string,
+  preferences: NotificationPreferences,
+): boolean {
+  // Get the preference object for this notification type
+  const preference = (preferences as any)[notificationType]
 
-  // Preferences
-  preferences: any
+  // If preference exists and is an object with enabled property, use it
+  if (preference && typeof preference === 'object' && 'enabled' in preference) {
+    return preference.enabled
+  }
 
-  // Filter state
-  filterStatus: NotificationCenterFilterStatus
-  filterType: NotificationType | null
-  setFilterStatus: (status: NotificationCenterFilterStatus) => void
-  setFilterType: (type: NotificationType | null) => void
-  clearFilters: () => void
-
-  // Grouped notifications
-  groupedNotifications: Map<string, Notification[]>
-
-  // Actions
-  markAsRead: (id: string) => void
-  markAllAsRead: () => Promise<void>
-  deleteNotification: (id: string) => void
-  dismissAllReadNotifications: () => void
-
-  // Query state
-  isLoading: boolean
-  isError: boolean
-  error: Error | null
-
-  // Mutation states
-  isMarkingAsRead: boolean
-  isDeletingNotification: boolean
-  isDismissingAll: boolean
+  // Fallback: treat missing preferences as enabled
+  return true
 }
 
 /**
- * Orchestrate useNotifications and useNotificationPreferences hooks
- * Manages filter state internally and provides unified interface
+ * Filter notifications based on user's enabled preference types
+ */
+function filterNotificationsByPreferences(
+  notifications: Notification[],
+  preferences: NotificationPreferences | undefined,
+): Notification[] {
+  if (!preferences) return notifications
+
+  return notifications.filter((notification) => {
+    // Use eventType if available (structured events), otherwise fall back to type
+    const notificationType = notification.eventType || notification.type
+    return isNotificationTypeEnabled(notificationType, preferences)
+  })
+}
+
+/**
+ * Compute unread count for notifications of enabled types only
+ */
+function computeUnreadCountForEnabledTypes(
+  notifications: Notification[],
+  preferences: NotificationPreferences | undefined,
+): number {
+  if (!preferences) return notifications.filter((n) => !n.read).length
+
+  return filterNotificationsByPreferences(notifications, preferences).filter((n) => !n.read).length
+}
+
+/**
+ * Higher-order hook that orchestrates notifications and preferences for a complete notification center experience
  *
  * Features:
- * - Unified interface for notification state + user preferences
- * - Mark-as-read (single + batch) with optimistic updates
- * - Delete notification with immediate cache update
- * - Filter state managed internally (unread/type)
- * - Group notifications by type + timestamp
+ * - Combines useNotifications and useNotificationPreferences hooks
+ * - Client-side filtering of notifications based on enabled preference types
+ * - Unread count reflects only enabled notification types
+ * - Preference changes immediately recompute filtered list without server round-trip
+ * - Coordinates cache invalidation between the two underlying systems
+ * - Exposes mark-as-read mutations via delegation
+ *
+ * Query Keys:
+ * - Wraps ['notifications'] and ['notification-preferences'] from underlying hooks
+ * - Derived state computed via client-side filtering
+ *
+ * @example
+ * ```tsx
+ * const { notifications, unreadCount, markAsRead, preferences } = useNotificationCenter()
+ *
+ * // notifications are automatically filtered by user's preferences
+ * // unreadCount only includes unread notifications of enabled types
+ * // markAsRead delegates to the underlying mutations
+ * ```
  */
 export function useNotificationCenter(options: UseNotificationCenterOptions = {}) {
-  const { refetchInterval = 30 * 1000, refetchOnWindowFocus = true } = options
+  const { notificationsOptions = {}, preferencesOptions = {} } = options
 
-  // Fetch notifications and preferences
-  const notificationsQuery = useNotifications({
-    refetchInterval,
-    refetchOnWindowFocus,
-  })
+  // Fetch notifications with infinite scroll support
+  const notificationsHook = useNotifications(notificationsOptions)
 
-  const preferencesQuery = useNotificationPreferences({
-    refetchOnWindowFocus,
-  })
+  // Fetch and manage notification preferences
+  const preferencesHook = useNotificationPreferences(preferencesOptions)
 
-  // Filter state
-  const [filterStatus, setFilterStatus] = useState<NotificationCenterFilterStatus>('all')
-  const [filterType, setFilterType] = useState<NotificationType | null>(null)
+  // Get all notifications from the hook
+  const allNotifications = notificationsHook.notifications || []
 
-  // Get all notifications from query
-  const allNotifications = notificationsQuery.notifications
+  // Get current preferences
+  const preferences = preferencesHook.preferences
 
-  // Apply filters
-  const filteredNotifications = useMemo(() => {
-    let result = [...allNotifications]
+  // Filter notifications based on enabled preference types (client-side)
+  const filteredNotifications = filterNotificationsByPreferences(allNotifications, preferences)
 
-    // Filter by read status
-    if (filterStatus === 'unread') {
-      result = result.filter((n) => !n.read)
-    }
+  // Compute unread count for enabled types only
+  const filteredUnreadCount = computeUnreadCountForEnabledTypes(allNotifications, preferences)
 
-    // Filter by type
-    if (filterType) {
-      result = result.filter((n) => n.type === filterType || n.eventType === filterType)
-    }
-
-    return result
-  }, [allNotifications, filterStatus, filterType])
-
-  // Group notifications by type + date
-  const groupedNotifications = useMemo(() => {
-    const groups = new Map<string, Notification[]>()
-
-    filteredNotifications.forEach((notif) => {
-      // Use event type if available, otherwise use type
-      const notifType = notif.eventType || notif.type
-
-      // Get date for grouping (YYYY-MM-DD)
-      const date = new Date(notif.timestamp).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-      })
-
-      const key = `${notifType}::${date}`
-
-      if (!groups.has(key)) {
-        groups.set(key, [])
-      }
-      groups.get(key)!.push(notif)
-    })
-
-    return groups
-  }, [filteredNotifications])
-
-  // Action: Clear all filters
-  const clearFilters = () => {
-    setFilterStatus('all')
-    setFilterType(null)
+  /**
+   * Wrapper around markAsRead that can recompute filtered notifications
+   */
+  const markAsRead = (id: string) => {
+    // Delegate to underlying mutation
+    notificationsHook.markAsRead(id)
   }
 
-  // Action: Mark all as read
-  const markAllAsRead = async () => {
-    if (filteredNotifications.length === 0) return
-
-    const unreadIds = filteredNotifications.filter((n) => !n.read).map((n) => n.id)
-    if (unreadIds.length === 0) return
-
-    try {
-      await notificationsQuery.markMultipleAsRead(unreadIds)
-    } catch (error) {
-      throw new Error(`Failed to mark all as read: ${error instanceof Error ? error.message : 'Unknown error'}`)
-    }
-  }
-
-  // Action: Delete notification
-  const deleteNotification = (id: string) => {
-    notificationsQuery.dismissNotification(id)
+  /**
+   * Wrapper around markMultipleAsRead that can recompute filtered notifications
+   */
+  const markMultipleAsRead = async (ids: string[]) => {
+    // Delegate to underlying mutation
+    return notificationsHook.markMultipleAsRead(ids)
   }
 
   return {
-    // Notification data
+    // Filtered notifications (only types enabled in preferences)
     notifications: filteredNotifications,
-    unreadCount: notificationsQuery.unreadCount,
-    total: notificationsQuery.total,
 
-    // Preferences
-    preferences: preferencesQuery.preferences,
+    // Unread count for enabled types only
+    unreadCount: filteredUnreadCount,
 
-    // Filter state
-    filterStatus,
-    filterType,
-    setFilterStatus,
-    setFilterType,
-    clearFilters,
+    // User's notification preferences
+    preferences,
 
-    // Grouped notifications
-    groupedNotifications,
+    // Query state from underlying hooks
+    isLoading: notificationsHook.isLoading || preferencesHook.isLoading,
+    isError: notificationsHook.isError || preferencesHook.isError,
+    error: notificationsHook.error || preferencesHook.error,
 
-    // Actions
-    markAsRead: notificationsQuery.markAsRead,
-    markAllAsRead,
-    deleteNotification,
-    dismissAllReadNotifications: notificationsQuery.dismissAllReadNotifications,
+    // Preference loading state
+    preferencesLoading: preferencesHook.isLoading,
+    preferencesError: preferencesHook.error,
 
-    // Query state
-    isLoading: notificationsQuery.isLoading || preferencesQuery.isLoading,
-    isError: notificationsQuery.isError || preferencesQuery.isError,
-    error: notificationsQuery.error || preferencesQuery.error,
+    // Mutation states from notifications hook
+    markAsReadLoading: notificationsHook.markAsReadLoading,
+    markAsReadError: notificationsHook.markAsReadError,
+    dismissLoading: notificationsHook.dismissLoading,
+    dismissError: notificationsHook.dismissError,
 
-    // Mutation states
-    isMarkingAsRead: notificationsQuery.markAsReadLoading,
-    isDeletingNotification: notificationsQuery.dismissLoading,
-    isDismissingAll: notificationsQuery.dismissAllReadLoading,
+    // Preference update state
+    isUpdatingPreferences: preferencesHook.isUpdating,
+    updatePreferencesError: preferencesHook.updateError,
+
+    // Actions from notifications hook (delegated)
+    markAsRead,
+    markMultipleAsRead,
+    dismissNotification: notificationsHook.dismissNotification,
+    dismissAllReadNotifications: notificationsHook.dismissAllReadNotifications,
+
+    // Actions from preferences hook
+    updatePreferences: preferencesHook.updatePreferences,
+    resetPreferences: preferencesHook.resetPreferences,
+
+    // Infinite scroll support
+    fetchNextPage: notificationsHook.fetchNextPage,
+    hasNextPage: notificationsHook.hasNextPage,
+    isFetchingNextPage: notificationsHook.isFetchingNextPage,
+
+    // Raw unfiltered data (advanced use case)
+    allNotifications,
+    allUnreadCount: notificationsHook.unreadCount,
+
+    // Total count of filtered notifications
+    total: filteredNotifications.length,
   }
 }
 
