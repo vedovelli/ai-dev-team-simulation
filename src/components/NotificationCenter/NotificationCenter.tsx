@@ -1,196 +1,292 @@
-import { useState, useCallback } from 'react'
-import { useNotifications } from '../../hooks/useNotifications'
-import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
-import { NotificationList } from './NotificationList'
-import { NotificationPreferencesPanel } from './NotificationPreferencesPanel'
-
-interface NotificationCenterProps {
-  isOpen: boolean
-  onClose: () => void
-}
-
-type ActiveTab = 'all' | 'unread' | 'preferences'
+import { useForm } from '@tanstack/react-form'
+import type { Notification, NotificationType } from '../../types/notification'
+import type { UseNotificationCenterReturn } from '../../hooks/useNotificationCenter'
+import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 
 /**
- * NotificationCenter Modal
- *
- * Full-featured notification management modal with:
- * - Tabs: All / Unread / Preferences
- * - TanStack Table with sorting, filtering, pagination
- * - Bulk mark-as-read action
- * - Individual dismiss/read per notification
- * - Quick preference toggles inline
- * - Accessible with keyboard navigation and focus trap
+ * Notification item display component
  */
-export function NotificationCenter({ isOpen, onClose }: NotificationCenterProps) {
-  const [activeTab, setActiveTab] = useState<ActiveTab>('all')
-  const [selectedNotificationIds, setSelectedNotificationIds] = useState<Set<string>>(new Set())
-
-  // Fetch all notifications
-  const allNotifications = useNotifications({ unreadOnly: false })
-
-  // Fetch unread notifications only
-  const unreadNotifications = useNotifications({ unreadOnly: true })
-
-  // Get preferences for quick toggles
-  const preferences = useNotificationPreferences()
-
-  // Determine which hook data to use based on active tab
-  const currentNotifications = activeTab === 'unread' ? unreadNotifications : allNotifications
-
-  const handleClose = () => {
-    setSelectedNotificationIds(new Set())
-    onClose()
-  }
-
-  const handleBackdropClick = (e: React.MouseEvent) => {
-    if (e.target === e.currentTarget) {
-      handleClose()
-    }
-  }
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      handleClose()
-    }
-  }
-
-  // Mark selected notifications as read
-  const handleMarkSelectedAsRead = useCallback(async () => {
-    if (selectedNotificationIds.size === 0) return
-
-    try {
-      await allNotifications.markMultipleAsRead(Array.from(selectedNotificationIds))
-      setSelectedNotificationIds(new Set())
-    } catch (error) {
-      console.error('Failed to mark notifications as read:', error)
-    }
-  }, [selectedNotificationIds, allNotifications])
-
-  // Toggle all notifications selection
-  const handleToggleSelectAll = useCallback(() => {
-    if (selectedNotificationIds.size === currentNotifications.notifications.length && selectedNotificationIds.size > 0) {
-      setSelectedNotificationIds(new Set())
-    } else {
-      setSelectedNotificationIds(
-        new Set(currentNotifications.notifications.map((n) => n.id))
-      )
-    }
-  }, [currentNotifications.notifications, selectedNotificationIds])
-
-  // Handle individual notification selection
-  const handleToggleNotification = useCallback((id: string) => {
-    setSelectedNotificationIds((prev) => {
-      const next = new Set(prev)
-      if (next.has(id)) {
-        next.delete(id)
-      } else {
-        next.add(id)
-      }
-      return next
-    })
-  }, [])
-
-  if (!isOpen) return null
-
-  const hasSelectableNotifications = currentNotifications.notifications.length > 0
-
+function NotificationItem({
+  notification,
+  onMarkAsRead,
+  onDelete,
+}: {
+  notification: Notification
+  onMarkAsRead: (id: string) => void
+  onDelete: (id: string) => void
+}) {
   return (
     <div
-      className="fixed inset-0 bg-black/50 flex items-center justify-center z-50"
-      onClick={handleBackdropClick}
-      onKeyDown={handleKeyDown}
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="notification-center-title"
+      className={`px-4 py-3 border-b hover:bg-gray-50 transition-colors ${
+        notification.read ? 'bg-white' : 'bg-blue-50'
+      }`}
+      role="article"
+      aria-label={notification.message}
     >
-      <div className="bg-white rounded-lg shadow-lg max-w-4xl w-full mx-4 max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="border-b px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 id="notification-center-title" className="text-xl font-semibold text-gray-900">
-              Notifications
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">
-              {currentNotifications.unreadCount} unread
-            </p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <p className="text-sm text-gray-900 font-medium break-words">
+            {notification.message}
+          </p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-xs text-gray-500">
+              {new Date(notification.timestamp).toLocaleString()}
+            </span>
+            {notification.priority === 'high' && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                High Priority
+              </span>
+            )}
           </div>
-          <button
-            onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600"
-            aria-label="Close notification center"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
         </div>
-
-        {/* Tabs */}
-        <div className="border-b flex gap-8 px-6 bg-gray-50">
-          {(['all', 'unread', 'preferences'] as const).map((tab) => (
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!notification.read && (
             <button
-              key={tab}
-              onClick={() => {
-                setActiveTab(tab)
-                setSelectedNotificationIds(new Set())
-              }}
-              className={`py-4 px-1 border-b-2 font-medium text-sm capitalize ${
-                activeTab === tab
-                  ? 'border-blue-500 text-blue-600'
-                  : 'border-transparent text-gray-600 hover:text-gray-900'
-              }`}
+              onClick={() => onMarkAsRead(notification.id)}
+              className="text-xs text-blue-600 hover:text-blue-900 font-medium"
+              aria-label={`Mark ${notification.message} as read`}
             >
-              {tab}
-              {tab === 'unread' && currentNotifications.unreadCount > 0 && (
-                <span className="ml-2 inline-flex items-center justify-center w-5 h-5 text-xs font-bold text-white bg-red-500 rounded-full">
-                  {currentNotifications.unreadCount}
-                </span>
-              )}
+              Read
             </button>
-          ))}
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto px-6 py-4">
-          {activeTab === 'preferences' ? (
-            <NotificationPreferencesPanel
-              preferences={preferences}
-              isLoading={preferences.isLoading}
-            />
-          ) : (
-            <>
-              {/* Bulk Actions Toolbar */}
-              {hasSelectableNotifications && selectedNotificationIds.size > 0 && (
-                <div className="mb-4 p-4 bg-blue-50 rounded-lg flex items-center justify-between border border-blue-200">
-                  <span className="text-sm font-medium text-blue-900">
-                    {selectedNotificationIds.size} selected
-                  </span>
-                  <button
-                    onClick={handleMarkSelectedAsRead}
-                    className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded hover:bg-blue-700 transition-colors"
-                  >
-                    Mark as read
-                  </button>
-                </div>
-              )}
-
-              <NotificationList
-                notifications={currentNotifications.notifications}
-                isLoading={currentNotifications.isLoading}
-                isError={currentNotifications.isError}
-                selectedIds={selectedNotificationIds}
-                onToggleSelect={handleToggleNotification}
-                onToggleSelectAll={handleToggleSelectAll}
-                onMarkAsRead={allNotifications.markAsRead}
-                onDismiss={allNotifications.dismissNotification}
-                tab={activeTab}
-                hasSelectableNotifications={hasSelectableNotifications}
-              />
-            </>
           )}
+          <button
+            onClick={() => onDelete(notification.id)}
+            className="text-xs text-gray-500 hover:text-red-600 font-medium"
+            aria-label={`Delete ${notification.message}`}
+          >
+            ✕
+          </button>
         </div>
       </div>
     </div>
   )
 }
+
+/**
+ * Notification group header
+ */
+function GroupHeader({ groupKey }: { groupKey: string }) {
+  const [type, date] = groupKey.split('::')
+  return (
+    <div className="sticky top-0 bg-gray-100 px-4 py-2 z-10 border-b">
+      <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+        {type} • {date}
+      </h3>
+    </div>
+  )
+}
+
+/**
+ * Filter controls using TanStack Form
+ */
+function FilterControls({
+  filterStatus,
+  filterType,
+  onFilterStatusChange,
+  onFilterTypeChange,
+  onClearFilters,
+  unreadCount,
+  total,
+}: {
+  filterStatus: string
+  filterType: NotificationType | null
+  onFilterStatusChange: (status: 'all' | 'unread') => void
+  onFilterTypeChange: (type: NotificationType | null) => void
+  onClearFilters: () => void
+  unreadCount: number
+  total: number
+}) {
+  const form = useForm({
+    defaultValues: {
+      status: filterStatus,
+      type: filterType || '',
+    },
+  })
+
+  return (
+    <form className="px-4 py-3 border-b bg-gray-50">
+      <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <label htmlFor="status-filter" className="text-sm font-medium text-gray-700">
+            Filter:
+          </label>
+          <select
+            id="status-filter"
+            value={filterStatus}
+            onChange={(e) => onFilterStatusChange(e.target.value as 'all' | 'unread')}
+            className="px-3 py-1.5 border border-gray-300 rounded text-sm bg-white hover:border-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            aria-label="Filter by read status"
+          >
+            <option value="all">All ({total})</option>
+            <option value="unread">Unread ({unreadCount})</option>
+          </select>
+        </div>
+
+        {filterStatus !== 'all' || filterType ? (
+          <button
+            onClick={onClearFilters}
+            type="button"
+            className="px-3 py-1.5 text-sm text-gray-600 bg-white border border-gray-300 rounded hover:bg-gray-100 transition-colors"
+            aria-label="Clear all filters"
+          >
+            Clear Filters
+          </button>
+        ) : null}
+      </div>
+    </form>
+  )
+}
+
+/**
+ * Notification Center panel component
+ *
+ * Displays grouped notifications with filtering and management controls
+ * - Grouped by type and date
+ * - Filter by unread/all status
+ * - Mark individual or all as read
+ * - Delete notifications
+ * - Empty state when no notifications
+ * - Accessible keyboard navigation and ARIA labels
+ */
+export function NotificationCenter({
+  useNotificationCenterHook = useNotificationCenter,
+}: { useNotificationCenterHook?: typeof useNotificationCenter } = {}) {
+  const {
+    notifications,
+    unreadCount,
+    total,
+    filterStatus,
+    filterType,
+    setFilterStatus,
+    setFilterType,
+    clearFilters,
+    groupedNotifications,
+    markAsRead,
+    markAllAsRead,
+    deleteNotification,
+    dismissAllReadNotifications,
+    isLoading,
+    isError,
+    error,
+  } = useNotificationCenterHook()
+
+  if (isLoading) {
+    return (
+      <div className="p-8 text-center">
+        <div className="inline-block">
+          <div className="animate-spin h-8 w-8 border-4 border-blue-200 border-t-blue-600 rounded-full" />
+        </div>
+        <p className="mt-3 text-gray-600">Loading notifications...</p>
+      </div>
+    )
+  }
+
+  if (isError) {
+    return (
+      <div className="p-4 bg-red-50 border border-red-200 rounded">
+        <p className="text-sm text-red-800">
+          {error?.message || 'Failed to load notifications'}
+        </p>
+      </div>
+    )
+  }
+
+  const hasFiltersApplied = filterStatus !== 'all' || filterType !== null
+
+  return (
+    <div
+      className="flex flex-col h-full bg-white rounded-lg border border-gray-200 shadow-sm"
+      role="region"
+      aria-label="Notification center"
+      aria-live="polite"
+    >
+      {/* Header */}
+      <div className="px-4 py-3 border-b flex items-center justify-between">
+        <h2 className="text-lg font-semibold text-gray-900">Notifications</h2>
+        {unreadCount > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+              {unreadCount} unread
+            </span>
+            <button
+              onClick={() => markAllAsRead()}
+              className="text-xs text-blue-600 hover:text-blue-900 font-medium"
+              aria-label="Mark all notifications as read"
+            >
+              Mark all read
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Filter Controls */}
+      <FilterControls
+        filterStatus={filterStatus}
+        filterType={filterType}
+        onFilterStatusChange={setFilterStatus}
+        onFilterTypeChange={setFilterType}
+        onClearFilters={clearFilters}
+        unreadCount={unreadCount}
+        total={total}
+      />
+
+      {/* Notifications List */}
+      <div className="flex-1 overflow-y-auto">
+        {notifications.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-12 px-4">
+            <div className="text-gray-400 mb-2">
+              <svg className="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+            </div>
+            <p className="text-gray-600 font-medium">
+              {hasFiltersApplied ? 'No notifications match your filters' : 'You\'re all caught up!'}
+            </p>
+            {hasFiltersApplied && (
+              <button
+                onClick={clearFilters}
+                className="mt-3 text-sm text-blue-600 hover:text-blue-900"
+                aria-label="Clear filters to see all notifications"
+              >
+                Clear filters
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="divide-y">
+            {Array.from(groupedNotifications.entries()).map(([groupKey, groupNotifications]) => (
+              <div key={groupKey}>
+                <GroupHeader groupKey={groupKey} />
+                <div>
+                  {groupNotifications.map((notification) => (
+                    <NotificationItem
+                      key={notification.id}
+                      notification={notification}
+                      onMarkAsRead={markAsRead}
+                      onDelete={deleteNotification}
+                    />
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer Actions */}
+      {notifications.length > 0 && unreadCount === 0 && (
+        <div className="px-4 py-3 border-t bg-gray-50 flex gap-2">
+          <button
+            onClick={() => dismissAllReadNotifications()}
+            className="text-sm text-gray-600 hover:text-gray-900 font-medium"
+            aria-label="Clear all read notifications"
+          >
+            Clear read notifications
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+export type NotificationCenterProps = React.ComponentProps<typeof NotificationCenter>
