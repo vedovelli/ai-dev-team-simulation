@@ -1,15 +1,16 @@
-import { useState } from 'react'
 import { Outlet } from '@tanstack/react-router'
 import { NotificationCenter, NotificationBadge } from '../../components/NotificationCenter'
+import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 
 /**
  * DashboardLayout - Main dashboard container with navigation
  *
  * This is the root layout for the sprint management dashboard.
  * It provides the main navigation structure and wraps child routes.
+ * Manages notification center state and passes real-time unread count to NotificationBadge.
  */
 export function DashboardLayout() {
-  const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const { isOpen, toggleDropdown, closeDropdown, unreadCount, isLoading } = useNotificationCenter()
 
   return (
     <div className="min-h-screen bg-slate-950 text-white">
@@ -24,10 +25,12 @@ export function DashboardLayout() {
           {/* Header Actions */}
           <div className="relative">
             <NotificationBadge
-              onClick={() => setNotificationsOpen(!notificationsOpen)}
-              isOpen={notificationsOpen}
+              unreadCount={unreadCount}
+              onClick={toggleDropdown}
+              isOpen={isOpen}
+              isLoading={isLoading}
             />
-            <NotificationCenter isOpen={notificationsOpen} onClose={() => setNotificationsOpen(false)} />
+            <NotificationCenter isOpen={isOpen} onClose={closeDropdown} />
           </div>
         </div>
       </header>
