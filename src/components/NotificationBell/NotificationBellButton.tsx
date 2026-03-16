@@ -5,7 +5,7 @@ import { NotificationDropdown } from '../NotificationDropdown'
 /**
  * NotificationBellButton Component
  *
- * Combines a notification bell icon with a dropdown panel showing the 5 most recent notifications.
+ * Combines a notification bell icon with a dropdown panel showing the 20 most recent notifications.
  * Manages its own local dropdown state independent of the full NotificationCenter modal.
  *
  * Features:
@@ -13,7 +13,7 @@ import { NotificationDropdown } from '../NotificationDropdown'
  * - Local dropdown state managed with useState (not context-dependent)
  * - Dropdown opens/closes on bell click
  * - Dropdown closes on outside click and Escape key
- * - Shows 5 most recent notifications
+ * - Shows 20 most recent notifications
  * - Animated pulse on new notifications
  * - Unread count badge (capped at "99+")
  * - Accessible with aria-label and aria-expanded

@@ -40,17 +40,38 @@ function EmptyState() {
 }
 
 /**
- * NotificationDropdown displays a panel with up to 10 most recent notifications
+ * Error state component with retry button
+ */
+function ErrorState({ onRetry }: { onRetry: () => void }) {
+  return (
+    <div className="px-6 py-12 text-center" role="alert">
+      <div className="mb-4 text-4xl">⚠️</div>
+      <h3 className="text-slate-900 font-medium mb-1">Failed to load notifications</h3>
+      <p className="text-sm text-slate-500 mb-4">Something went wrong. Please try again.</p>
+      <button
+        onClick={onRetry}
+        className="inline-flex items-center justify-center px-3 py-1 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400"
+        aria-label="Retry loading notifications"
+      >
+        Retry
+      </button>
+    </div>
+  )
+}
+
+/**
+ * NotificationDropdown displays a panel with up to 20 most recent notifications
  * Appears below the notification bell icon with smooth fade/slide animation
  *
  * Features:
- * - Shows up to 10 most recent notifications
+ * - Shows up to 20 most recent notifications
  * - Dropdown panel positioned absolutely relative to bell
  * - Smooth open/close fade and scale animations
  * - Click-outside, Escape, and bell-click close handlers
  * - Max height with scrollable content
  * - Header with "Mark all as read" button
  * - Footer with "View all notifications" button to open NotificationCenter panel
+ * - Error state with retry capability
  * - Responsive: full-width on mobile, fixed-width on desktop
  * - Accessible with proper ARIA labels and keyboard navigation
  */
@@ -62,6 +83,8 @@ export function NotificationDropdown({
   const {
     notifications,
     isLoading,
+    isError,
+    refetch,
     markAsRead,
     markMultipleAsRead,
   } = useNotifications()
@@ -91,8 +114,8 @@ export function NotificationDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen, onClose])
 
-  // Get 10 most recent notifications
-  const recentNotifications = notifications.slice(0, 10)
+  // Get 20 most recent notifications
+  const recentNotifications = notifications.slice(0, 20)
 
   // Close on Escape key
   useEffect(() => {
@@ -181,7 +204,9 @@ export function NotificationDropdown({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto">
-          {isLoading && recentNotifications.length === 0 ? (
+          {isError ? (
+            <ErrorState onRetry={() => refetch?.()} />
+          ) : isLoading && recentNotifications.length === 0 ? (
             <>
               <NotificationSkeleton />
               <NotificationSkeleton />
