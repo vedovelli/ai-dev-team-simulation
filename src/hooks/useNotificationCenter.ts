@@ -82,20 +82,29 @@ export function useNotificationCenter(config: NotificationCenterPaginationConfig
     const prefs = preferences.data as NotificationPreferences
     const disabledTypes = new Set<NotificationType>()
 
+    // Valid notification type keys - these correspond to actual NotificationTypePreference objects
+    const notificationTypeKeys: (keyof NotificationPreferences)[] = [
+      'assignment_changed',
+      'sprint_updated',
+      'task_reassigned',
+      'deadline_approaching',
+      'task_assigned',
+      'task_unassigned',
+      'sprint_started',
+      'sprint_completed',
+      'comment_added',
+      'status_changed',
+      'agent_event',
+      'performance_alert',
+    ]
+
     // Build set of disabled notification types from preferences
     // Only include types that have frequency === 'off'
-    Object.entries(prefs).forEach(([typeKey, value]) => {
-      // Type guard: check if this is a notification type preference (has frequency property)
-      if (
-        value &&
-        typeof value === 'object' &&
-        'frequency' in value &&
-        typeof value.frequency === 'string'
-      ) {
-        if (value.frequency === 'off') {
-          const notifType = typeKey as NotificationType
-          disabledTypes.add(notifType)
-        }
+    notificationTypeKeys.forEach((typeKey) => {
+      const pref = prefs[typeKey]
+      if (pref && pref.frequency === 'off') {
+        // Safe cast: we know this key is a valid NotificationType
+        disabledTypes.add(typeKey as NotificationType)
       }
     })
 
@@ -296,20 +305,6 @@ export function useNotificationCenter(config: NotificationCenterPaginationConfig
     [notifications]
   )
 
-  /**
-   * Mark multiple notifications as read
-   */
-  const markMultipleAsRead = useCallback(
-    async (ids: string[]) => {
-      try {
-        await notifications.markMultipleAsRead(ids)
-      } catch (error) {
-        // Error is handled in the mutation
-        throw error
-      }
-    },
-    [notifications]
-  )
 
   /**
    * Mark all notifications as read
@@ -361,7 +356,7 @@ export function useNotificationCenter(config: NotificationCenterPaginationConfig
 
     // Actions
     markAsRead,
-    markMultipleAsRead,
+    markMultipleAsRead: notifications.markMultipleAsRead,
     markAllAsRead,
     clearAll,
     dismissNotification: notifications.dismissNotification,
