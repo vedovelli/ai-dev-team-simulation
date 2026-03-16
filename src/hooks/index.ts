@@ -32,7 +32,6 @@ export { useNotificationCenter } from './useNotificationCenter'
 export type {
   UseNotificationCenterReturn,
   UseNotificationCenterOptions,
-  NotificationCenterFilterStatus,
 } from './useNotificationCenter'
 export { useNotificationCenterDisplay } from './useNotificationCenterDisplay'
 export type { UseNotificationCenterDisplayOptions, UseNotificationCenterDisplayReturn } from './useNotificationCenterDisplay'
