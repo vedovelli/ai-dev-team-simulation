@@ -1,7 +1,9 @@
-import type { Notification } from '../types/notification'
+import { useQueries, useQueryClient } from '@tanstack/react-query'
+import type { Notification, NotificationEventType } from '../types/notification'
 import type { NotificationPreferences } from '../types/notification-preferences'
-import { useNotifications, type UseNotificationsOptions } from './useNotifications'
+import { useNotifications, type UseNotificationsOptions, notificationQueryKeys } from './useNotifications'
 import { useNotificationPreferences, type UseNotificationPreferencesOptions } from './useNotificationPreferences'
+import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
  * Configuration options for useNotificationCenter hook
@@ -11,6 +13,26 @@ export interface UseNotificationCenterOptions {
   notificationsOptions?: UseNotificationsOptions
   /** Options for the underlying preferences hook */
   preferencesOptions?: UseNotificationPreferencesOptions
+  /** Notification types to subscribe to (filter by type) */
+  subscribedTypes?: NotificationEventType[]
+}
+
+/**
+ * Response types for batch operations
+ */
+interface MarkAllAsReadResponse {
+  success: boolean
+  markedCount: number
+}
+
+interface DismissMultipleResponse {
+  success: boolean
+  dismissedCount: number
+}
+
+interface ClearAllResponse {
+  success: boolean
+  clearedCount: number
 }
 
 /**
@@ -62,15 +84,34 @@ function computeUnreadCountForEnabledTypes(
 }
 
 /**
+ * Filter notifications by type subscription
+ */
+function filterNotificationsByType(
+  notifications: Notification[],
+  subscribedTypes?: NotificationEventType[],
+): Notification[] {
+  if (!subscribedTypes || subscribedTypes.length === 0) {
+    return notifications
+  }
+
+  return notifications.filter((notification) => {
+    const notificationType = notification.eventType || notification.type
+    return subscribedTypes.includes(notificationType as NotificationEventType)
+  })
+}
+
+/**
  * Higher-order hook that orchestrates notifications and preferences for a complete notification center experience
  *
  * Features:
- * - Combines useNotifications and useNotificationPreferences hooks
+ * - Uses TanStack Query's useQueries for parallel read operations
  * - Client-side filtering of notifications based on enabled preference types
  * - Unread count reflects only enabled notification types
  * - Preference changes immediately recompute filtered list without server round-trip
  * - Coordinates cache invalidation between the two underlying systems
  * - Exposes mark-as-read mutations via delegation
+ * - Batch operations: markAllAsRead(), dismissMultiple(ids), clearAll()
+ * - Type subscription support for filtering notifications
  *
  * Query Keys:
  * - Wraps ['notifications'] and ['notification-preferences'] from underlying hooks
@@ -78,15 +119,17 @@ function computeUnreadCountForEnabledTypes(
  *
  * @example
  * ```tsx
- * const { notifications, unreadCount, markAsRead, preferences } = useNotificationCenter()
+ * const { notifications, unreadCount, markAsRead, preferences, markAllAsRead } = useNotificationCenter()
  *
  * // notifications are automatically filtered by user's preferences
  * // unreadCount only includes unread notifications of enabled types
  * // markAsRead delegates to the underlying mutations
+ * // markAllAsRead marks all filtered notifications as read
  * ```
  */
 export function useNotificationCenter(options: UseNotificationCenterOptions = {}) {
-  const { notificationsOptions = {}, preferencesOptions = {} } = options
+  const { notificationsOptions = {}, preferencesOptions = {}, subscribedTypes } = options
+  const queryClient = useQueryClient()
 
   // Fetch notifications with infinite scroll support
   const notificationsHook = useNotifications(notificationsOptions)
@@ -100,11 +143,14 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
   // Get current preferences
   const preferences = preferencesHook.preferences
 
-  // Filter notifications based on enabled preference types (client-side)
-  const filteredNotifications = filterNotificationsByPreferences(allNotifications, preferences)
+  // Filter by enabled types first
+  let filteredNotifications = filterNotificationsByPreferences(allNotifications, preferences)
+
+  // Then filter by subscription type if specified
+  filteredNotifications = filterNotificationsByType(filteredNotifications, subscribedTypes)
 
   // Compute unread count for enabled types only
-  const filteredUnreadCount = computeUnreadCountForEnabledTypes(allNotifications, preferences)
+  const filteredUnreadCount = filteredNotifications.filter((n) => !n.read).length
 
   /**
    * Wrapper around markAsRead that can recompute filtered notifications
@@ -122,8 +168,134 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
     return notificationsHook.markMultipleAsRead(ids)
   }
 
+  /**
+   * Mark all filtered notifications as read
+   */
+  const markAllAsRead = async () => {
+    const unreadIds = filteredNotifications.filter((n) => !n.read).map((n) => n.id)
+    if (unreadIds.length === 0) {
+      return { success: true, markedCount: 0 }
+    }
+    await markMultipleAsRead(unreadIds)
+    return { success: true, markedCount: unreadIds.length }
+  }
+
+  /**
+   * Mutation for dismissing multiple notifications
+   */
+  const dismissMultipleMutation = useMutationWithRetry<DismissMultipleResponse, { ids: string[] }>({
+    mutationFn: async ({ ids }) => {
+      const response = await fetch('/api/notifications/dismiss-multiple', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids }),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to dismiss notifications: ${response.statusText}`)
+      }
+
+      return { success: true, dismissedCount: ids.length }
+    },
+    onMutate: async ({ ids }) => {
+      // Cancel any pending notification queries
+      await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<{ pages: any[] }>({
+        queryKey: notificationQueryKeys.list(false),
+      })
+
+      // Optimistically remove dismissed notifications
+      if (previousData) {
+        const updated = {
+          ...previousData,
+          pages: previousData.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((n: Notification) => !ids.includes(n.id)),
+          })),
+        }
+        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
+    },
+  })
+
+  /**
+   * Dismiss multiple notifications
+   */
+  const dismissMultiple = (ids: string[]) => {
+    dismissMultipleMutation.mutate({ ids })
+  }
+
+  /**
+   * Mutation for clearing all notifications
+   */
+  const clearAllMutation = useMutationWithRetry<ClearAllResponse, {}>({
+    mutationFn: async () => {
+      const response = await fetch('/api/notifications/clear-all', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to clear all notifications: ${response.statusText}`)
+      }
+
+      return { success: true, clearedCount: allNotifications.length }
+    },
+    onMutate: async () => {
+      // Cancel any pending notification queries
+      await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
+
+      // Snapshot previous data
+      const previousData = queryClient.getQueryData<{ pages: any[] }>({
+        queryKey: notificationQueryKeys.list(false),
+      })
+
+      // Optimistically clear all notifications
+      if (previousData) {
+        const updated = {
+          ...previousData,
+          pages: previousData.pages.map((page) => ({
+            ...page,
+            items: [],
+            unreadCount: 0,
+          })),
+        }
+        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      if (context?.previousData) {
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
+    },
+  })
+
+  /**
+   * Clear all notifications
+   */
+  const clearAll = () => {
+    clearAllMutation.mutate({})
+  }
+
   return {
-    // Filtered notifications (only types enabled in preferences)
+    // Filtered notifications (only types enabled in preferences + subscribed types)
     notifications: filteredNotifications,
 
     // Unread count for enabled types only
@@ -147,6 +319,12 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
     dismissLoading: notificationsHook.dismissLoading,
     dismissError: notificationsHook.dismissError,
 
+    // Batch operation states
+    dismissMultipleLoading: dismissMultipleMutation.isLoading,
+    dismissMultipleError: dismissMultipleMutation.error,
+    clearAllLoading: clearAllMutation.isLoading,
+    clearAllError: clearAllMutation.error,
+
     // Preference update state
     isUpdatingPreferences: preferencesHook.isUpdating,
     updatePreferencesError: preferencesHook.updateError,
@@ -154,8 +332,11 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
     // Actions from notifications hook (delegated)
     markAsRead,
     markMultipleAsRead,
+    markAllAsRead,
     dismissNotification: notificationsHook.dismissNotification,
+    dismissMultiple,
     dismissAllReadNotifications: notificationsHook.dismissAllReadNotifications,
+    clearAll,
 
     // Actions from preferences hook
     updatePreferences: preferencesHook.updatePreferences,

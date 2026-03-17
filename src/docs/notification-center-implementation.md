@@ -29,7 +29,7 @@ Query: ['notifications']  Query: ['notificationPreferences']
 ```typescript
 const {
   // Filtered data
-  notifications,      // Notification[] - filtered by enabled types
+  notifications,      // Notification[] - filtered by enabled types + subscribed types
   unreadCount,        // number - unread count for enabled types only
 
   // User preferences
@@ -43,15 +43,31 @@ const {
   preferencesError,   // Error | null
 
   // Mutation states
-  markAsReadLoading,    // boolean
-  dismissLoading,       // boolean
-  isUpdatingPreferences,// boolean
+  markAsReadLoading,      // boolean
+  dismissLoading,         // boolean
+  dismissMultipleLoading, // boolean
+  clearAllLoading,        // boolean
+  isUpdatingPreferences,  // boolean
 
-  // Actions
+  // Error states
+  markAsReadError,        // Error | null
+  dismissError,           // Error | null
+  dismissMultipleError,   // Error | null
+  clearAllError,          // Error | null
+  updatePreferencesError, // Error | null
+
+  // Actions - Individual operations
   markAsRead,              // (id: string) => void
-  markMultipleAsRead,      // (ids: string[]) => Promise<Notification[]>
   dismissNotification,     // (id: string) => void
+
+  // Actions - Batch operations
+  markMultipleAsRead,      // (ids: string[]) => Promise<Notification[]>
+  markAllAsRead,           // () => Promise<{ success: boolean; markedCount: number }>
+  dismissMultiple,         // (ids: string[]) => void
   dismissAllReadNotifications, // () => void
+  clearAll,                // () => void
+
+  // Actions - Preferences
   updatePreferences,       // (patch: UpdatePreferencesRequest) => void
   resetPreferences,        // () => Promise<NotificationPreferences>
 
@@ -102,6 +118,37 @@ const { notifications } = useNotificationCenter({
 })
 ```
 
+### Subscribe to Specific Notification Types
+
+Filter notifications by specific event types. Notifications must both:
+1. Be enabled in user preferences, AND
+2. Match one of the `subscribedTypes`
+
+```tsx
+// Only show assignment and deadline notifications
+const { notifications, unreadCount } = useNotificationCenter({
+  subscribedTypes: ['assignment_changed', 'deadline_approaching'],
+})
+
+// Show all notifications of enabled types (default, empty array = no type filter)
+const { notifications: allEnabled } = useNotificationCenter({
+  subscribedTypes: [],
+})
+
+// Show only task reassignment events
+const { notifications: reassignOnly } = useNotificationCenter({
+  subscribedTypes: ['task_reassigned'],
+})
+```
+
+**Available Event Types:**
+- `'assignment_changed'` - Task assignment notifications
+- `'sprint_updated'` - Sprint status updates
+- `'task_reassigned'` - Task reassignment events
+- `'deadline_approaching'` - Upcoming deadlines
+
+**Note:** Type subscription adds an additional filter on top of preference-based filtering. If a user disables a type in preferences, it won't show even if it's in `subscribedTypes`.
+
 ### Handling Preference Changes
 
 When a user updates their notification preferences, the `unreadCount` and `notifications` list automatically recompute without making a server request:
@@ -142,32 +189,90 @@ export function NotificationSettings() {
 }
 ```
 
-### Bulk Operations with Preferences Filter
+### Batch Operations with Preferences Filter
+
+#### Mark All As Read
 
 ```tsx
 export function NotificationCenter() {
   const {
     notifications,
     unreadCount,
-    markMultipleAsRead,
-    isLoading,
+    markAllAsRead,
+    markAsReadLoading,
   } = useNotificationCenter()
 
   const handleMarkAllAsRead = async () => {
-    const unreadIds = notifications
-      .filter((n) => !n.read)
-      .map((n) => n.id)
-
-    if (unreadIds.length > 0) {
-      await markMultipleAsRead(unreadIds)
+    if (unreadCount > 0) {
+      const result = await markAllAsRead()
+      console.log(`Marked ${result.markedCount} as read`)
     }
   }
 
   return (
     <div>
-      <button onClick={handleMarkAllAsRead} disabled={isLoading || unreadCount === 0}>
+      <button
+        onClick={handleMarkAllAsRead}
+        disabled={markAsReadLoading || unreadCount === 0}
+      >
         Mark all as read ({unreadCount})
       </button>
+    </div>
+  )
+}
+```
+
+#### Dismiss Multiple Notifications
+
+```tsx
+export function NotificationActions() {
+  const {
+    notifications,
+    dismissMultiple,
+    dismissMultipleLoading,
+  } = useNotificationCenter()
+
+  const handleDismissMultiple = () => {
+    // Get IDs of first 5 notifications
+    const idsToRemove = notifications.slice(0, 5).map((n) => n.id)
+    if (idsToRemove.length > 0) {
+      dismissMultiple(idsToRemove)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleDismissMultiple}
+      disabled={dismissMultipleLoading}
+    >
+      Clear first 5
+    </button>
+  )
+}
+```
+
+#### Clear All Notifications
+
+```tsx
+export function NotificationPanel() {
+  const {
+    notifications,
+    clearAll,
+    clearAllLoading,
+  } = useNotificationCenter()
+
+  return (
+    <div>
+      <h2>Notifications ({notifications.length})</h2>
+      {notifications.length > 0 && (
+        <button
+          onClick={clearAll}
+          disabled={clearAllLoading}
+        >
+          Clear all
+        </button>
+      )}
+      {/* notification list */}
     </div>
   )
 }
@@ -393,6 +498,97 @@ const mockNotifications: Notification[] = [
 - Confirm `useNotificationPreferences` hook is working
 - Verify cache invalidation occurred on preference update
 - Check console for errors in preference update mutation
+
+## API Endpoints
+
+### GET /api/notifications
+
+Fetch paginated notifications with cursor-based pagination.
+
+**Query Parameters:**
+- `cursor` - Cursor token from previous response
+- `limit` - Number of items per page (default: 10, max: 100)
+- `unread` - Filter to unread only (`?unread=true`)
+- `type` - Filter by notification type
+
+**Response:**
+```json
+{
+  "items": [/* Notification[] */],
+  "nextCursor": "base64-token-or-null",
+  "hasMore": true,
+  "unreadCount": 5
+}
+```
+
+### PATCH /api/notifications/:id/read
+
+Mark a single notification as read with optimistic updates.
+
+**Response:**
+```json
+{
+  "id": "notif-123",
+  "read": true,
+  ...
+}
+```
+
+### PATCH /api/notifications/read-batch
+
+Mark multiple notifications as read.
+
+**Request:**
+```json
+{
+  "ids": ["notif-1", "notif-2", "notif-3"]
+}
+```
+
+**Response:** `Notification[]`
+
+### PATCH /api/notifications/dismiss-multiple
+
+Dismiss (remove) multiple notifications at once.
+
+**Request:**
+```json
+{
+  "ids": ["notif-1", "notif-2", "notif-3"]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "dismissedCount": 3
+}
+```
+
+### DELETE /api/notifications/:id
+
+Delete a single notification.
+
+**Response:**
+```json
+{
+  "success": true,
+  "id": "notif-123"
+}
+```
+
+### DELETE /api/notifications/clear-all
+
+Clear all notifications at once.
+
+**Response:**
+```json
+{
+  "success": true,
+  "clearedCount": 15
+}
+```
 
 ## Related Hooks
 

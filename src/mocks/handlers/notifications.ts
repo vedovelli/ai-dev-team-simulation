@@ -788,6 +788,55 @@ export const notificationHandlers = [
       notifications: updated,
     })
   }),
+
+  /**
+   * PATCH /api/notifications/dismiss-multiple
+   * Dismiss multiple notifications at once
+   * Body: { ids: string[] }
+   * Response: { success: boolean, dismissedCount: number }
+   */
+  http.patch('/api/notifications/dismiss-multiple', async ({ request }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const body = (await request.json()) as { ids: string[] }
+    const { ids } = body
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return HttpResponse.json(
+        { error: 'Invalid request: ids array is required' },
+        { status: 400 }
+      )
+    }
+
+    // Remove all notifications with matching IDs
+    const beforeLength = notificationsStore.length
+    notificationsStore = notificationsStore.filter((n) => !ids.includes(n.id))
+    const dismissedCount = beforeLength - notificationsStore.length
+
+    return HttpResponse.json({
+      success: true,
+      dismissedCount,
+    })
+  }),
+
+  /**
+   * DELETE /api/notifications/clear-all
+   * Clear all notifications at once
+   * Response: { success: boolean, clearedCount: number }
+   */
+  http.delete('/api/notifications/clear-all', async () => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const clearedCount = notificationsStore.length
+    notificationsStore = []
+
+    return HttpResponse.json({
+      success: true,
+      clearedCount,
+    })
+  }),
 ]
 
 /**
