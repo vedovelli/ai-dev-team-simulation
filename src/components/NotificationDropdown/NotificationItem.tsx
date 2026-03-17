@@ -1,3 +1,5 @@
+import { forwardRef } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import {
   CheckCircle2,
   AlertCircle,
@@ -10,6 +12,7 @@ import type { Notification } from '../../types/notification'
 interface NotificationItemProps {
   notification: Notification
   onMarkAsRead: (id: string) => void
+  isFocused?: boolean
 }
 
 /**
@@ -82,57 +85,102 @@ function getRelativeTime(timestamp: string): string {
 }
 
 /**
- * NotificationItem displays a single notification in the dropdown
+ * Get navigation path based on notification type and related ID
+ * Returns the route to navigate to when notification is clicked
  */
-export function NotificationItem({
-  notification,
-  onMarkAsRead,
-}: NotificationItemProps) {
-  const handleClick = () => {
-    if (!notification.read) {
-      onMarkAsRead(notification.id)
-    }
+function getNavigationPath(notification: Notification): string | null {
+  const eventType = notification.eventType || notification.type
+  const relatedId = notification.relatedId || notification.metadata?.entityId
+
+  if (!relatedId) return null
+
+  switch (eventType) {
+    case 'assignment_changed':
+      // Navigate to agent detail
+      return `/agents/${relatedId}`
+    case 'sprint_updated':
+      // Navigate to sprint detail
+      return `/sprints/${relatedId}`
+    case 'task_reassigned':
+    case 'deadline_approaching':
+      // Navigate to task detail
+      return `/tasks/${relatedId}`
+    default:
+      return null
   }
+}
 
-  return (
-    <button
-      onClick={handleClick}
-      className={`w-full px-4 py-3 text-left transition-colors hover:bg-slate-50 border-b last:border-b-0 ${
-        !notification.read ? 'bg-blue-50' : ''
-      }`}
-    >
-      <div className="flex gap-3">
-        {/* Unread Indicator */}
-        {!notification.read ? (
-          <div className="w-2 h-2 bg-blue-600 rounded-full mt-1 flex-shrink-0" aria-label="Unread" />
-        ) : (
-          <div className="w-2 h-2 flex-shrink-0" />
-        )}
+/**
+ * NotificationItem displays a single notification in the dropdown
+ * Supports keyboard navigation and click-to-navigate to related entities
+ */
+export const NotificationItem = forwardRef<HTMLButtonElement, NotificationItemProps>(
+  ({ notification, onMarkAsRead, isFocused = false }, ref) => {
+    const navigate = useNavigate()
 
-        {/* Content */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-start gap-2">
-            {/* Type Icon */}
-            <div className={`flex-shrink-0 mt-0.5 ${getIconColor(notification.type)}`}>
-              {getNotificationIcon(notification.type)}
-            </div>
+    const handleClick = () => {
+      if (!notification.read) {
+        onMarkAsRead(notification.id)
+      }
 
-            {/* Message and Timestamp */}
-            <div className="flex-1 min-w-0">
-              <p
-                className={`text-sm ${
-                  notification.read ? 'text-slate-700' : 'font-medium text-slate-900'
-                }`}
-              >
-                {notification.message}
-              </p>
-              <p className="text-xs text-slate-500 mt-1">
-                {getRelativeTime(notification.timestamp)}
-              </p>
+      // Navigate to related entity if available
+      const path = getNavigationPath(notification)
+      if (path) {
+        navigate({ to: path })
+      }
+    }
+
+    return (
+      <button
+        ref={ref}
+        onClick={handleClick}
+        className={`w-full px-4 py-3 text-left transition-colors border-b last:border-b-0 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 ${
+          isFocused ? 'bg-slate-100' : 'hover:bg-slate-50'
+        } ${
+          !notification.read ? 'bg-blue-50' : ''
+        }`}
+        role="button"
+        tabIndex={0}
+        aria-label={`${notification.message}${!notification.read ? ' (unread)' : ''}`}
+      >
+        <div className="flex gap-3">
+          {/* Unread Indicator */}
+          {!notification.read ? (
+            <div
+              className="w-2 h-2 bg-blue-600 rounded-full mt-1 flex-shrink-0"
+              aria-label="Unread"
+            />
+          ) : (
+            <div className="w-2 h-2 flex-shrink-0" />
+          )}
+
+          {/* Content */}
+          <div className="flex-1 min-w-0">
+            <div className="flex items-start gap-2">
+              {/* Type Icon */}
+              <div className={`flex-shrink-0 mt-0.5 ${getIconColor(notification.type)}`}>
+                {getNotificationIcon(notification.type)}
+              </div>
+
+              {/* Message and Timestamp */}
+              <div className="flex-1 min-w-0">
+                <p
+                  className={`text-sm ${
+                    notification.read ? 'text-slate-700' : 'font-medium text-slate-900'
+                  }`}
+                >
+                  {notification.message}
+                </p>
+                <p className="text-xs text-slate-500 mt-1">
+                  {getRelativeTime(notification.timestamp)}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </button>
-  )
-}
+      </button>
+    )
+  }
+)
+
+NotificationItem.displayName = 'NotificationItem'
