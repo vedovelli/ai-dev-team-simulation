@@ -524,8 +524,16 @@ export const notificationHandlers = [
 
     let filtered = [...notificationsStore]
 
-    // Filter by unread status
+    // Filter by unread status (legacy parameter, for backward compatibility)
     if (unread === 'true') {
+      filtered = filtered.filter((n) => !n.read)
+    }
+
+    // Filter by status (read/unread)
+    const status = url.searchParams.get('status')
+    if (status === 'read') {
+      filtered = filtered.filter((n) => n.read)
+    } else if (status === 'unread') {
       filtered = filtered.filter((n) => !n.read)
     }
 
@@ -733,25 +741,29 @@ export const notificationHandlers = [
 
   /**
    * PATCH /api/notifications/bulk
-   * Bulk notification operations: archive or mark-as-read
-   * Body: { operation: 'archive' | 'mark-read', ids: string[] }
+   * Bulk notification operations: mark-read, archive, or delete
+   * Body: { action: 'mark-read' | 'archive' | 'delete', ids: string[] }
    * Response: { updated: number, notifications: Notification[] }
-   * Simulates 10% partial failure rate
+   * Simulates ~10% partial failure rate for realism
    */
   http.patch('/api/notifications/bulk', async ({ request }) => {
     // Simulate network delay
     await new Promise((resolve) => setTimeout(resolve, 150))
 
     const body = (await request.json()) as {
-      operation: 'archive' | 'mark-read'
+      action?: string
+      operation?: string // Legacy parameter name support
       ids: string[]
     }
 
-    const { operation, ids } = body
+    // Support both 'action' (preferred) and 'operation' (legacy) parameter names
+    const actionType = body.action || body.operation
 
-    if (!operation || !Array.isArray(ids) || ids.length === 0) {
+    const { ids } = body
+
+    if (!actionType || !Array.isArray(ids) || ids.length === 0) {
       return HttpResponse.json(
-        { error: 'Invalid request: operation and ids are required' },
+        { error: 'Invalid request: action and ids are required' },
         { status: 400 }
       )
     }
@@ -770,11 +782,11 @@ export const notificationHandlers = [
       if (notifIndex !== -1) {
         const notification = notificationsStore[notifIndex]
 
-        if (operation === 'archive') {
-          // Soft-delete: remove from store
+        if (actionType === 'archive' || actionType === 'delete') {
+          // Remove from store (both archive and delete remove the notification)
           notificationsStore.splice(notifIndex, 1)
           updated.push(notification)
-        } else if (operation === 'mark-read') {
+        } else if (actionType === 'mark-read') {
           // Mark as read
           const updatedNotif = { ...notification, read: true }
           notificationsStore[notifIndex] = updatedNotif

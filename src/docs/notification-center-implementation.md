@@ -47,6 +47,9 @@ const {
   dismissLoading,         // boolean
   dismissMultipleLoading, // boolean
   clearAllLoading,        // boolean
+  bulkMarkAsReadLoading,  // boolean
+  bulkArchiveLoading,     // boolean
+  bulkDeleteLoading,      // boolean
   isUpdatingPreferences,  // boolean
 
   // Error states
@@ -54,6 +57,9 @@ const {
   dismissError,           // Error | null
   dismissMultipleError,   // Error | null
   clearAllError,          // Error | null
+  bulkMarkAsReadError,    // Error | null
+  bulkArchiveError,       // Error | null
+  bulkDeleteError,        // Error | null
   updatePreferencesError, // Error | null
 
   // Actions - Individual operations
@@ -66,6 +72,9 @@ const {
   dismissMultiple,         // (ids: string[]) => void
   dismissAllReadNotifications, // () => void
   clearAll,                // () => void
+  bulkMarkAsRead,          // (ids: string[]) => void - Mark multiple as read (10% failure rate)
+  bulkArchive,             // (ids: string[]) => void - Archive multiple notifications
+  bulkDelete,              // (ids: string[]) => void - Delete multiple notifications
 
   // Actions - Preferences
   updatePreferences,       // (patch: UpdatePreferencesRequest) => void
@@ -300,6 +309,113 @@ When using batch operations (dismissMultiple, clearAll) with infinite scroll, no
 - Server still has authoritative data
 - Subsequent `fetchNextPage()` calls will return correct items from server
 - Cache invalidation on success ensures sync with server state
+
+### Bulk Operations (Mark as Read / Archive / Delete)
+
+The `useNotificationCenter` hook provides three bulk operation mutations for efficient notification management:
+
+#### Mark Multiple as Read
+
+```tsx
+export function NotificationBulkActions() {
+  const {
+    notifications,
+    bulkMarkAsRead,
+    bulkMarkAsReadLoading,
+  } = useNotificationCenter()
+
+  const handleMarkSelectedAsRead = (selectedIds: string[]) => {
+    if (selectedIds.length > 0) {
+      bulkMarkAsRead(selectedIds)
+    }
+  }
+
+  return (
+    <button
+      onClick={() => handleMarkSelectedAsRead(notifications.slice(0, 5).map(n => n.id))}
+      disabled={bulkMarkAsReadLoading}
+    >
+      Mark first 5 as read
+    </button>
+  )
+}
+```
+
+#### Archive Multiple Notifications
+
+Archive removes notifications from the list while preserving history:
+
+```tsx
+export function ArchiveNotifications() {
+  const {
+    notifications,
+    bulkArchive,
+    bulkArchiveLoading,
+  } = useNotificationCenter()
+
+  const handleArchiveOldNotifications = () => {
+    const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const oldIds = notifications
+      .filter(n => new Date(n.timestamp).getTime() < oneWeekAgo)
+      .map(n => n.id)
+
+    if (oldIds.length > 0) {
+      bulkArchive(oldIds)
+    }
+  }
+
+  return (
+    <button
+      onClick={handleArchiveOldNotifications}
+      disabled={bulkArchiveLoading}
+    >
+      Archive notifications older than 1 week
+    </button>
+  )
+}
+```
+
+#### Delete Multiple Notifications
+
+Delete permanently removes notifications from the list:
+
+```tsx
+export function DeleteNotifications() {
+  const {
+    notifications,
+    bulkDelete,
+    bulkDeleteLoading,
+  } = useNotificationCenter()
+
+  const handleDeleteSelected = (selectedIds: string[]) => {
+    if (selectedIds.length > 0) {
+      bulkDelete(selectedIds)
+    }
+  }
+
+  return (
+    <button
+      onClick={() => handleDeleteSelected(notifications.slice(0, 10).map(n => n.id))}
+      disabled={bulkDeleteLoading}
+    >
+      Delete notifications
+    </button>
+  )
+}
+```
+
+**Key Features of Bulk Operations:**
+- **Optimistic Updates**: UI updates immediately for instant feedback
+- **Rollback on Error**: Automatically reverts changes if the operation fails
+- **10% Partial Failure Simulation**: Realistic behavior for testing retry logic
+- **Smart Cache Invalidation**: Automatically refreshes data after successful operations
+- **Exponential Backoff Retry**: Built-in retry logic with 3 attempts
+
+**Endpoint Details:**
+- Uses `PATCH /api/notifications/bulk` with action parameter
+- Supported actions: `'mark-read'`, `'archive'`, `'delete'`
+- Response includes count and updated notification details
+- Simulates ~10% failure rate for some notifications in batch
 
 ### Infinite Scroll with Preferences
 
@@ -612,6 +728,60 @@ Clear all notifications at once.
   "clearedCount": 15
 }
 ```
+
+### PATCH /api/notifications/bulk
+
+Bulk notification operations: mark as read, archive, or delete multiple notifications.
+
+**Request:**
+```json
+{
+  "action": "mark-read" | "archive" | "delete",
+  "ids": ["notif-1", "notif-2", "notif-3"]
+}
+```
+
+**Response:**
+```json
+{
+  "updated": 3,
+  "notifications": [
+    {
+      "id": "notif-1",
+      "type": "assignment_changed",
+      "message": "...",
+      "read": true,
+      "timestamp": "2026-03-17T10:30:00Z"
+    },
+    ...
+  ]
+}
+```
+
+**Supported Actions:**
+- `mark-read`: Mark notifications as read (preserves notification in list)
+- `archive`: Remove notifications from list (soft delete, preserves history)
+- `delete`: Permanently remove notifications from list
+
+**Behavior:**
+- Simulates ~10% partial failure rate (some notifications may fail silently)
+- Returns count of successfully processed notifications
+- Optimistic updates applied on client before server confirmation
+- Automatic rollback if request fails
+
+**Query Filtering:**
+
+The endpoint supports query parameters for filtering notifications before fetching:
+
+```
+GET /api/notifications?type=assignment_changed&status=unread&limit=20
+```
+
+**Query Parameters:**
+- `type` - Filter by notification type (e.g., `assignment_changed`, `sprint_updated`)
+- `status` - Filter by read status: `read`, `unread` (default: all)
+- `limit` - Number of items to return (default: 10, max: 100)
+- `cursor` - Cursor token for pagination
 
 ## Related Hooks
 
