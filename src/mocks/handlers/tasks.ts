@@ -1,8 +1,15 @@
 /**
- * MSW Handlers for Task Management with Conflict Detection
+ * MSW Handlers for Task Management with Advanced Filtering
  *
  * Endpoints:
+ * - GET /api/tasks - List tasks with filtering and pagination
  * - PATCH /api/tasks/:id - Update task with version-based conflict detection
+ * - GET /api/tasks/:id - Fetch a single task
+ *
+ * Filtering Support:
+ * - Multiple values per parameter (e.g., status=todo&status=in-progress)
+ * - Filter dimensions: status, priority, assignee, sprint
+ * - Pagination with total count
  *
  * Conflict Simulation:
  * - ~5% chance of returning 409 Conflict when version mismatches
@@ -10,7 +17,7 @@
  */
 
 import { http, HttpResponse } from 'msw'
-import type { Task, UpdateTaskInput } from '../../types/task'
+import type { Task, TaskStatus, TaskPriority, UpdateTaskInput } from '../../types/task'
 
 /**
  * In-memory store for task versions
@@ -116,11 +123,80 @@ const mockTasksData: Record<string, Task> = {
   },
 }
 
-/**
- * PATCH /api/tasks/:id
- * Update a task with version-based conflict detection
- */
 export const taskHandlers = [
+  /**
+   * GET /api/tasks
+   * List tasks with advanced filtering and pagination
+   * Supports multiple values per filter dimension: ?status=todo&status=in-progress
+   */
+  http.get('/api/tasks', ({ request }) => {
+    const url = new URL(request.url)
+
+    // Parse multi-value filters
+    const parseMultiValue = (key: string): string[] => {
+      const values = url.searchParams.getAll(key)
+      return values.filter((v) => v)
+    }
+
+    const statusFilters = parseMultiValue('status') as TaskStatus[]
+    const priorityFilters = parseMultiValue('priority') as TaskPriority[]
+    const assigneeFilters = parseMultiValue('assignee')
+    const sprintFilters = parseMultiValue('sprint')
+    const searchQuery = url.searchParams.get('search')?.toLowerCase() || ''
+
+    const pageIndex = Math.max(0, parseInt(url.searchParams.get('pageIndex') || '0', 10))
+    const pageSize = Math.max(1, Math.min(100, parseInt(url.searchParams.get('pageSize') || '10', 10)))
+
+    // Filter tasks with AND logic across dimensions, OR logic within dimensions
+    let filtered = Object.values(mockTasksData).filter((task) => {
+      // Status filter (OR logic within dimension)
+      if (statusFilters.length > 0 && !statusFilters.includes(task.status)) {
+        return false
+      }
+
+      // Priority filter (OR logic within dimension)
+      if (priorityFilters.length > 0 && !priorityFilters.includes(task.priority)) {
+        return false
+      }
+
+      // Assignee filter (OR logic within dimension)
+      if (assigneeFilters.length > 0 && !assigneeFilters.includes(task.assignee)) {
+        return false
+      }
+
+      // Sprint filter (OR logic within dimension)
+      if (sprintFilters.length > 0 && !sprintFilters.includes(task.sprint)) {
+        return false
+      }
+
+      // Search filter (full-text across title)
+      if (searchQuery && !task.title.toLowerCase().includes(searchQuery)) {
+        return false
+      }
+
+      return true
+    })
+
+    // Pagination
+    const total = filtered.length
+    const totalPages = Math.ceil(total / pageSize)
+    const startIdx = pageIndex * pageSize
+    const endIdx = startIdx + pageSize
+    const paginatedTasks = filtered.slice(startIdx, endIdx)
+
+    return HttpResponse.json({
+      data: paginatedTasks,
+      total,
+      page: pageIndex + 1,
+      pageSize,
+      totalPages,
+    })
+  }),
+
+  /**
+   * PATCH /api/tasks/:id
+   * Update a task with version-based conflict detection
+   */
   http.patch('/api/tasks/:id', async ({ params, request }) => {
     try {
       const { id } = params
@@ -128,10 +204,7 @@ export const taskHandlers = [
 
       const task = mockTasksData[id as keyof typeof mockTasksData]
       if (!task) {
-        return HttpResponse.json(
-          { error: 'Task not found' },
-          { status: 404 }
-        )
+        return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
       }
 
       // Check version if provided (conflict detection)
@@ -188,10 +261,7 @@ export const taskHandlers = [
         },
       })
     } catch (error) {
-      return HttpResponse.json(
-        { error: 'Invalid request body' },
-        { status: 400 }
-      )
+      return HttpResponse.json({ error: 'Invalid request body' }, { status: 400 })
     }
   }),
 
@@ -204,10 +274,7 @@ export const taskHandlers = [
     const task = mockTasksData[id as keyof typeof mockTasksData]
 
     if (!task) {
-      return HttpResponse.json(
-        { error: 'Task not found' },
-        { status: 404 }
-      )
+      return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
     return HttpResponse.json(task, {
