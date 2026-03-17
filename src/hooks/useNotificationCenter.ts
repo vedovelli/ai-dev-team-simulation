@@ -46,6 +46,26 @@ interface BulkDeleteResponse {
 }
 
 /**
+ * Type for the paginated notification response structure
+ * Used in infinite scroll queries and cache updates
+ */
+interface PaginatedNotificationResponse {
+  pages: Array<{
+    items: Notification[]
+    nextCursor?: string
+  }>
+}
+
+/**
+ * Configuration for a bulk operation mutation
+ */
+interface BulkOperationConfig {
+  action: 'mark-read' | 'archive' | 'delete'
+  errorMessage: string
+  updateFn: (notification: Notification, ids: string[]) => Notification | null
+}
+
+/**
  * Check if a notification type is enabled in user preferences
  * Note: This function assumes preferences is already defined (checked by caller)
  */
@@ -134,6 +154,76 @@ function filterNotificationsByType(
     const notificationType = notification.eventType || notification.type
     // Use type guard to ensure only valid structured event types are matched
     return isValidEventType(notificationType) && subscribedTypes.includes(notificationType)
+  })
+}
+
+/**
+ * Factory function to create bulk notification mutations with consistent pattern
+ *
+ * This DRY helper eliminates duplication across mark-as-read, archive, and delete mutations.
+ * All three follow the same pattern:
+ * 1. Call PATCH /api/notifications/bulk with action parameter
+ * 2. Optimistically update cache on client
+ * 3. Rollback on error
+ * 4. Invalidate on success
+ *
+ * The updateFn allows each operation to modify notifications differently:
+ * - mark-read: updates read flag to true
+ * - archive/delete: returns null to filter out the notification
+ */
+function createBulkOperationMutation(
+  config: BulkOperationConfig,
+  queryClient: ReturnType<typeof useQueryClient>,
+) {
+  return useMutationWithRetry<BulkOperationResponse, { ids: string[] }>({
+    mutationFn: async ({ ids }) => {
+      const response = await fetch('/api/notifications/bulk', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, action: config.action }),
+      })
+
+      if (!response.ok) {
+        throw new Error(config.errorMessage)
+      }
+
+      return response.json() as Promise<BulkOperationResponse>
+    },
+    onMutate: async ({ ids }) => {
+      // Cancel any pending notification queries
+      await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
+
+      // Snapshot previous data for rollback
+      const previousData = queryClient.getQueryData<PaginatedNotificationResponse>({
+        queryKey: notificationQueryKeys.list(false),
+      })
+
+      // Optimistically update the cache
+      if (previousData) {
+        const updated = {
+          ...previousData,
+          pages: previousData.pages.map((page) => ({
+            ...page,
+            items: page.items
+              .map((n) => config.updateFn(n, ids))
+              .filter((n): n is Notification => n !== null),
+          })),
+        }
+        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
+      }
+
+      return { previousData }
+    },
+    onError: (_, __, context) => {
+      // Rollback on error
+      if (context?.previousData) {
+        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
+      }
+    },
+    onSuccess: () => {
+      // Invalidate after success to sync with server
+      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
+    },
   })
 }
 
@@ -239,7 +329,7 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
       await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
 
       // Snapshot previous data
-      const previousData = queryClient.getQueryData<{ pages: any[] }>({
+      const previousData = queryClient.getQueryData<PaginatedNotificationResponse>({
         queryKey: notificationQueryKeys.list(false),
       })
 
@@ -295,7 +385,7 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
       await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
 
       // Snapshot previous data
-      const previousData = queryClient.getQueryData<{ pages: any[] }>({
+      const previousData = queryClient.getQueryData<PaginatedNotificationResponse>({
         queryKey: notificationQueryKeys.list(false),
       })
 
@@ -332,55 +422,19 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
 
   /**
    * Mutation for bulk marking notifications as read
+   * Updates the read flag for selected notifications while keeping them in the list
    */
-  const bulkMarkAsReadMutation = useMutationWithRetry<BulkOperationResponse, { ids: string[] }>({
-    mutationFn: async ({ ids }) => {
-      const response = await fetch('/api/notifications/bulk', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, action: 'mark-read' }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to mark notifications as read: ${response.statusText}`)
-      }
-
-      return response.json() as Promise<BulkOperationResponse>
+  const bulkMarkAsReadMutation = createBulkOperationMutation(
+    {
+      action: 'mark-read',
+      errorMessage: 'Failed to mark notifications as read',
+      updateFn: (notification, ids) => ({
+        ...notification,
+        read: ids.includes(notification.id) ? true : notification.read,
+      }),
     },
-    onMutate: async ({ ids }) => {
-      // Cancel any pending notification queries
-      await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
-
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<{ pages: any[] }>({
-        queryKey: notificationQueryKeys.list(false),
-      })
-
-      // Optimistically mark notifications as read
-      if (previousData) {
-        const updated = {
-          ...previousData,
-          pages: previousData.pages.map((page) => ({
-            ...page,
-            items: page.items.map((n: Notification) =>
-              ids.includes(n.id) ? { ...n, read: true } : n
-            ),
-          })),
-        }
-        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
-      }
-
-      return { previousData }
-    },
-    onError: (_, __, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
-    },
-  })
+    queryClient,
+  )
 
   /**
    * Mark multiple notifications as read via bulk operation
@@ -392,53 +446,17 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
 
   /**
    * Mutation for bulk archiving notifications
+   * Archive is a soft-delete: removes from list but preserves in server history/search
+   * Archive should be used when user wants to declutter while retaining audit trail
    */
-  const bulkArchiveMutation = useMutationWithRetry<BulkOperationResponse, { ids: string[] }>({
-    mutationFn: async ({ ids }) => {
-      const response = await fetch('/api/notifications/bulk', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, action: 'archive' }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to archive notifications: ${response.statusText}`)
-      }
-
-      return response.json() as Promise<BulkOperationResponse>
+  const bulkArchiveMutation = createBulkOperationMutation(
+    {
+      action: 'archive',
+      errorMessage: 'Failed to archive notifications',
+      updateFn: (notification, ids) => (ids.includes(notification.id) ? null : notification),
     },
-    onMutate: async ({ ids }) => {
-      // Cancel any pending notification queries
-      await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
-
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<{ pages: any[] }>({
-        queryKey: notificationQueryKeys.list(false),
-      })
-
-      // Optimistically remove archived notifications
-      if (previousData) {
-        const updated = {
-          ...previousData,
-          pages: previousData.pages.map((page) => ({
-            ...page,
-            items: page.items.filter((n: Notification) => !ids.includes(n.id)),
-          })),
-        }
-        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
-      }
-
-      return { previousData }
-    },
-    onError: (_, __, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
-    },
-  })
+    queryClient,
+  )
 
   /**
    * Archive multiple notifications
@@ -450,55 +468,21 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
 
   /**
    * Mutation for bulk deleting notifications
+   * Delete is a hard-delete: removes from list and server (no history preserved)
+   * Delete should be used for irrelevant or spam notifications when history isn't needed
+   *
+   * UX Distinction:
+   * - Archive: "I'm done with these but may want to reference them later"
+   * - Delete: "I never want to see these again"
    */
-  const bulkDeleteMutation = useMutationWithRetry<BulkDeleteResponse, { ids: string[] }>({
-    mutationFn: async ({ ids }) => {
-      // Use PATCH /api/notifications/bulk with action: 'delete'
-      const response = await fetch('/api/notifications/bulk', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, action: 'delete' }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to delete notifications: ${response.statusText}`)
-      }
-
-      const data = (await response.json()) as BulkOperationResponse
-      return { success: true, deletedCount: data.updated }
+  const bulkDeleteMutation = createBulkOperationMutation(
+    {
+      action: 'delete',
+      errorMessage: 'Failed to delete notifications',
+      updateFn: (notification, ids) => (ids.includes(notification.id) ? null : notification),
     },
-    onMutate: async ({ ids }) => {
-      // Cancel any pending notification queries
-      await queryClient.cancelQueries({ queryKey: notificationQueryKeys.all })
-
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<{ pages: any[] }>({
-        queryKey: notificationQueryKeys.list(false),
-      })
-
-      // Optimistically remove deleted notifications
-      if (previousData) {
-        const updated = {
-          ...previousData,
-          pages: previousData.pages.map((page) => ({
-            ...page,
-            items: page.items.filter((n: Notification) => !ids.includes(n.id)),
-          })),
-        }
-        queryClient.setQueryData(notificationQueryKeys.list(false), updated)
-      }
-
-      return { previousData }
-    },
-    onError: (_, __, context) => {
-      if (context?.previousData) {
-        queryClient.setQueryData(notificationQueryKeys.list(false), context.previousData)
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
-    },
-  })
+    queryClient,
+  )
 
   /**
    * Delete multiple notifications
