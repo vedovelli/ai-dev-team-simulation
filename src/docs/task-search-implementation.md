@@ -306,6 +306,44 @@ if (search.isLoading) {
 }
 ```
 
+## Router Integration
+
+For URL-based search state persistence, use the `useTaskSearchFilters` hook which integrates with TanStack Router:
+
+```tsx
+import { useTaskSearchFilters } from '@/hooks'
+
+export function TaskSearchWithRouter() {
+  const filters = useTaskSearchFilters()
+
+  return (
+    <div>
+      <input
+        placeholder="Search tasks..."
+        value={filters.q}
+        onChange={(e) => filters.setQuery(e.target.value)}
+      />
+
+      <select value={filters.priority || ''} onChange={(e) => filters.setPriority(e.target.value || null)}>
+        <option value="">All Priorities</option>
+        <option value="low">Low</option>
+        <option value="medium">Medium</option>
+        <option value="high">High</option>
+      </select>
+
+      {/* Filters are automatically synced to URL search params */}
+      {/* Bookmark or share the URL to restore search state */}
+    </div>
+  )
+}
+```
+
+The `useTaskSearchFilters` hook:
+- Syncs all filter state to URL `searchParams`
+- Restores filters on navigation via TanStack Router
+- Supports shareable, bookmarkable search URLs
+- Integrates with `useTaskSearch` for the actual data fetching
+
 ## Testing
 
 Example test using React Testing Library:
