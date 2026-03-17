@@ -1,24 +1,39 @@
-import { useRef, useEffect, useState } from 'react'
-import { useNotificationCenter as useNotificationCenterHook } from '../../hooks/useNotificationCenter'
-import { useNotificationCenter } from '../../contexts/NotificationCenterProvider'
+import { useRef, useState, useEffect } from 'react'
+import { useNotifications } from '../../hooks/useNotifications'
 
 /**
  * NotificationBell Component
  *
- * Displays a notification bell icon with an animated badge showing unread count.
- * Integrates with NotificationCenter modal for opening/closing the notification panel.
+ * Displays a notification bell icon with an animated unread count badge.
+ * Integrates with notification system to show real-time unread count.
  *
  * Features:
- * - Animated pulse on new notifications
- * - Unread count badge (capped at "99+")
- * - Active/highlighted state when modal is open
- * - Accessible with aria-label and aria-live
- * - Responsive touch target (44x44px minimum on mobile)
- * - Smooth CSS transitions when count changes
+ * - Bell icon with unread count badge
+ * - Badge shows count up to 99, then displays "99+"
+ * - Badge hidden when count is 0
+ * - Animates badge on count change (scale transition)
+ * - Active state when panel is open
+ * - ARIA accessible with proper labels
+ * - Keyboard accessible (Enter/Space to toggle)
+ * - Responsive touch target
+ *
+ * Props:
+ * - onToggle: Callback when bell is clicked to toggle notification panel
+ * - isOpen: Whether the notification panel is currently open
+ *
+ * Internal:
+ * - Uses useNotifications() hook to get unreadCount
  */
-export function NotificationBell() {
-  const { unreadCount } = useNotificationCenterHook()
-  const { isPanelOpen, togglePanel } = useNotificationCenter()
+
+interface NotificationBellProps {
+  /** Callback fired when bell is clicked to toggle the notification panel */
+  onToggle: () => void
+  /** Whether the notification panel is currently open */
+  isOpen: boolean
+}
+
+export function NotificationBell({ onToggle, isOpen }: NotificationBellProps) {
+  const { unreadCount } = useNotifications()
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [prevCount, setPrevCount] = useState(unreadCount)
   const [showPulse, setShowPulse] = useState(false)
@@ -44,18 +59,28 @@ export function NotificationBell() {
         ? '1 unread notification'
         : `${unreadCount} unread notifications`
 
+  // Handle keyboard events (Enter/Space)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault()
+      onToggle()
+    }
+  }
+
   return (
     <button
       ref={buttonRef}
-      onClick={togglePanel}
+      onClick={onToggle}
+      onKeyDown={handleKeyDown}
       className={`relative p-2 rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2 focus:ring-offset-slate-900 min-h-11 min-w-11 sm:min-h-12 sm:min-w-12 flex items-center justify-center ${
-        isPanelOpen
+        isOpen
           ? 'bg-slate-800 text-blue-400'
           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800'
       }`}
       aria-label={ariaLabel}
-      aria-expanded={isPanelOpen}
+      aria-expanded={isOpen}
       aria-haspopup="dialog"
+      type="button"
     >
       {/* Bell icon */}
       <svg
@@ -63,6 +88,7 @@ export function NotificationBell() {
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"
+        aria-hidden="true"
       >
         <path
           strokeLinecap="round"
@@ -72,7 +98,7 @@ export function NotificationBell() {
         />
       </svg>
 
-      {/* Unread count badge with pulse animation */}
+      {/* Unread count badge with animation */}
       {unreadCount > 0 && (
         <>
           {/* Pulse ring effect when new notification arrives */}
