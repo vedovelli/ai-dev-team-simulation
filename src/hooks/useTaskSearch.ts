@@ -109,6 +109,14 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}): UseTaskSearch
         params.append('sprint', filters.sprint)
       }
 
+      if (filters.deadlineFrom) {
+        params.append('deadlineFrom', filters.deadlineFrom)
+      }
+
+      if (filters.deadlineTo) {
+        params.append('deadlineTo', filters.deadlineTo)
+      }
+
       params.append('page', page.toString())
       params.append('perPage', perPage.toString())
 

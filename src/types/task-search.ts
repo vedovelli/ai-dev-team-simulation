@@ -14,6 +14,7 @@ export interface SearchTask {
   status: TaskStatus
   priority: TaskPriority
   sprint: string
+  deadline?: string
   matchedFields: ('title' | 'description')[]
 }
 
@@ -42,6 +43,8 @@ export interface TaskSearchFilters {
   status?: string
   assignedAgent?: string
   sprint?: string
+  deadlineFrom?: string
+  deadlineTo?: string
 }
 
 export interface UseTaskSearchReturn {
