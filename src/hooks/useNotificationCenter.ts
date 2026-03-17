@@ -62,7 +62,7 @@ interface PaginatedNotificationResponse {
 interface BulkOperationConfig {
   action: 'mark-read' | 'archive' | 'delete'
   errorMessage: string
-  updateFn: (notification: Notification, ids: string[]) => Notification | null
+  updateFn: (notification: Notification, idSet: Set<string>) => Notification | null
 }
 
 /**
@@ -170,12 +170,18 @@ function filterNotificationsByType(
  * The updateFn allows each operation to modify notifications differently:
  * - mark-read: updates read flag to true
  * - archive/delete: returns null to filter out the notification
+ *
+ * Returns object with:
+ * - mutate: wrapper function that guards against empty ID arrays (no-op if empty)
+ * - isLoading, error: mutation state for component loading indicators
+ *
+ * Performance: Converts IDs to Set for O(1) lookup performance in updateFn
  */
 function createBulkOperationMutation(
   config: BulkOperationConfig,
   queryClient: ReturnType<typeof useQueryClient>,
 ) {
-  return useMutationWithRetry<BulkOperationResponse, { ids: string[] }>({
+  const mutation = useMutationWithRetry<BulkOperationResponse, { ids: string[] }>({
     mutationFn: async ({ ids }) => {
       const response = await fetch('/api/notifications/bulk', {
         method: 'PATCH',
@@ -198,6 +204,9 @@ function createBulkOperationMutation(
         queryKey: notificationQueryKeys.list(false),
       })
 
+      // Convert IDs to Set for O(1) lookup performance
+      const idSet = new Set(ids)
+
       // Optimistically update the cache
       if (previousData) {
         const updated = {
@@ -205,7 +214,7 @@ function createBulkOperationMutation(
           pages: previousData.pages.map((page) => ({
             ...page,
             items: page.items
-              .map((n) => config.updateFn(n, ids))
+              .map((n) => config.updateFn(n, idSet))
               .filter((n): n is Notification => n !== null),
           })),
         }
@@ -225,6 +234,16 @@ function createBulkOperationMutation(
       queryClient.invalidateQueries({ queryKey: notificationQueryKeys.all, refetchType: 'active' })
     },
   })
+
+  // Return object with wrapper function and mutation state
+  return {
+    mutate: (ids: string[]) => {
+      if (ids.length === 0) return
+      mutation.mutate({ ids })
+    },
+    isLoading: mutation.isLoading,
+    error: mutation.error,
+  }
 }
 
 /**
@@ -423,14 +442,16 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
   /**
    * Mutation for bulk marking notifications as read
    * Updates the read flag for selected notifications while keeping them in the list
+   *
+   * Performance: Converted to Set for O(1) ID lookup in bulk operations
    */
   const bulkMarkAsReadMutation = createBulkOperationMutation(
     {
       action: 'mark-read',
       errorMessage: 'Failed to mark notifications as read',
-      updateFn: (notification, ids) => ({
+      updateFn: (notification, idSet) => ({
         ...notification,
-        read: ids.includes(notification.id) ? true : notification.read,
+        read: idSet.has(notification.id) ? true : notification.read,
       }),
     },
     queryClient,
@@ -439,21 +460,20 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
   /**
    * Mark multiple notifications as read via bulk operation
    */
-  const bulkMarkAsRead = (ids: string[]) => {
-    if (ids.length === 0) return
-    bulkMarkAsReadMutation.mutate({ ids })
-  }
+  const bulkMarkAsRead = (ids: string[]) => bulkMarkAsReadMutation.mutate(ids)
 
   /**
    * Mutation for bulk archiving notifications
    * Archive is a soft-delete: removes from list but preserves in server history/search
    * Archive should be used when user wants to declutter while retaining audit trail
+   *
+   * Performance: Converted to Set for O(1) ID lookup in bulk operations
    */
   const bulkArchiveMutation = createBulkOperationMutation(
     {
       action: 'archive',
       errorMessage: 'Failed to archive notifications',
-      updateFn: (notification, ids) => (ids.includes(notification.id) ? null : notification),
+      updateFn: (notification, idSet) => (idSet.has(notification.id) ? null : notification),
     },
     queryClient,
   )
@@ -461,10 +481,7 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
   /**
    * Archive multiple notifications
    */
-  const bulkArchive = (ids: string[]) => {
-    if (ids.length === 0) return
-    bulkArchiveMutation.mutate({ ids })
-  }
+  const bulkArchive = (ids: string[]) => bulkArchiveMutation.mutate(ids)
 
   /**
    * Mutation for bulk deleting notifications
@@ -474,12 +491,14 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
    * UX Distinction:
    * - Archive: "I'm done with these but may want to reference them later"
    * - Delete: "I never want to see these again"
+   *
+   * Performance: Converted to Set for O(1) ID lookup in bulk operations
    */
   const bulkDeleteMutation = createBulkOperationMutation(
     {
       action: 'delete',
       errorMessage: 'Failed to delete notifications',
-      updateFn: (notification, ids) => (ids.includes(notification.id) ? null : notification),
+      updateFn: (notification, idSet) => (idSet.has(notification.id) ? null : notification),
     },
     queryClient,
   )
@@ -487,10 +506,7 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
   /**
    * Delete multiple notifications
    */
-  const bulkDelete = (ids: string[]) => {
-    if (ids.length === 0) return
-    bulkDeleteMutation.mutate({ ids })
-  }
+  const bulkDelete = (ids: string[]) => bulkDeleteMutation.mutate(ids)
 
   return {
     // Filtered notifications (only types enabled in preferences + subscribed types)
