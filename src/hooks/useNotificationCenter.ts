@@ -84,6 +84,19 @@ function computeUnreadCountForEnabledTypes(
 }
 
 /**
+ * Type guard to validate notification event type
+ */
+function isValidEventType(value: unknown): value is NotificationEventType {
+  const validTypes: NotificationEventType[] = [
+    'assignment_changed',
+    'sprint_updated',
+    'task_reassigned',
+    'deadline_approaching',
+  ]
+  return validTypes.includes(value as NotificationEventType)
+}
+
+/**
  * Filter notifications by type subscription
  */
 function filterNotificationsByType(
@@ -96,7 +109,8 @@ function filterNotificationsByType(
 
   return notifications.filter((notification) => {
     const notificationType = notification.eventType || notification.type
-    return subscribedTypes.includes(notificationType as NotificationEventType)
+    // Use type guard instead of unsafe cast
+    return isValidEventType(notificationType) && subscribedTypes.includes(notificationType)
   })
 }
 
@@ -262,14 +276,13 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
         queryKey: notificationQueryKeys.list(false),
       })
 
-      // Optimistically clear all notifications
+      // Optimistically clear all notifications (just clear items, don't modify unreadCount)
       if (previousData) {
         const updated = {
           ...previousData,
           pages: previousData.pages.map((page) => ({
             ...page,
             items: [],
-            unreadCount: 0,
           })),
         }
         queryClient.setQueryData(notificationQueryKeys.list(false), updated)
