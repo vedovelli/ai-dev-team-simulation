@@ -278,6 +278,29 @@ export function NotificationPanel() {
 }
 ```
 
+#### Pagination and Optimistic Updates
+
+When using batch operations (dismissMultiple, clearAll) with infinite scroll, note that optimistic updates temporarily modify cached pages:
+
+**Behavior:**
+1. `dismissMultiple([id1, id2, ...])` immediately removes those items from all pages in cache
+2. If a page becomes empty after removal, pagination will handle it correctly
+3. The `nextCursor` from subsequent fetches will point to the next set of unremoved items
+4. On `onSuccess`, all queries are invalidated and fresh data is refetched from the server
+5. This ensures eventual consistency even if optimistic removal resulted in empty pages
+
+**Why this approach:**
+- Users see instant feedback when dismissing notifications
+- No race conditions between user actions and pagination
+- Server remains the source of truth after mutation completes
+- Empty pages are a transient state and won't persist after revalidation
+
+**Edge case:** If a user dismisses items while scrolling to the end, the next cursor might refer to already-removed items. This is handled gracefully because:
+- The optimistic update removes items from client cache
+- Server still has authoritative data
+- Subsequent `fetchNextPage()` calls will return correct items from server
+- Cache invalidation on success ensures sync with server state
+
 ### Infinite Scroll with Preferences
 
 ```tsx

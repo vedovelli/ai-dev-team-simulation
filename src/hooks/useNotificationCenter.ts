@@ -57,6 +57,12 @@ function isNotificationTypeEnabled(
 
 /**
  * Filter notifications based on user's enabled preference types
+ *
+ * Note: This function checks both `eventType` (modern, structured events) and `type`
+ * (legacy) for backwards compatibility. The preference system supports both:
+ * - eventType: 'assignment_changed', 'sprint_updated', etc. (preferred)
+ * - type: 'task_assigned', 'sprint_started', etc. (legacy fallback)
+ * We prioritize eventType if present, otherwise fall back to type.
  */
 function filterNotificationsByPreferences(
   notifications: Notification[],
@@ -66,6 +72,7 @@ function filterNotificationsByPreferences(
 
   return notifications.filter((notification) => {
     // Use eventType if available (structured events), otherwise fall back to type
+    // This ensures backwards compatibility with legacy notification types
     const notificationType = notification.eventType || notification.type
     return isNotificationTypeEnabled(notificationType, preferences)
   })
@@ -97,7 +104,12 @@ function isValidEventType(value: unknown): value is NotificationEventType {
 }
 
 /**
- * Filter notifications by type subscription
+ * Filter notifications by type subscription (structured event types only)
+ *
+ * This filter operates on structured event types ('assignment_changed', 'sprint_updated', etc.)
+ * and checks both notification.eventType (preferred) and notification.type (legacy fallback)
+ * for backwards compatibility. The isValidEventType guard ensures only valid structured
+ * types are accepted, even when falling back to the type field.
  */
 function filterNotificationsByType(
   notifications: Notification[],
@@ -108,8 +120,9 @@ function filterNotificationsByType(
   }
 
   return notifications.filter((notification) => {
+    // Check both eventType (modern) and type (legacy) for backwards compatibility
     const notificationType = notification.eventType || notification.type
-    // Use type guard instead of unsafe cast
+    // Use type guard to ensure only valid structured event types are matched
     return isValidEventType(notificationType) && subscribedTypes.includes(notificationType)
   })
 }
