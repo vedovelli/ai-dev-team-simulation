@@ -115,10 +115,19 @@ export function useInfiniteNotifications(options: UseInfiniteNotificationsOption
   })
 
   /**
-   * Mark a single notification as read
+   * Mark a single notification as read with error handling
    */
   const markAsRead = (id: string) => {
-    markAsReadMutation.mutate({ id })
+    markAsReadMutation.mutate(
+      { id },
+      {
+        onError: (error) => {
+          // Error is already handled in the onError callback above (rollback optimistic updates)
+          // Caller can check markAsReadError if additional error handling is needed
+          console.error('Failed to mark notification as read:', error)
+        },
+      }
+    )
   }
 
   // Flatten all notifications from all pages
@@ -138,6 +147,7 @@ export function useInfiniteNotifications(options: UseInfiniteNotificationsOption
     // Mutation state
     markAsReadLoading: markAsReadMutation.isLoading,
     markAsReadError: markAsReadMutation.error,
+    markAsReadStatus: markAsReadMutation.status,
 
     // Actions
     markAsRead,

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react'
+import { useCallback, useEffect, useMemo, useRef } from 'react'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import type { Notification } from '../../types/notification'
 import type { UseInfiniteNotificationsReturn } from '../../hooks/useInfiniteNotifications'
@@ -7,6 +7,8 @@ import NotificationItem from './NotificationItem'
 interface NotificationCenterProps {
   notifications: UseInfiniteNotificationsReturn
 }
+
+type NotificationWithSection = Notification & { section: 'unread' | 'read' }
 
 /**
  * High-performance notification center with virtual scrolling and infinite scroll
@@ -23,14 +25,14 @@ export default function NotificationCenter({ notifications }: NotificationCenter
   const sentinelRef = useRef<HTMLDivElement>(null)
 
   // Separate unread and read notifications
-  const unreadNotifications = notifications.notifications.filter((n) => !n.read)
-  const readNotifications = notifications.notifications.filter((n) => n.read)
-
-  // Combine with unread first
-  const combinedNotifications: Array<Notification & { __section?: 'unread' | 'read' }> = [
-    ...unreadNotifications.map((n) => ({ ...n, __section: 'unread' as const })),
-    ...readNotifications.map((n) => ({ ...n, __section: 'read' as const })),
-  ]
+  const combinedNotifications = useMemo<NotificationWithSection[]>(() => {
+    const unread = notifications.notifications.filter((n) => !n.read)
+    const read = notifications.notifications.filter((n) => n.read)
+    return [
+      ...unread.map((n) => ({ ...n, section: 'unread' as const })),
+      ...read.map((n) => ({ ...n, section: 'read' as const })),
+    ]
+  }, [notifications.notifications])
 
   // Virtual list for efficient rendering
   const virtualizer = useVirtualizer({
@@ -55,7 +57,7 @@ export default function NotificationCenter({ notifications }: NotificationCenter
     ) {
       notifications.fetchNextPage()
     }
-  }, [lastVisibleIndex, combinedNotifications.length, notifications])
+  }, [lastVisibleIndex, combinedNotifications.length, notifications.hasNextPage, notifications.isFetchingNextPage, notifications.fetchNextPage])
 
   // Use IntersectionObserver as alternate infinite scroll trigger
   useEffect(() => {
@@ -77,14 +79,24 @@ export default function NotificationCenter({ notifications }: NotificationCenter
     }
 
     return () => observer.disconnect()
-  }, [notifications.hasNextPage, notifications.isFetchingNextPage, notifications])
+  }, [notifications.hasNextPage, notifications.isFetchingNextPage, notifications.fetchNextPage])
 
   // Handle mark as read click
   const handleMarkAsRead = useCallback(
     (id: string) => {
       notifications.markAsRead(id)
     },
-    [notifications]
+    [notifications.markAsRead]
+  )
+
+  // Handle delete notification
+  const handleDelete = useCallback(
+    (id: string) => {
+      // Delete functionality would be implemented via notifications.deleteNotification
+      // For now, this is a placeholder for the UI
+      console.log('Delete notification:', id)
+    },
+    []
   )
 
   // Empty state
@@ -114,10 +126,10 @@ export default function NotificationCenter({ notifications }: NotificationCenter
       <div style={{ height: totalSize + 'px' }} className="relative">
         {virtualItems.map((virtualItem) => {
           const notif = combinedNotifications[virtualItem.index]
-          const isUnread = notif.__section === 'unread'
+          const isUnread = notif.section === 'unread'
           const isFirstReadItem =
             virtualItem.index > 0 &&
-            combinedNotifications[virtualItem.index - 1].__section === 'unread'
+            combinedNotifications[virtualItem.index - 1].section === 'unread'
 
           return (
             <div key={virtualItem.key}>
@@ -138,6 +150,7 @@ export default function NotificationCenter({ notifications }: NotificationCenter
                   notification={notif}
                   isUnread={isUnread}
                   onMarkAsRead={handleMarkAsRead}
+                  onDelete={handleDelete}
                 />
               </div>
             </div>
