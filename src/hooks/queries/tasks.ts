@@ -60,10 +60,33 @@ export function useTasks(filters: TaskFilters = {}) {
     queryFn: async () => {
       const params = new URLSearchParams()
 
-      if (status) params.append('status', status)
-      if (priority) params.append('priority', priority)
+      // Handle both single and multiple values for filters
+      if (status) {
+        if (Array.isArray(status)) {
+          status.forEach((s) => params.append('status', s))
+        } else {
+          params.append('status', status)
+        }
+      }
+
+      if (priority) {
+        if (Array.isArray(priority)) {
+          priority.forEach((p) => params.append('priority', p))
+        } else {
+          params.append('priority', priority)
+        }
+      }
+
       if (search) params.append('search', search)
-      if (assignee) params.append('assignee', assignee)
+
+      if (assignee) {
+        if (Array.isArray(assignee)) {
+          assignee.forEach((a) => params.append('assignee', a))
+        } else {
+          params.append('assignee', assignee)
+        }
+      }
+
       params.append('pageIndex', String(page - 1))
       params.append('pageSize', String(pageSize))
 
