@@ -2,10 +2,13 @@
  * Main notification preferences settings panel
  * Displays all notification types with their frequency and channel controls
  * Connects to useNotificationPreferences hook for data fetching and updates
+ * Uses TanStack Form for form state management and validation
  */
 
-import { useState, useEffect } from 'react'
+import { useForm } from '@tanstack/react-form'
+import { useEffect, useState } from 'react'
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
+import { useToast } from '../Toast'
 import { NotificationTypeToggle } from './NotificationTypeToggle'
 import type { NotificationPreferences, NotificationTypePreference, UpdatePreferencesRequest } from '../../types/notification-preferences'
 
@@ -24,70 +27,108 @@ const NOTIFICATION_TYPES = [
   'performance_alert',
 ] as const
 
+interface PreferencesFormData {
+  preferences: Record<string, NotificationTypePreference>
+}
+
 export function NotificationPreferencesPanel() {
-  const { preferences, isLoading, isError, updatePreferences } = useNotificationPreferences()
+  const { preferences, isLoading, isError, isUpdating, updatePreferences } = useNotificationPreferences()
+  const { showToast } = useToast()
+  const [isDirty, setIsDirty] = useState(false)
 
-  const [localPreferences, setLocalPreferences] = useState<Partial<NotificationPreferences> | null>(null)
-  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
+  const form = useForm<PreferencesFormData>({
+    defaultValues: {
+      preferences: preferences
+        ? {
+            assignment_changed: preferences.assignment_changed,
+            sprint_updated: preferences.sprint_updated,
+            task_reassigned: preferences.task_reassigned,
+            deadline_approaching: preferences.deadline_approaching,
+            task_assigned: preferences.task_assigned,
+            task_unassigned: preferences.task_unassigned,
+            sprint_started: preferences.sprint_started,
+            sprint_completed: preferences.sprint_completed,
+            comment_added: preferences.comment_added,
+            status_changed: preferences.status_changed,
+            agent_event: preferences.agent_event,
+            performance_alert: preferences.performance_alert,
+          }
+        : {},
+    },
+    onSubmit: async ({ value }) => {
+      try {
+        const patch: UpdatePreferencesRequest = {}
+        let hasChanges = false
 
-  // Sync fetched preferences to local state
+        NOTIFICATION_TYPES.forEach((type) => {
+          const orig = preferences?.[type as keyof NotificationPreferences]
+          const local = value.preferences[type]
+
+          if (orig && JSON.stringify(orig) !== JSON.stringify(local)) {
+            patch[type as keyof UpdatePreferencesRequest] = local
+            hasChanges = true
+          }
+        })
+
+        if (hasChanges) {
+          updatePreferences(patch)
+          showToast('Preferences saved successfully!', 'success')
+          setIsDirty(false)
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to save preferences'
+        showToast(message, 'error')
+      }
+    },
+  })
+
+  // Reset form when preferences change (after successful update)
   useEffect(() => {
-    if (preferences && !localPreferences) {
-      setLocalPreferences(preferences)
+    if (preferences && !isUpdating) {
+      form.setFieldValue('preferences', {
+        assignment_changed: preferences.assignment_changed,
+        sprint_updated: preferences.sprint_updated,
+        task_reassigned: preferences.task_reassigned,
+        deadline_approaching: preferences.deadline_approaching,
+        task_assigned: preferences.task_assigned,
+        task_unassigned: preferences.task_unassigned,
+        sprint_started: preferences.sprint_started,
+        sprint_completed: preferences.sprint_completed,
+        comment_added: preferences.comment_added,
+        status_changed: preferences.status_changed,
+        agent_event: preferences.agent_event,
+        performance_alert: preferences.performance_alert,
+      })
+      setIsDirty(false)
     }
-  }, [preferences, localPreferences])
-
-  // Detect if there are unsaved changes
-  useEffect(() => {
-    if (!preferences || !localPreferences) {
-      setHasUnsavedChanges(false)
-      return
-    }
-
-    const hasChanges = NOTIFICATION_TYPES.some((type) => {
-      const orig = preferences[type as keyof NotificationPreferences]
-      const local = localPreferences[type as keyof NotificationPreferences]
-      return JSON.stringify(orig) !== JSON.stringify(local)
-    })
-
-    setHasUnsavedChanges(hasChanges)
-  }, [localPreferences, preferences])
+  }, [preferences, isUpdating])
 
   const handlePreferenceChange = (type: string, preference: NotificationTypePreference) => {
-    setLocalPreferences((prev) => {
-      if (!prev) return prev
-      return {
-        ...prev,
-        [type]: preference,
-      }
-    })
-  }
-
-  const handleSave = () => {
-    if (!localPreferences || !preferences) return
-
-    const patch: UpdatePreferencesRequest = {}
-    let hasChanges = false
-
-    NOTIFICATION_TYPES.forEach((type) => {
-      const orig = preferences[type as keyof NotificationPreferences]
-      const local = localPreferences[type as keyof NotificationPreferences]
-
-      if (JSON.stringify(orig) !== JSON.stringify(local)) {
-        patch[type as keyof UpdatePreferencesRequest] = local as NotificationTypePreference
-        hasChanges = true
-      }
-    })
-
-    if (hasChanges) {
-      updatePreferences(patch)
-      setHasUnsavedChanges(false)
-    }
+    form.setFieldValue('preferences', (prev) => ({
+      ...prev,
+      [type]: preference,
+    }))
+    setIsDirty(true)
   }
 
   const handleCancel = () => {
-    setLocalPreferences(preferences || null)
-    setHasUnsavedChanges(false)
+    if (preferences) {
+      form.setFieldValue('preferences', {
+        assignment_changed: preferences.assignment_changed,
+        sprint_updated: preferences.sprint_updated,
+        task_reassigned: preferences.task_reassigned,
+        deadline_approaching: preferences.deadline_approaching,
+        task_assigned: preferences.task_assigned,
+        task_unassigned: preferences.task_unassigned,
+        sprint_started: preferences.sprint_started,
+        sprint_completed: preferences.sprint_completed,
+        comment_added: preferences.comment_added,
+        status_changed: preferences.status_changed,
+        agent_event: preferences.agent_event,
+        performance_alert: preferences.performance_alert,
+      })
+      setIsDirty(false)
+    }
   }
 
   // Show loading state
@@ -105,7 +146,7 @@ export function NotificationPreferencesPanel() {
   }
 
   // Show error state
-  if (isError || !preferences || !localPreferences) {
+  if (isError || !preferences) {
     return (
       <div className="rounded-lg bg-red-50 p-4 border border-red-200">
         <p className="text-red-800 text-sm">Failed to load notification preferences. Please try again.</p>
@@ -114,7 +155,13 @@ export function NotificationPreferencesPanel() {
   }
 
   return (
-    <div className="space-y-6">
+    <form
+      onSubmit={(e) => {
+        e.preventDefault()
+        form.handleSubmit()
+      }}
+      className="space-y-6"
+    >
       {/* Header */}
       <div>
         <h2 className="text-2xl font-bold text-slate-900 mb-2">Notification Preferences</h2>
@@ -127,33 +174,47 @@ export function NotificationPreferencesPanel() {
       <fieldset className="border border-slate-200 rounded-lg p-6 space-y-0">
         <legend className="sr-only">Notification Settings</legend>
 
-        {NOTIFICATION_TYPES.map((type) => (
-          <NotificationTypeToggle
-            key={type}
-            type={type}
-            preference={localPreferences[type as keyof NotificationPreferences] as NotificationTypePreference}
-            onChange={(pref) => handlePreferenceChange(type, pref)}
-          />
-        ))}
+        {NOTIFICATION_TYPES.map((type) => {
+          const typePreference = form.getFieldValue('preferences')[type]
+          return (
+            <NotificationTypeToggle
+              key={type}
+              type={type}
+              preference={typePreference as NotificationTypePreference}
+              onChange={(pref) => handlePreferenceChange(type, pref)}
+            />
+          )
+        })}
       </fieldset>
 
       {/* Action buttons - shown only if there are unsaved changes */}
-      {hasUnsavedChanges && (
+      {isDirty && (
         <div className="flex gap-3 pt-4 border-t border-slate-200">
+          <form.Subscribe
+            selector={(formState) => [formState.isSubmitting]}
+            children={([isSubmitting]) => (
+              <button
+                type="submit"
+                disabled={isUpdating || isSubmitting}
+                className="px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded hover:bg-blue-700 disabled:bg-slate-400 disabled:text-slate-600 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+              >
+                {isUpdating || isSubmitting ? 'Saving...' : 'Save Changes'}
+              </button>
+            )}
+          />
           <button
-            onClick={handleSave}
-            className="px-4 py-2 bg-blue-600 text-white font-medium text-sm rounded hover:bg-blue-700 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
-          >
-            Save Changes
-          </button>
-          <button
+            type="button"
             onClick={handleCancel}
-            className="px-4 py-2 bg-slate-200 text-slate-900 font-medium text-sm rounded hover:bg-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
+            disabled={isUpdating}
+            className="px-4 py-2 bg-slate-200 text-slate-900 font-medium text-sm rounded hover:bg-slate-300 disabled:bg-slate-100 disabled:text-slate-400 disabled:cursor-not-allowed transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2"
           >
             Cancel
           </button>
+          <span className="text-xs text-slate-500 ml-auto flex items-center">
+            Unsaved changes
+          </span>
         </div>
       )}
-    </div>
+    </form>
   )
 }
