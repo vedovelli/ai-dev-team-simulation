@@ -14,12 +14,17 @@ interface UseTaskSearchFiltersReturn extends TaskSearchFilters {
   limit: number
   sortBy?: string
   sortDir?: 'asc' | 'desc'
+  agents?: string[] // Multi-select agents
+  sprints?: string[] // Multi-select sprints
   // Filter setters
   setQuery: (q: string) => void
   setStatus: (status: string[]) => void
   setAssigneeId: (id: string | null) => void
+  setAssignees: (ids: string[]) => void
   setPriority: (priority: string | null) => void
+  setPriorities: (priorities: string[]) => void
   setSprintId: (id: string | null) => void
+  setSprints: (ids: string[]) => void
   setDateRange: (from: string | null, to: string | null) => void
   setSorting: (field: string, direction: 'asc' | 'desc') => void
   setPage: (page: number) => void
@@ -64,8 +69,23 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
       ? [searchParams.status]
       : []
   const assigneeId = typeof searchParams.assigneeId === 'string' ? searchParams.assigneeId : undefined
+  const agents = Array.isArray(searchParams.agents)
+    ? searchParams.agents.filter((a): a is string => typeof a === 'string')
+    : typeof searchParams.agents === 'string'
+      ? [searchParams.agents]
+      : []
   const priority = typeof searchParams.priority === 'string' ? searchParams.priority : undefined
+  const priorities = Array.isArray(searchParams.priorities)
+    ? searchParams.priorities.filter((p): p is string => typeof p === 'string')
+    : typeof searchParams.priorities === 'string'
+      ? [searchParams.priorities]
+      : []
   const sprintId = typeof searchParams.sprintId === 'string' ? searchParams.sprintId : undefined
+  const sprints = Array.isArray(searchParams.sprints)
+    ? searchParams.sprints.filter((s): s is string => typeof s === 'string')
+    : typeof searchParams.sprints === 'string'
+      ? [searchParams.sprints]
+      : []
   const dateFrom = typeof searchParams.dateFrom === 'string' ? searchParams.dateFrom : undefined
   const dateTo = typeof searchParams.dateTo === 'string' ? searchParams.dateTo : undefined
   const sortBy = typeof searchParams.sortBy === 'string' ? searchParams.sortBy : undefined
@@ -78,8 +98,19 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
 
   // Compute active filter flag
   const hasActiveFilters = useMemo(() => {
-    return !!(q || status.length > 0 || assigneeId || priority || sprintId || dateFrom || dateTo)
-  }, [q, status, assigneeId, priority, sprintId, dateFrom, dateTo])
+    return !!(
+      q ||
+      status.length > 0 ||
+      assigneeId ||
+      agents.length > 0 ||
+      priority ||
+      priorities.length > 0 ||
+      sprintId ||
+      sprints.length > 0 ||
+      dateFrom ||
+      dateTo
+    )
+  }, [q, status, assigneeId, agents, priority, priorities, sprintId, sprints, dateFrom, dateTo])
 
   // Query setter
   const setQuery = useCallback(
@@ -109,7 +140,7 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
     [navigate, searchParams]
   )
 
-  // Assignee setter
+  // Assignee setter (single)
   const setAssigneeId = useCallback(
     (value: string | null) => {
       navigate({
@@ -123,7 +154,21 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
     [navigate, searchParams]
   )
 
-  // Priority setter
+  // Assignees multi-select setter
+  const setAssignees = useCallback(
+    (newAgents: string[]) => {
+      navigate({
+        search: {
+          ...searchParams,
+          agents: newAgents.length > 0 ? newAgents : null,
+          page: 1,
+        },
+      })
+    },
+    [navigate, searchParams]
+  )
+
+  // Priority setter (single)
   const setPriority = useCallback(
     (value: string | null) => {
       navigate({
@@ -137,13 +182,41 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
     [navigate, searchParams]
   )
 
-  // Sprint setter
+  // Priorities multi-select setter
+  const setPriorities = useCallback(
+    (newPriorities: string[]) => {
+      navigate({
+        search: {
+          ...searchParams,
+          priorities: newPriorities.length > 0 ? newPriorities : null,
+          page: 1,
+        },
+      })
+    },
+    [navigate, searchParams]
+  )
+
+  // Sprint setter (single)
   const setSprintId = useCallback(
     (value: string | null) => {
       navigate({
         search: {
           ...searchParams,
           sprintId: value,
+          page: 1,
+        },
+      })
+    },
+    [navigate, searchParams]
+  )
+
+  // Sprints multi-select setter
+  const setSprints = useCallback(
+    (newSprints: string[]) => {
+      navigate({
+        search: {
+          ...searchParams,
+          sprints: newSprints.length > 0 ? newSprints : null,
           page: 1,
         },
       })
@@ -217,8 +290,11 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
     q,
     status,
     assigneeId,
+    agents,
     priority,
+    priorities,
     sprintId,
+    sprints,
     dateFrom,
     dateTo,
     page,
@@ -228,8 +304,11 @@ export function useTaskSearchFilters(): UseTaskSearchFiltersReturn {
     setQuery,
     setStatus,
     setAssigneeId,
+    setAssignees,
     setPriority,
+    setPriorities,
     setSprintId,
+    setSprints,
     setDateRange,
     setSorting,
     setPage,

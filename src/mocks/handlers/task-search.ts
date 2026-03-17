@@ -87,10 +87,12 @@ const mockTasks = generateSearchMockTasks()
 
 interface SearchParams {
   q?: string
-  priority?: string
-  status?: string
-  assignedAgent?: string
-  sprint?: string
+  priority?: string[]
+  status?: string[]
+  assignedAgent?: string[]
+  sprint?: string[]
+  deadlineFrom?: string
+  deadlineTo?: string
   page?: number
   perPage?: number
 }
@@ -142,24 +144,41 @@ function searchTasks(params: SearchParams) {
       .filter((task) => task !== null) as SearchTask[]
   }
 
-  // Filter by priority
-  if (params.priority) {
-    results = results.filter((task) => task.priority === params.priority)
+  // Filter by priority (multi-select)
+  if (params.priority && params.priority.length > 0) {
+    results = results.filter((task) => params.priority!.includes(task.priority))
   }
 
-  // Filter by status
-  if (params.status) {
-    results = results.filter((task) => task.status === params.status)
+  // Filter by status (multi-select)
+  if (params.status && params.status.length > 0) {
+    results = results.filter((task) => params.status!.includes(task.status))
   }
 
-  // Filter by assigned agent
-  if (params.assignedAgent) {
-    results = results.filter((task) => task.assignee === params.assignedAgent)
+  // Filter by assigned agent (multi-select)
+  if (params.assignedAgent && params.assignedAgent.length > 0) {
+    results = results.filter((task) => params.assignedAgent!.includes(task.assignee))
   }
 
-  // Filter by sprint
-  if (params.sprint) {
-    results = results.filter((task) => task.sprint === params.sprint)
+  // Filter by sprint (multi-select)
+  if (params.sprint && params.sprint.length > 0) {
+    results = results.filter((task) => params.sprint!.includes(task.sprint))
+  }
+
+  // Filter by deadline date range
+  if (params.deadlineFrom || params.deadlineTo) {
+    results = results.filter((task) => {
+      if (!task.deadline) return false
+      const taskDate = new Date(task.deadline).getTime()
+      if (params.deadlineFrom) {
+        const fromDate = new Date(params.deadlineFrom).getTime()
+        if (taskDate < fromDate) return false
+      }
+      if (params.deadlineTo) {
+        const toDate = new Date(params.deadlineTo).getTime()
+        if (taskDate > toDate) return false
+      }
+      return true
+    })
   }
 
   // Calculate facets before pagination
@@ -189,12 +208,35 @@ export const taskSearchHandlers = [
   http.get('/api/tasks/search', ({ request }) => {
     const url = new URL(request.url)
 
+    // Parse multi-select parameters (comma-separated or multiple params)
+    const parsePriorities = () => {
+      const val = url.searchParams.get('priority')
+      return val ? val.split(',').filter(Boolean) : []
+    }
+
+    const parseStatuses = () => {
+      const val = url.searchParams.get('status')
+      return val ? val.split(',').filter(Boolean) : []
+    }
+
+    const parseAgents = () => {
+      const val = url.searchParams.get('agents')
+      return val ? val.split(',').filter(Boolean) : []
+    }
+
+    const parseSprints = () => {
+      const val = url.searchParams.get('sprints')
+      return val ? val.split(',').filter(Boolean) : []
+    }
+
     const params: SearchParams = {
       q: url.searchParams.get('q') || undefined,
-      priority: url.searchParams.get('priority') || undefined,
-      status: url.searchParams.get('status') || undefined,
-      assignedAgent: url.searchParams.get('assignedAgent') || undefined,
-      sprint: url.searchParams.get('sprint') || undefined,
+      priority: parsePriorities(),
+      status: parseStatuses(),
+      assignedAgent: parseAgents(),
+      sprint: parseSprints(),
+      deadlineFrom: url.searchParams.get('deadlineFrom') || undefined,
+      deadlineTo: url.searchParams.get('deadlineTo') || undefined,
       page: url.searchParams.get('page') ? parseInt(url.searchParams.get('page')!, 10) : 1,
       perPage: url.searchParams.get('perPage') ? parseInt(url.searchParams.get('perPage')!, 10) : 20,
     }
