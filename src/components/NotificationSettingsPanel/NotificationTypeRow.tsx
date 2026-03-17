@@ -4,7 +4,7 @@
  */
 
 import type { FieldApi } from '@tanstack/react-form'
-import type { NotificationTypePreference } from '../../types/notification-preferences'
+import type { NotificationPreferences, NotificationTypePreference } from '../../types/notification-preferences'
 
 const PREFERENCE_LABELS: Record<string, { label: string; description: string }> = {
   assignment_changed: { label: 'Assignment Changed', description: 'When your assignment status changes' },
@@ -23,7 +23,12 @@ const PREFERENCE_LABELS: Record<string, { label: string; description: string }> 
 
 interface NotificationTypeRowProps {
   type: string
-  field: FieldApi<any, string, NotificationTypePreference | undefined, NotificationTypePreference | undefined>
+  field: FieldApi<
+    Partial<NotificationPreferences>,
+    string,
+    NotificationTypePreference | undefined,
+    NotificationTypePreference | undefined
+  >
 }
 
 export function NotificationTypeRow({ type, field }: NotificationTypeRowProps) {

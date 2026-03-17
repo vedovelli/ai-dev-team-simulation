@@ -7,7 +7,7 @@ import { useForm } from '@tanstack/react-form'
 import { useNotificationPreferences } from '../../hooks/useNotificationPreferences'
 import { NotificationTypeRow } from './NotificationTypeRow'
 import type { NotificationPreferences, NotificationTypePreference } from '../../types/notification-preferences'
-import { useCallback } from 'react'
+import { useCallback, useEffect, useMemo } from 'react'
 
 /**
  * Notification types grouped by category for UI organization
@@ -95,6 +95,23 @@ export function NotificationSettingsPanel() {
     refetch()
   }, [refetch])
 
+  // Sync form with preferences when they change (e.g., after refetch on error recovery)
+  useEffect(() => {
+    if (preferences) {
+      const formValues = Object.fromEntries(
+        ALL_NOTIFICATION_TYPES.map((type) => [
+          type,
+          preferences[type as keyof NotificationPreferences] || {
+            enabled: true,
+            frequency: 'instant' as const,
+            channels: ['in-app'] as const,
+          },
+        ])
+      )
+      form.reset(formValues)
+    }
+  }, [preferences, form])
+
   // Loading skeleton
   if (isLoading) {
     return (
@@ -136,7 +153,10 @@ export function NotificationSettingsPanel() {
     )
   }
 
-  const enabledCount = getEnabledCount(form.values as Partial<NotificationPreferences>)
+  const enabledCount = useMemo(
+    () => getEnabledCount(form.values as Partial<NotificationPreferences>),
+    [form.values]
+  )
   const totalCount = ALL_NOTIFICATION_TYPES.length
 
   return (
