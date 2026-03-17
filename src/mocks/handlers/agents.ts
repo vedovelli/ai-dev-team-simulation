@@ -10,7 +10,7 @@
  */
 
 import { http, HttpResponse } from 'msw'
-import type { AgentManagement, AgentStats } from '../../types/agent'
+import type { AgentManagement, AgentStats, AgentStatusResponse, AgentLiveStatus } from '../../types/agent'
 
 /**
  * In-memory store for managed agents
@@ -123,7 +123,50 @@ function generateWorkloadAnalytics(agent: AgentManagement) {
   }
 }
 
+/**
+ * Generate agent status with occasional transitions between calls
+ * Simulates real-time status changes for polling
+ */
+function generateAgentStatus(agent: AgentManagement): AgentStatusResponse {
+  // Determine status based on task count with occasional random transitions
+  const baseStatus: AgentLiveStatus =
+    Math.random() < 0.1
+      ? 'offline' // 10% chance offline (network/crash)
+      : agent.taskCount && agent.taskCount >= 8
+        ? 'busy' // Busy when at/over 8 tasks
+        : 'available' // Available otherwise
+
+  const currentTaskCount = agent.taskCount || 0
+  const maxCapacity = 10
+
+  return {
+    agentId: agent.id,
+    name: agent.name,
+    status: baseStatus,
+    currentTaskCount,
+    maxCapacity,
+    lastUpdatedAt: new Date().toISOString(),
+  }
+}
+
 export const agentManagementHandlers = [
+  /**
+   * GET /api/agents/:id/status
+   * Get live agent status (availability and capacity)
+   * Returns: { agentId, name, status: 'available'|'busy'|'offline', currentTaskCount, maxCapacity, lastUpdatedAt }
+   * Simulates occasional status transitions for realism
+   */
+  http.get('/api/agents/:id/status', ({ params }) => {
+    const { id } = params
+    const agent = agentsStore.get(id as string)
+
+    if (!agent || agent.deletedAt) {
+      return HttpResponse.json({ error: 'Agent not found' }, { status: 404 })
+    }
+
+    return HttpResponse.json(generateAgentStatus(agent))
+  }),
+
   /**
    * GET /api/agents/workload
    * Get workload analytics for all agents
