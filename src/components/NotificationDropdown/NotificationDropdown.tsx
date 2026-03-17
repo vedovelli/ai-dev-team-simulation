@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useNotificationCenter as useNotifications } from '../../hooks/useNotificationCenter'
 import { useNotificationCenter as useNotificationPanel } from '../../contexts/NotificationCenterProvider'
+import type { NotificationFilter } from '../../types/notification'
 import { NotificationItem } from './NotificationItem'
 
 interface NotificationDropdownProps {
@@ -65,13 +66,15 @@ function ErrorState({ onRetry }: { onRetry: () => void }) {
  *
  * Features:
  * - Shows up to 20 most recent notifications
+ * - Filter toggle: All / Unread
  * - Dropdown panel positioned absolutely relative to bell
  * - Smooth open/close fade and scale animations
  * - Click-outside, Escape, and bell-click close handlers
  * - Max height with scrollable content
- * - Header with "Mark all as read" button
- * - Footer with "View all notifications" button to open NotificationCenter panel
+ * - Header with "Mark all as read" and filter controls
+ * - Footer with "View all notifications" and "Clear all read" buttons
  * - Error state with retry capability
+ * - Keyboard navigation: Escape to close, arrow keys to navigate items
  * - Responsive: full-width on mobile, fixed-width on desktop
  * - Accessible with proper ARIA labels and keyboard navigation
  */
@@ -87,13 +90,24 @@ export function NotificationDropdown({
     refetch,
     markAsRead,
     markMultipleAsRead,
+    dismissAllReadNotifications,
   } = useNotifications()
   const { openPanel } = useNotificationPanel()
 
+  const [filter, setFilter] = useState<NotificationFilter>('all')
+  const [focusedIndex, setFocusedIndex] = useState<number>(0)
+
   const dropdownRef = useRef<HTMLDivElement>(null)
   const panelRef = useRef<HTMLDivElement>(null)
-  const firstFocusableRef = useRef<HTMLButtonElement>(null)
-  const lastFocusableRef = useRef<HTMLButtonElement>(null)
+  const notificationItemsRef = useRef<(HTMLButtonElement | null)[]>([])
+
+  // Filter notifications based on selected filter
+  const filteredNotifications = filter === 'unread'
+    ? notifications.filter((n) => !n.read)
+    : notifications
+
+  // Get up to 20 most recent notifications
+  const recentNotifications = filteredNotifications.slice(0, 20)
 
   // Close on outside click
   useEffect(() => {
@@ -114,19 +128,31 @@ export function NotificationDropdown({
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [isOpen, onClose])
 
-  // Get 20 most recent notifications
-  const recentNotifications = notifications.slice(0, 20)
-
-  // Close on Escape key
+  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose()
+        return
       }
 
-      // Focus trap: cycle through focusable elements
+      // Arrow key navigation through notification items
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+        e.preventDefault()
+        setFocusedIndex((prevIndex) => {
+          let nextIndex = prevIndex
+          if (e.key === 'ArrowDown') {
+            nextIndex = Math.min(prevIndex + 1, recentNotifications.length - 1)
+          } else {
+            nextIndex = Math.max(prevIndex - 1, 0)
+          }
+          return nextIndex
+        })
+      }
+
+      // Focus trap: cycle through focusable elements with Tab
       if (e.key === 'Tab' && panelRef.current) {
         const focusableElements = panelRef.current.querySelectorAll(
           'button, a, [tabindex]:not([tabindex="-1"])'
@@ -156,12 +182,27 @@ export function NotificationDropdown({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, recentNotifications.length])
+
+  // Focus notification item when focused index changes
+  useEffect(() => {
+    if (recentNotifications.length > 0 && notificationItemsRef.current[focusedIndex]) {
+      notificationItemsRef.current[focusedIndex]?.focus()
+    }
+  }, [focusedIndex, recentNotifications.length])
+
+  // Reset focus when filter changes
+  useEffect(() => {
+    setFocusedIndex(0)
+  }, [filter])
 
   if (!isOpen) return null
 
+  const unreadCount = notifications.filter((n) => !n.read).length
+  const readCount = notifications.filter((n) => n.read).length
+
   const handleMarkAllAsRead = async () => {
-    const unreadIds = notifications
+    const unreadIds = filteredNotifications
       .filter((n) => !n.read)
       .map((n) => n.id)
 
@@ -188,22 +229,56 @@ export function NotificationDropdown({
         aria-modal="true"
       >
         {/* Header */}
-        <div className="border-b px-4 py-3 flex items-center justify-between flex-shrink-0">
-          <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
-          {notifications.length > 0 && !isLoading && (
+        <div className="border-b px-4 py-3 flex-shrink-0">
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-slate-900">Notifications</h2>
+            {notifications.length > 0 && !isLoading && (
+              <button
+                onClick={handleMarkAllAsRead}
+                className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
+                aria-label="Mark all notifications as read"
+              >
+                Mark all as read
+              </button>
+            )}
+          </div>
+
+          {/* Filter Toggle */}
+          <div className="flex gap-2">
             <button
-              ref={firstFocusableRef}
-              onClick={handleMarkAllAsRead}
-              className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
-              aria-label="Mark all notifications as read"
+              onClick={() => setFilter('all')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                filter === 'all'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              aria-pressed={filter === 'all'}
+              aria-label={`All notifications (${notifications.length})`}
             >
-              Mark all as read
+              All
             </button>
-          )}
+            <button
+              onClick={() => setFilter('unread')}
+              className={`px-3 py-1.5 text-xs font-medium rounded transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 ${
+                filter === 'unread'
+                  ? 'bg-blue-100 text-blue-700'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
+              aria-pressed={filter === 'unread'}
+              aria-label={`Unread notifications (${unreadCount})`}
+            >
+              Unread ({unreadCount})
+            </button>
+          </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
+        <div
+          className="flex-1 overflow-y-auto"
+          role="region"
+          aria-label="Notification list"
+          aria-live="polite"
+        >
           {isError ? (
             <ErrorState onRetry={() => refetch?.()} />
           ) : isLoading && recentNotifications.length === 0 ? (
@@ -215,31 +290,45 @@ export function NotificationDropdown({
           ) : recentNotifications.length === 0 ? (
             <EmptyState />
           ) : (
-            <div>
-              {recentNotifications.map((notification) => (
-                <NotificationItem
-                  key={notification.id}
-                  notification={notification}
-                  onMarkAsRead={markAsRead}
-                />
+            <div role="list">
+              {recentNotifications.map((notification, index) => (
+                <div key={notification.id} role="listitem">
+                  <NotificationItem
+                    ref={(el) => {
+                      notificationItemsRef.current[index] = el
+                    }}
+                    notification={notification}
+                    onMarkAsRead={markAsRead}
+                    isFocused={focusedIndex === index}
+                  />
+                </div>
               ))}
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t px-4 py-3 flex-shrink-0">
+        <div className="border-t px-4 py-3 flex-shrink-0 flex items-center justify-between gap-2">
           <button
-            ref={lastFocusableRef}
             onClick={() => {
               openPanel()
               onClose()
             }}
-            className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1 inline-block"
+            className="text-xs text-blue-600 hover:text-blue-700 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
             aria-label="View all notifications"
           >
-            View all notifications
+            View all
           </button>
+
+          {readCount > 0 && !isLoading && (
+            <button
+              onClick={dismissAllReadNotifications}
+              className="text-xs text-slate-500 hover:text-red-600 font-medium transition-colors focus:outline-none focus:ring-2 focus:ring-blue-400 rounded px-2 py-1"
+              aria-label="Clear all read notifications"
+            >
+              Clear read
+            </button>
+          )}
         </div>
       </div>
     </>
