@@ -28,6 +28,8 @@ export { useRetryMetrics } from './useRetryMetrics'
 export type { RetryMetricsHook, AttemptMetadata } from './useRetryMetrics'
 export { useNotifications, useDismissNotification, useDismissAllNotifications, notificationQueryKeys } from './useNotifications'
 export type { UseNotificationsOptions, UseNotificationsReturn } from './useNotifications'
+export { useInfiniteNotifications, infiniteNotificationsQueryKeys } from './useInfiniteNotifications'
+export type { UseInfiniteNotificationsReturn, UseInfiniteNotificationsOptions } from './useInfiniteNotifications'
 export { useNotificationCenter } from './useNotificationCenter'
 export type {
   UseNotificationCenterReturn,
