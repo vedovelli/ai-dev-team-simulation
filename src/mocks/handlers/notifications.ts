@@ -566,15 +566,18 @@ export const notificationHandlers = [
     // If page-based pagination is requested, return offset-based response
     if (page !== null) {
       const pageNum = Math.max(1, parseInt(page, 10))
-      const offsetStart = (pageNum - 1) * pageSize
-      const offsetEnd = offsetStart + pageSize
+      // Use limit parameter for page-based pagination (for infinite scroll)
+      const itemsPerPage = limit > 0 ? limit : pageSize
+      const offsetStart = (pageNum - 1) * itemsPerPage
+      const offsetEnd = offsetStart + itemsPerPage
       const paginatedItems = filtered.slice(offsetStart, offsetEnd)
+      const hasMore = offsetEnd < filtered.length
 
       return HttpResponse.json({
-        notifications: paginatedItems,
-        total: filtered.length,
-        page: pageNum,
-        pageSize,
+        data: paginatedItems,
+        hasMore,
+        totalCount: filtered.length,
+        nextPage: hasMore ? pageNum + 1 : null,
       })
     }
 
