@@ -42,10 +42,11 @@ interface FormData {
 }
 
 export function NotificationPreferencesForm({ onSave }: NotificationPreferencesFormProps) {
-  const { preferences, isLoading, isUpdating, updateError, updatePreferences } = useNotificationPreferences()
+  const { preferences, isLoading, isUpdating, updateError, updatePreferences, resetPreferences } = useNotificationPreferences()
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
   const [pendingChanges, setPendingChanges] = useState<Partial<NotificationPreferences> | null>(null)
+  const [isResetting, setIsResetting] = useState(false)
 
   const form = useForm<FormData>({
     defaultValues: NOTIFICATION_TYPES.reduce(
@@ -85,6 +86,23 @@ export function NotificationPreferencesForm({ onSave }: NotificationPreferencesF
       })
     }
   }, [preferences])
+
+  const handleResetToDefaults = async () => {
+    setIsResetting(true)
+    try {
+      await resetPreferences()
+      setHasUnsavedChanges(false)
+      setSuccessMessage('Preferences reset to defaults!')
+      setTimeout(() => setSuccessMessage(null), 3000)
+      onSave?.()
+    } catch (error) {
+      // Error will be shown in updateError from the hook
+      const message = error instanceof Error ? error.message : 'Failed to reset preferences'
+      setSuccessMessage(null)
+    } finally {
+      setIsResetting(false)
+    }
+  }
 
   if (isLoading) {
     return (
@@ -159,6 +177,14 @@ export function NotificationPreferencesForm({ onSave }: NotificationPreferencesF
             Reset
           </button>
         )}
+        <button
+          type="button"
+          onClick={handleResetToDefaults}
+          disabled={isUpdating || isResetting}
+          className="px-4 py-2 bg-slate-700 hover:bg-slate-600 disabled:bg-slate-800 disabled:cursor-not-allowed rounded-lg font-medium transition-colors"
+        >
+          {isResetting ? 'Resetting...' : 'Reset to Defaults'}
+        </button>
       </div>
     </form>
   )
