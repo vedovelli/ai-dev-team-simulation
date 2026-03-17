@@ -80,3 +80,22 @@ export interface AgentPresence {
   lastSeenAt: string
   statusChangeReason?: 'timeout' | 'user-action' | 'manual' | 'task-assignment'
 }
+
+/**
+ * Agent live status for polling endpoint
+ * Used by useAgentStatus hook for real-time availability tracking
+ */
+export type AgentLiveStatus = 'available' | 'busy' | 'offline'
+
+/**
+ * Agent status response from polling endpoint
+ * Tracks current availability, capacity, and last update time
+ */
+export interface AgentStatusResponse {
+  agentId: string
+  name: string
+  status: AgentLiveStatus
+  currentTaskCount: number
+  maxCapacity: number
+  lastUpdatedAt: string
+}
