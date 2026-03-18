@@ -9,9 +9,8 @@ import { AppNotificationCenter } from '../components/AppNotificationCenter'
 import { Sidebar } from '../components/Sidebar'
 import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
 import { PermissionProvider } from '../contexts/PermissionContext'
-import { NotificationCenterProvider } from '../contexts/NotificationCenterContext'
-import { useNotificationCenter } from '../hooks/useNotificationCenter'
-import { NotificationCenterModal } from '../components/NotificationCenter/NotificationCenterModal'
+import { NotificationCenterProvider, useNotificationCenter } from '../contexts/NotificationCenterContext'
+import { NotificationDrawer } from '../components/NotificationDrawer'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -22,7 +21,7 @@ interface RouterContext {
  * Separated to use NotificationCenter context
  */
 function NavbarContent() {
-  const { isPanelOpen, closePanel } = useNotificationCenter()
+  const { isPanelOpen, closePanel, togglePanel, unreadCount } = useNotificationCenter()
 
   return (
     <>
@@ -102,13 +101,15 @@ function NavbarContent() {
                 </Link>
               </div>
             </div>
-            <NotificationBadge onClick={togglePanel} />
+            <div className="flex items-center gap-4">
+              <NotificationBell unreadCount={unreadCount} isOpen={isPanelOpen} onClick={togglePanel} />
+            </div>
           </div>
         </div>
       </nav>
 
-      {/* Notification Center Modal */}
-      <NotificationCenterModal isOpen={isPanelOpen} onClose={closePanel} />
+      {/* Notification Drawer */}
+      <NotificationDrawer isOpen={isPanelOpen} onClose={closePanel} />
     </>
   )
 }
