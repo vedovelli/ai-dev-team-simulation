@@ -1,17 +1,20 @@
 /**
  * MSW Handler for Task Search & Advanced Filtering
  *
- * Implements GET /api/tasks/search endpoint with:
- * - Full-text search across task titles and descriptions
- * - Faceted filtering (priority, status, assignedAgent, sprint)
- * - Facet aggregation response with counts
- * - Match highlights via matchedFields
- * - Pagination with metadata
+ * Implements:
+ * - GET /api/tasks/search — legacy endpoint with faceted filtering
+ * - POST /api/tasks/search — new global search with structured filters
+ * - GET /api/search/saved-filters — retrieve saved filter sets
+ * - POST /api/search/saved-filters — save a new filter set
+ * - PATCH /api/search/saved-filters/:id — update saved filter
+ * - DELETE /api/search/saved-filters/:id — delete saved filter
+ * - POST /api/search/saved-filters/reset — reset all saved filters
  */
 
 import { http, HttpResponse } from 'msw'
 import type { TaskStatus, TaskPriority } from '../../types/task'
 import type { TaskSearchResponse, SearchTask } from '../../types/task-search'
+import type { SearchFilters, SearchResult, SearchResponse, SavedFilter, SaveFilterRequest } from '../../types/search'
 
 // Generate mock tasks with descriptions for search
 function generateSearchMockTasks(): SearchTask[] {
@@ -82,6 +85,9 @@ function generateSearchMockTasks(): SearchTask[] {
 
   return tasks
 }
+
+// In-memory store for saved filters
+const savedFiltersStore = new Map<string, SavedFilter>()
 
 const mockTasks = generateSearchMockTasks()
 
@@ -204,7 +210,104 @@ function searchTasks(params: SearchParams) {
   }
 }
 
+/**
+ * Search tasks with POST endpoint for structured filter support
+ */
+function searchWithFilters(filters: SearchFilters, page: number = 1, pageSize: number = 20) {
+  let results = [...mockTasks]
+
+  // Full-text search across title and description
+  if (filters.query && filters.query.trim()) {
+    const searchLower = filters.query.toLowerCase()
+    results = results.filter((task) =>
+      task.title.toLowerCase().includes(searchLower) ||
+      task.description.toLowerCase().includes(searchLower) ||
+      task.id.toLowerCase().includes(searchLower)
+    )
+  }
+
+  // Filter by status (multi-select)
+  if (filters.status && filters.status.length > 0) {
+    results = results.filter((task) => filters.status!.includes(task.status))
+  }
+
+  // Filter by priority (multi-select)
+  if (filters.priority && filters.priority.length > 0) {
+    results = results.filter((task) => filters.priority!.includes(task.priority))
+  }
+
+  // Filter by agent (multi-select)
+  if (filters.agentId && filters.agentId.length > 0) {
+    results = results.filter((task) => filters.agentId!.includes(task.assignee))
+  }
+
+  // Filter by sprint (multi-select)
+  if (filters.sprintId && filters.sprintId.length > 0) {
+    results = results.filter((task) => filters.sprintId!.includes(task.sprint))
+  }
+
+  // Filter by deadline date range
+  if (filters.dateRange) {
+    const { from, to } = filters.dateRange
+    results = results.filter((task) => {
+      if (!from && !to) return true
+      if (!task.deadline) return false
+
+      const taskDate = new Date(task.deadline).getTime()
+      if (from) {
+        const fromDate = new Date(from).getTime()
+        if (taskDate < fromDate) return false
+      }
+      if (to) {
+        const toDate = new Date(to).getTime()
+        if (taskDate > toDate) return false
+      }
+      return true
+    })
+  }
+
+  // Pagination
+  const actualPage = Math.max(1, page)
+  const actualPageSize = Math.max(1, Math.min(100, pageSize))
+  const total = results.length
+  const totalPages = Math.ceil(total / actualPageSize)
+  const startIdx = (actualPage - 1) * actualPageSize
+  const endIdx = startIdx + actualPageSize
+
+  // Convert SearchTask to SearchResult
+  const items: SearchResult[] = results.slice(startIdx, endIdx).map((task) => ({
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    assignee: task.assignee,
+    agentId: task.assignee, // Using assignee as agentId
+    status: task.status,
+    priority: task.priority,
+    sprint: task.sprint,
+    sprintId: task.sprint, // Using sprint as sprintId
+    createdAt: new Date().toISOString(),
+  }))
+
+  return {
+    items,
+    pagination: {
+      page: actualPage,
+      pageSize: actualPageSize,
+      total,
+      totalPages,
+    },
+  }
+}
+
+/**
+ * Generate unique ID for saved filters
+ */
+function generateId() {
+  return `filter-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+}
+
 export const taskSearchHandlers = [
+  // Legacy GET endpoint for backward compatibility
   http.get('/api/tasks/search', ({ request }) => {
     const url = new URL(request.url)
 
@@ -244,5 +347,118 @@ export const taskSearchHandlers = [
     const result = searchTasks(params)
 
     return HttpResponse.json<TaskSearchResponse>(result)
+  }),
+
+  // POST endpoint for global task search with structured filters
+  http.post('/api/tasks/search', async ({ request }) => {
+    // Simulate realistic latency (300-600ms)
+    await new Promise((resolve) => setTimeout(resolve, 300 + Math.random() * 300))
+
+    try {
+      const body = await request.json() as {
+        filters: SearchFilters
+        page?: number
+        pageSize?: number
+      }
+
+      const result = searchWithFilters(body.filters, body.page, body.pageSize)
+
+      return HttpResponse.json<SearchResponse>(result)
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      )
+    }
+  }),
+
+  // GET /api/search/saved-filters — retrieve all saved filter sets
+  http.get('/api/search/saved-filters', () => {
+    const filters = Array.from(savedFiltersStore.values())
+    return HttpResponse.json({ filters })
+  }),
+
+  // POST /api/search/saved-filters — save a new filter set
+  http.post('/api/search/saved-filters', async ({ request }) => {
+    try {
+      const body = await request.json() as SaveFilterRequest
+
+      const id = generateId()
+      const now = new Date().toISOString()
+
+      const savedFilter: SavedFilter = {
+        id,
+        name: body.name,
+        description: body.description,
+        filters: body.filters,
+        createdAt: now,
+        updatedAt: now,
+      }
+
+      savedFiltersStore.set(id, savedFilter)
+
+      return HttpResponse.json(savedFilter, { status: 201 })
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      )
+    }
+  }),
+
+  // PATCH /api/search/saved-filters/:id — update saved filter
+  http.patch('/api/search/saved-filters/:id', async ({ request, params }) => {
+    try {
+      const { id } = params
+      const existingFilter = savedFiltersStore.get(id as string)
+
+      if (!existingFilter) {
+        return HttpResponse.json(
+          { error: 'Filter not found' },
+          { status: 404 }
+        )
+      }
+
+      const body = await request.json() as SaveFilterRequest
+
+      const updated: SavedFilter = {
+        ...existingFilter,
+        name: body.name,
+        description: body.description,
+        filters: body.filters,
+        updatedAt: new Date().toISOString(),
+      }
+
+      savedFiltersStore.set(id as string, updated)
+
+      return HttpResponse.json(updated)
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Invalid request' },
+        { status: 400 }
+      )
+    }
+  }),
+
+  // DELETE /api/search/saved-filters/:id — delete saved filter
+  http.delete('/api/search/saved-filters/:id', ({ params }) => {
+    const { id } = params
+    const exists = savedFiltersStore.has(id as string)
+
+    if (!exists) {
+      return HttpResponse.json(
+        { error: 'Filter not found' },
+        { status: 404 }
+      )
+    }
+
+    savedFiltersStore.delete(id as string)
+    return HttpResponse.json({ success: true })
+  }),
+
+  // POST /api/search/saved-filters/reset — reset all saved filters
+  http.post('/api/search/saved-filters/reset', () => {
+    savedFiltersStore.clear()
+    return HttpResponse.json({ success: true })
   }),
 ]
