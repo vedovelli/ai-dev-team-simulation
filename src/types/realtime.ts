@@ -1,5 +1,5 @@
 /**
- * Real-time sync types for cache abstraction layer
+ * Real-time sync types for cache abstraction layer + WebSocket infrastructure
  *
  * Defines transport-agnostic interfaces for real-time data synchronization.
  * Supports polling (current) and WebSocket (future) without changing component code.
@@ -18,6 +18,131 @@ export type EntityType = 'task' | 'sprint' | 'agent'
 export interface EntitySubscription {
   entity: EntityType
   id?: string
+}
+
+/**
+ * Connection state for useRealtimeConnection hook
+ */
+export type ConnectionState = 'connecting' | 'open' | 'closed' | 'error'
+
+/**
+ * Real-time event types with discriminated unions for type-safe routing
+ * Events trigger targeted query invalidations based on entity type
+ */
+export interface TaskUpdatedEvent {
+  type: 'task:updated'
+  taskId: string
+  sprintId?: string
+  changes: Partial<{
+    title: string
+    description: string
+    status: 'todo' | 'in_progress' | 'done'
+    priority: 'low' | 'normal' | 'high'
+    assignedAgentId: string
+    dueDate: string
+  }>
+  timestamp: number
+}
+
+export interface TaskCreatedEvent {
+  type: 'task:created'
+  taskId: string
+  sprintId: string
+  title: string
+  timestamp: number
+}
+
+export interface TaskDeletedEvent {
+  type: 'task:deleted'
+  taskId: string
+  sprintId?: string
+  timestamp: number
+}
+
+export interface SprintUpdatedEvent {
+  type: 'sprint:updated'
+  sprintId: string
+  changes: Partial<{
+    name: string
+    status: 'planning' | 'active' | 'completed'
+    startDate: number
+    endDate: number
+  }>
+  timestamp: number
+}
+
+export interface SprintStartedEvent {
+  type: 'sprint:started'
+  sprintId: string
+  timestamp: number
+}
+
+export interface SprintCompletedEvent {
+  type: 'sprint:completed'
+  sprintId: string
+  timestamp: number
+}
+
+export interface AgentStatusChangedEvent {
+  type: 'agent:status-changed'
+  agentId: string
+  status: 'active' | 'idle' | 'offline'
+  timestamp: number
+}
+
+export interface AgentCapacityChangedEvent {
+  type: 'agent:capacity-changed'
+  agentId: string
+  capacity: number
+  currentLoad: number
+  timestamp: number
+}
+
+export interface NotificationEvent {
+  type: 'notification:new'
+  notificationId: string
+  userId: string
+  message: string
+  timestamp: number
+}
+
+/**
+ * Discriminated union of all real-time events
+ * Enables exhaustive type checking and smart routing
+ */
+export type RealtimeEvent =
+  | TaskUpdatedEvent
+  | TaskCreatedEvent
+  | TaskDeletedEvent
+  | SprintUpdatedEvent
+  | SprintStartedEvent
+  | SprintCompletedEvent
+  | AgentStatusChangedEvent
+  | AgentCapacityChangedEvent
+  | NotificationEvent
+
+/**
+ * Event router configuration for routing events to query invalidation
+ * Maps event types to query keys that should be invalidated
+ */
+export interface EventRouterConfig {
+  [key in RealtimeEvent['type']]?: (string | number)[]
+}
+
+/**
+ * Default event routing configuration
+ * Specifies which query keys should be invalidated for each event type
+ */
+export const DEFAULT_EVENT_ROUTES: EventRouterConfig = {
+  'task:updated': ['tasks'],
+  'task:created': ['tasks'],
+  'task:deleted': ['tasks'],
+  'sprint:updated': ['sprints'],
+  'sprint:started': ['sprints'],
+  'sprint:completed': ['sprints'],
+  'agent:status-changed': ['agents'],
+  'agent:capacity-changed': ['agents'],
+  'notification:new': ['notifications'],
 }
 
 /**
