@@ -30,6 +30,8 @@ import { permissionHandlers } from './handlers/permissions'
 import { agentManagementHandlers } from './handlers/agents'
 import { notificationHandlers } from './handlers/notifications'
 import { notificationHistoryHandlers } from './handlers/notification-history'
+import { notificationPreferencesHandlers } from './handlers/notification-preferences'
+import { userProfileHandlers } from './handlers/user-profile'
 import { taskExecutionHandlers } from './handlers/taskExecution'
 import { agentPresenceHandlers } from './handlers/agentPresence'
 import { workloadHandlers } from './handlers/workload'
@@ -2604,6 +2606,8 @@ export const paginatedHandlers = [
   ...agentManagementHandlers,
   ...notificationHandlers,
   ...notificationHistoryHandlers,
+  ...notificationPreferencesHandlers,
+  ...userProfileHandlers,
   ...taskExecutionHandlers,
   ...agentPresenceHandlers,
   ...agentAvailabilityStatusHandlers,

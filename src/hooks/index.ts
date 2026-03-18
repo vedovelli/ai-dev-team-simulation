@@ -39,6 +39,8 @@ export { useNotificationCenterDisplay } from './useNotificationCenterDisplay'
 export type { UseNotificationCenterDisplayOptions, UseNotificationCenterDisplayReturn } from './useNotificationCenterDisplay'
 export { useNotificationPreferences } from './useNotificationPreferences'
 export type { UseNotificationPreferencesOptions, UseNotificationPreferencesReturn } from './useNotificationPreferences'
+export { useUserProfile } from './useUserProfile'
+export type { UseUserProfileOptions, UseUserProfileReturn } from './useUserProfile'
 export { useNotificationHistory, notificationHistoryQueryKeys } from './useNotificationHistory'
 export type {
   UseNotificationHistoryOptions,
@@ -72,6 +74,7 @@ export type {
   BatchNotificationActionsResponse,
 } from '../types/notification'
 export type { NotificationPreferences, NotificationFrequency, NotificationChannel } from '../types/notification-preferences'
+export type { UserProfile, UpdateProfilePayload, SettingsConflict, ConflictResponse } from '../types/user-profile'
 export type { AgentPerformance } from '../types/agent-performance'
 export { useNotification } from './useNotification'
 export type { UseNotificationOptions, NotificationType } from './useNotification'
