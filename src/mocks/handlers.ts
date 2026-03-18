@@ -44,6 +44,7 @@ import { dependencyHandlers } from './handlers/dependencies'
 import { eventsHandlers } from './handlers/events'
 import { retroHandlers } from './handlers/retro'
 import { realtimeHandlers } from './handlers/realtime'
+import { websocketHandlers } from './handlers/websocket'
 import { errorsHandlers } from './handlers/errors'
 
 interface Team {
@@ -2613,5 +2614,6 @@ export const paginatedHandlers = [
   ...eventsHandlers,
   ...retroHandlers,
   ...realtimeHandlers,
+  ...websocketHandlers,
   ...errorsHandlers,
 ]
