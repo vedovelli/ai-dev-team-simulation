@@ -100,6 +100,21 @@ export function NotificationPreferencesPanel() {
     }
   }, [preferences, localPreferences])
 
+  // Warn before navigating away with unsaved changes
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (hasUnsavedChanges) {
+        e.preventDefault()
+        e.returnValue = ''
+      }
+    }
+
+    window.addEventListener('beforeunload', handleBeforeUnload)
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload)
+    }
+  }, [hasUnsavedChanges])
+
   // Detect if there are unsaved changes
   useEffect(() => {
     if (!preferences || !localPreferences) {
