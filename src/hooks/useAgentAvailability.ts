@@ -1,172 +1,108 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { AgentAvailabilityStatus } from '../types/agent'
-import { useMutationWithRetry } from './useMutationWithRetry'
+import { useQuery } from '@tanstack/react-query'
+import type { AgentAvailability, DateRange, UseAgentAvailabilityReturn } from '../types/agent-availability'
 
 /**
- * Agent availability status information
- */
-export interface AgentAvailabilityInfo {
-  id: string
-  name: string
-  status: AgentAvailabilityStatus
-  lastSeen: string
-  currentTaskCount: number
-}
-
-/**
- * Response from GET /api/agents/status
- */
-interface AgentStatusResponse {
-  agents: AgentAvailabilityInfo[]
-}
-
-/**
- * Configuration options for useAgentAvailability hook
- */
-export interface UseAgentAvailabilityOptions {
-  /** Refetch interval in milliseconds (default: 30000 = 30s) */
-  refetchInterval?: number
-  /** Enable automatic refetch on window focus (default: true) */
-  refetchOnWindowFocus?: boolean
-}
-
-/**
- * Fetch real-time agent availability status with polling
+ * Fetch and manage agent's availability windows and blackout periods
  *
  * Features:
- * - Automatic polling every 30 seconds (configurable)
- * - Refetch on window focus for fresh data
- * - Stale-while-revalidate strategy: 30s stale, 5min gc
- * - Manual status toggle mutation for testing/demo
+ * - Caches availability with 60s stale time (availability changes infrequently)
+ * - Accepts agentId and date range (from/to)
+ * - Provides isAvailable() helper to check availability at specific dates
+ * - Considers blackout periods and weekly availability windows
  * - Exponential backoff retry logic
- * - Full TypeScript type safety
+ *
+ * @param agentId - ID of the agent
+ * @param dateRange - Date range for the query { from: ISO string, to: ISO string }
+ * @returns Hook return object with data, loading, error states and isAvailable helper
+ *
+ * @example
+ * const { data, isLoading, isAvailable } = useAgentAvailability('agent-1', {
+ *   from: '2024-03-01',
+ *   to: '2024-03-31'
+ * })
+ *
+ * // Check if agent is available on a specific date
+ * const isAvailableOnDeadline = isAvailable(new Date('2024-03-15'))
  */
-export function useAgentAvailability(options: UseAgentAvailabilityOptions = {}) {
-  const {
-    refetchInterval = 30 * 1000, // 30 seconds
-    refetchOnWindowFocus = true,
-  } = options
-
-  const queryClient = useQueryClient()
-
-  // Query to fetch agent availability status
-  const query = useQuery<AgentStatusResponse, Error>({
-    queryKey: ['agents', 'status'],
+export function useAgentAvailability(
+  agentId: string,
+  dateRange: DateRange
+): UseAgentAvailabilityReturn {
+  const query = useQuery<AgentAvailability, Error>({
+    queryKey: ['agents', agentId, 'availability', { from: dateRange.from, to: dateRange.to }],
     queryFn: async () => {
-      const response = await fetch('/api/agents/status', {
+      const params = new URLSearchParams({
+        from: dateRange.from,
+        to: dateRange.to,
+      })
+
+      const response = await fetch(`/api/agents/${agentId}/availability?${params}`, {
         headers: { 'Content-Type': 'application/json' },
       })
 
       if (!response.ok) {
-        throw new Error(`Failed to fetch agent availability: ${response.statusText}`)
+        throw new Error(
+          `Failed to fetch agent availability: ${response.statusCode} ${response.statusText}`
+        )
       }
 
-      return response.json() as Promise<AgentStatusResponse>
+      return response.json() as Promise<AgentAvailability>
     },
-    staleTime: 30 * 1000, // 30 seconds
-    gcTime: 5 * 60 * 1000, // 5 minutes (was cacheTime in v4)
-    refetchInterval,
-    refetchOnWindowFocus: refetchOnWindowFocus ? 'stale' : false,
-    refetchOnReconnect: 'stale',
+    staleTime: 60 * 1000, // 60 seconds
+    gcTime: 5 * 60 * 1000, // 5 minutes
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: true,
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
-  })
-
-  // Mutation for manual status toggle
-  const toggleStatusMutation = useMutationWithRetry<AgentAvailabilityInfo, { status: AgentAvailabilityStatus }>({
-    mutationFn: async ({ status }) => {
-      const response = await fetch('/api/agents/status', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status }),
-      })
-
-      if (!response.ok) {
-        throw new Error(`Failed to update agent status: ${response.statusText}`)
-      }
-
-      return response.json() as Promise<AgentAvailabilityInfo>
-    },
-    onMutate: async ({ status }) => {
-      // Cancel any pending requests
-      await queryClient.cancelQueries({ queryKey: ['agents', 'status'] })
-
-      // Snapshot previous data
-      const previousData = queryClient.getQueryData<AgentStatusResponse>({
-        queryKey: ['agents', 'status'],
-      })
-
-      // Optimistically update the first agent (current user)
-      if (previousData && previousData.agents.length > 0) {
-        const updated = {
-          ...previousData,
-          agents: previousData.agents.map((agent, index) =>
-            index === 0 ? { ...agent, status } : agent
-          ),
-        }
-        queryClient.setQueryData(['agents', 'status'], updated)
-      }
-
-      return { previousData }
-    },
-    onError: (_, __, context) => {
-      // Revert optimistic updates on error
-      if (context?.previousData) {
-        queryClient.setQueryData(['agents', 'status'], context.previousData)
-      }
-    },
-    onSuccess: () => {
-      // Refetch to get latest data after successful mutation
-      queryClient.invalidateQueries({ queryKey: ['agents', 'status'] })
-    },
+    enabled: !!agentId && !!dateRange.from && !!dateRange.to,
   })
 
   /**
-   * Toggle current user's availability status
+   * Check if agent is available at a specific date
+   * Considers blackout periods and weekly availability windows
    */
-  const toggleStatus = (status: AgentAvailabilityStatus) => {
-    toggleStatusMutation.mutate({ status })
-  }
+  const isAvailable = (date: Date): boolean => {
+    if (!query.data) {
+      return true // Assume available if data not loaded yet
+    }
 
-  /**
-   * Get agent by ID
-   */
-  const getAgent = (agentId: string): AgentAvailabilityInfo | undefined => {
-    return query.data?.agents.find((agent) => agent.id === agentId)
-  }
+    const availability = query.data
 
-  /**
-   * Get all agents with a specific status
-   */
-  const getAgentsByStatus = (status: AgentAvailabilityStatus): AgentAvailabilityInfo[] => {
-    return query.data?.agents.filter((agent) => agent.status === status) ?? []
-  }
+    // Check if in blackout period
+    const dateStr = date.toISOString().split('T')[0]
+    const isBlackout = availability.blackoutPeriods.some(
+      (period) => dateStr >= period.startDate && dateStr <= period.endDate
+    )
 
-  /**
-   * Check if agent is available (online or busy)
-   */
-  const isAvailable = (agentId: string): boolean => {
-    const agent = getAgent(agentId)
-    return agent ? agent.status !== 'offline' : false
+    if (isBlackout) {
+      return false
+    }
+
+    // Check weekly availability window
+    const dayOfWeek = getDayOfWeekName(date)
+    const window = availability.availabilityWindows.find((w) => w.dayOfWeek === dayOfWeek)
+
+    if (!window) {
+      return false // Not available this day of week
+    }
+
+    // Check if time is within window (use start of day for date-only checks)
+    const hour = date.getHours()
+    return hour >= window.startHour && hour < window.endHour
   }
 
   return {
-    // Query state
-    ...query,
-
-    // Computed values
-    agents: query.data?.agents ?? [],
-
-    // Mutation state
-    toggleStatusLoading: toggleStatusMutation.isLoading,
-    toggleStatusError: toggleStatusMutation.error,
-
-    // Actions
-    toggleStatus,
-    getAgent,
-    getAgentsByStatus,
+    data: query.data ?? null,
+    isLoading: query.isLoading,
+    error: query.error,
     isAvailable,
   }
 }
 
-export type UseAgentAvailabilityReturn = ReturnType<typeof useAgentAvailability>
+/**
+ * Get day of week name from date
+ */
+function getDayOfWeekName(date: Date): string {
+  const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday']
+  return days[date.getDay()]
+}
