@@ -1,8 +1,8 @@
 import { useRef, useEffect, useState, useMemo } from 'react'
-import { useNotificationCenter } from '../../hooks/useNotificationCenter'
+import { useNotificationCenter, NOTIFICATION_TYPE_LABELS } from '../../hooks/useNotificationCenter'
 import { NotificationGroup } from './NotificationGroup'
 import { NotificationDrawerFilters, type NotificationDrawerFilter } from './NotificationFilters'
-import type { NotificationEventType } from '../../types/notification'
+import type { NotificationType } from '../../types/notification'
 
 export interface NotificationDrawerProps {
   isOpen: boolean
@@ -48,14 +48,7 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
     }
 
     const filtered = new Map<string, typeof notifications>()
-    const typeLabels: Record<string, string> = {
-      assignment_changed: 'Assignments',
-      sprint_updated: 'Sprints',
-      task_reassigned: 'Task Changes',
-      deadline_approaching: 'Deadlines',
-    }
-
-    const label = typeLabels[activeFilter] || activeFilter
+    const label = NOTIFICATION_TYPE_LABELS[activeFilter] || activeFilter
     const group = groupedByType.get(label)
 
     if (group) {
@@ -194,6 +187,7 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
           <NotificationDrawerFilters
             selectedFilter={activeFilter}
             onFilterChange={setActiveFilter}
+            groupedByType={groupedByType}
           />
         )}
 
