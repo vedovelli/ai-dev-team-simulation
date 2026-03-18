@@ -155,3 +155,5 @@ export type {
   AgentPerformanceMetrics,
   TeamWorkloadDistribution,
 } from '../types/agent-analytics'
+export { useToast } from './useToast'
+export type { UseToastReturn, ToastOptions } from './useToast'
