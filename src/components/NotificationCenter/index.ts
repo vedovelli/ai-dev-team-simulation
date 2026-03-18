@@ -1,5 +1,6 @@
 export { default as NotificationCenter } from './NotificationCenter'
 export { default as NotificationItem } from './NotificationItem'
+export { NotificationPanel } from './NotificationPanel'
 export { NotificationCenterPanel } from './NotificationCenterPanel'
 export { NotificationCenterSimple } from './NotificationCenterSimple'
 export { NotificationCenterExample, HeaderWithNotifications } from './NotificationCenterExample'

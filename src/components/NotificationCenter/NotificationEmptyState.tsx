@@ -1,14 +1,9 @@
-interface NotificationEmptyStateProps {
-  filterUnreadOnly: boolean
-}
-
 /**
  * NotificationEmptyState Component
  *
  * Empty state illustration and message shown when no notifications exist
- * or when filtered view has no results.
  */
-export function NotificationEmptyState({ filterUnreadOnly }: NotificationEmptyStateProps) {
+export function NotificationEmptyState() {
   return (
     <div className="flex flex-col items-center justify-center py-12 px-4">
       <svg
@@ -26,10 +21,10 @@ export function NotificationEmptyState({ filterUnreadOnly }: NotificationEmptySt
         />
       </svg>
       <p className="text-gray-700 font-medium text-center">
-        {filterUnreadOnly ? 'No unread notifications' : 'No notifications yet'}
+        No notifications yet
       </p>
       <p className="text-gray-500 text-sm text-center mt-1">
-        {filterUnreadOnly ? "You're all caught up!" : "You'll see notifications here"}
+        You're all caught up!
       </p>
     </div>
   )
