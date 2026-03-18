@@ -7,6 +7,25 @@ import { useNotificationPreferences, type UseNotificationPreferencesOptions } fr
 import { useMutationWithRetry } from './useMutationWithRetry'
 
 /**
+ * Mapping of notification types to human-readable labels
+ * Used for display purposes across the notification center
+ */
+export const NOTIFICATION_TYPE_LABELS: Record<string, string> = {
+  assignment_changed: 'Assignments',
+  sprint_updated: 'Sprints',
+  task_reassigned: 'Task Changes',
+  deadline_approaching: 'Deadlines',
+  task_assigned: 'Task Assignments',
+  task_unassigned: 'Unassignments',
+  sprint_started: 'Sprint Started',
+  sprint_completed: 'Sprint Completed',
+  comment_added: 'Comments',
+  status_changed: 'Status Changes',
+  agent_event: 'Agent Activity',
+  performance_alert: 'Performance Alerts',
+}
+
+/**
  * Configuration options for useNotificationCenter hook
  */
 export interface UseNotificationCenterOptions {
@@ -515,23 +534,8 @@ export function useNotificationCenter(options: UseNotificationCenterOptions = {}
   const groupedByType = useMemo(() => {
     const groups = new Map<string, Notification[]>()
 
-    const typeLabels: Record<string, string> = {
-      assignment_changed: 'Assignments',
-      sprint_updated: 'Sprints',
-      task_reassigned: 'Task Changes',
-      deadline_approaching: 'Deadlines',
-      task_assigned: 'Task Assignments',
-      task_unassigned: 'Unassignments',
-      sprint_started: 'Sprint Started',
-      sprint_completed: 'Sprint Completed',
-      comment_added: 'Comments',
-      status_changed: 'Status Changes',
-      agent_event: 'Agent Activity',
-      performance_alert: 'Performance Alerts',
-    }
-
     filteredNotifications.forEach((notif) => {
-      const label = typeLabels[notif.type] || notif.type
+      const label = NOTIFICATION_TYPE_LABELS[notif.type] || notif.type
       if (!groups.has(label)) {
         groups.set(label, [])
       }
