@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react'
+import React, { useState } from 'react'
 import {
   createColumnHelper,
   flexRender,
@@ -34,6 +34,22 @@ function getRelativeTime(date: string): string {
 }
 
 /**
+ * Convert date string from date input to ISO format with time
+ */
+function buildISODateString(
+  dateString: string,
+  timeEnd: boolean = false
+): string {
+  const date = new Date(dateString)
+  if (timeEnd) {
+    date.setHours(23, 59, 59, 999)
+  } else {
+    date.setHours(0, 0, 0, 0)
+  }
+  return date.toISOString()
+}
+
+/**
  * Column helper for type safety with TanStack Table
  */
 const columnHelper = createColumnHelper<NotificationHistoryEntry>()
@@ -41,7 +57,7 @@ const columnHelper = createColumnHelper<NotificationHistoryEntry>()
 /**
  * Default columns for notification history table
  */
-const defaultColumns: ColumnDef<NotificationHistoryEntry, any>[] = [
+const defaultColumns: ColumnDef<NotificationHistoryEntry, unknown>[] = [
   columnHelper.accessor('message', {
     header: 'Message',
     cell: (info) => <div className="truncate">{info.getValue()}</div>,
@@ -101,7 +117,7 @@ interface NotificationHistoryViewProps {
   /** Pagination limit per page */
   limit?: number
   /** Custom columns for table (optional) */
-  columns?: ColumnDef<NotificationHistoryEntry, any>[]
+  columns?: ColumnDef<NotificationHistoryEntry, unknown>[]
   /** Additional CSS classes */
   className?: string
 }
@@ -137,10 +153,11 @@ export function NotificationHistoryView({
     useState<NotificationHistoryFilters>(filters || {})
   const [currentCursor, setCurrentCursor] = useState<string | null>(null)
 
-  // Fetch notification history with current filters
-  const { items, pagination, totalCount, unreadCount, isLoading, error, fetchPage } =
+  // Fetch notification history with current filters and cursor
+  const { items, pagination, totalCount, unreadCount, isLoading, error } =
     useNotificationHistory({
       limit,
+      cursor: currentCursor,
       filters: currentFilters,
     })
 
@@ -169,9 +186,8 @@ export function NotificationHistoryView({
   /**
    * Handle next page
    */
-  const handleNextPage = async () => {
+  const handleNextPage = () => {
     if (pagination.nextCursor) {
-      const nextData = await fetchPage(pagination.nextCursor)
       setCurrentCursor(pagination.nextCursor)
     }
   }
@@ -248,13 +264,22 @@ export function NotificationHistoryView({
             </label>
             <select
               value={currentFilters.type || ''}
-              onChange={(e) =>
+              onChange={(e) => {
+                const notificationTypes = [
+                  'assignment_changed',
+                  'sprint_updated',
+                  'task_reassigned',
+                  'deadline_approaching',
+                  'agent_event',
+                  'sprint_completed',
+                  'comment_added',
+                  'status_changed',
+                ] as const
+                const selectedType = e.target.value as (typeof notificationTypes)[number] | ''
                 handleFilterChange({
-                  type: e.target.value
-                    ? (e.target.value as any)
-                    : undefined,
+                  type: selectedType ? selectedType : undefined,
                 })
-              }
+              }}
               className="mt-1 w-full rounded border border-gray-300 bg-white px-2 py-1 text-sm text-gray-900"
             >
               <option value="">All types</option>
@@ -299,9 +324,8 @@ export function NotificationHistoryView({
               value={currentFilters.startDate?.split('T')[0] || ''}
               onChange={(e) => {
                 if (e.target.value) {
-                  const date = new Date(e.target.value)
                   handleFilterChange({
-                    startDate: date.toISOString().split('T')[0] + 'T00:00:00Z',
+                    startDate: buildISODateString(e.target.value, false),
                   })
                 } else {
                   handleFilterChange({ startDate: undefined })
@@ -321,10 +345,8 @@ export function NotificationHistoryView({
               value={currentFilters.endDate?.split('T')[0] || ''}
               onChange={(e) => {
                 if (e.target.value) {
-                  const date = new Date(e.target.value)
-                  date.setHours(23, 59, 59, 999)
                   handleFilterChange({
-                    endDate: date.toISOString(),
+                    endDate: buildISODateString(e.target.value, true),
                   })
                 } else {
                   handleFilterChange({ endDate: undefined })
