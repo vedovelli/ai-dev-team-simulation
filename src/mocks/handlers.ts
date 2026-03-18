@@ -43,6 +43,7 @@ import { taskSearchHandlers } from './handlers/task-search'
 import { dependencyHandlers } from './handlers/dependencies'
 import { eventsHandlers } from './handlers/events'
 import { retroHandlers } from './handlers/retro'
+import { sprintRetrospectiveHandlers } from './handlers/sprint-retrospective'
 import { realtimeHandlers } from './handlers/realtime'
 import { websocketHandlers } from './handlers/websocket'
 import { errorsHandlers } from './handlers/errors'
@@ -2613,6 +2614,7 @@ export const paginatedHandlers = [
   ...dependencyHandlers,
   ...eventsHandlers,
   ...retroHandlers,
+  ...sprintRetrospectiveHandlers,
   ...realtimeHandlers,
   ...websocketHandlers,
   ...errorsHandlers,
