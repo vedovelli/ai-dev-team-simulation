@@ -134,7 +134,7 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}): UseGlobal
     pageSize: routerSearchParams.pageSize || defaultPageSize,
   })
 
-  // Debounce search with cleanup
+  // Debounce search with cleanup (only depends on localQuery)
   const debounceTimeoutRef = useRef<NodeJS.Timeout>()
 
   useEffect(() => {
@@ -144,19 +144,6 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}): UseGlobal
 
     debounceTimeoutRef.current = setTimeout(() => {
       setDebouncedQuery(localQuery)
-
-      // Sync to router query params
-      if (localQuery || filters.type || filters.status) {
-        navigate({
-          search: {
-            q: localQuery || undefined,
-            type: filters.type,
-            status: filters.status,
-            page: filters.page,
-            pageSize: filters.pageSize,
-          },
-        })
-      }
     }, debounceMs)
 
     return () => {
@@ -164,7 +151,22 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}): UseGlobal
         clearTimeout(debounceTimeoutRef.current)
       }
     }
-  }, [localQuery, filters.type, filters.status, filters.page, filters.pageSize, debounceMs, navigate])
+  }, [localQuery, debounceMs])
+
+  // Sync filters to router (separate from debounce)
+  useEffect(() => {
+    if (localQuery || filters.type || filters.status) {
+      navigate({
+        search: {
+          q: localQuery || undefined,
+          type: filters.type,
+          status: filters.status,
+          page: filters.page,
+          pageSize: filters.pageSize,
+        },
+      })
+    }
+  }, [localQuery, filters.type, filters.status, filters.page, filters.pageSize, navigate])
 
   // TanStack Query for fetching search results
   const query = useQuery<GlobalSearchResponse, Error>({
@@ -199,8 +201,10 @@ export function useGlobalSearch(options: UseGlobalSearchOptions = {}): UseGlobal
   const setFilters = useCallback((newFilters: Partial<GlobalSearchFilters>) => {
     setFiltersState((prev) => {
       const updated = { ...prev, ...newFilters }
-      // Reset to page 1 if filters change
-      if (newFilters.type !== undefined || newFilters.status !== undefined) {
+      // Reset to page 1 only if type or status are actually changing (not explicitly set in newFilters)
+      const typeChanged = newFilters.type !== undefined && newFilters.type !== prev.type
+      const statusChanged = newFilters.status !== undefined && newFilters.status !== prev.status
+      if ((typeChanged || statusChanged) && newFilters.page === undefined) {
         updated.page = 1
       }
       return updated

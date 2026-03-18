@@ -148,10 +148,11 @@ const mockSprintsData: Sprint[] = [
 /**
  * Mock agent data
  */
-const mockAgentsData: (AgentManagement & { id: string; name: string })[] = [
+const mockAgentsData: (AgentManagement & { id: string; name: string; role: 'sr-dev' | 'junior' | 'pm' })[] = [
   {
     id: 'agent-1',
     name: 'Alice',
+    role: 'sr-dev' as const,
     capabilities: ['code-review', 'refactoring', 'architecture'],
     status: 'active' as const,
     taskCount: 3,
@@ -162,6 +163,7 @@ const mockAgentsData: (AgentManagement & { id: string; name: string })[] = [
   {
     id: 'agent-2',
     name: 'Bob',
+    role: 'junior' as const,
     capabilities: ['feature-implementation', 'testing', 'debugging'],
     status: 'idle' as const,
     taskCount: 5,
@@ -172,6 +174,7 @@ const mockAgentsData: (AgentManagement & { id: string; name: string })[] = [
   {
     id: 'agent-3',
     name: 'Charlie',
+    role: 'sr-dev' as const,
     capabilities: ['api-design', 'database-optimization', 'infrastructure'],
     status: 'busy' as const,
     taskCount: 2,
@@ -279,7 +282,7 @@ function agentToSearchResult(agent: (typeof mockAgentsData)[0]): GlobalSearchRes
     },
     metadata: {
       agentStatus: agent.status,
-      agentRole: (agent.status as string) as 'sr-dev' | 'junior' | 'pm',
+      agentRole: agent.role,
     },
     createdAt: agent.createdAt,
   }
