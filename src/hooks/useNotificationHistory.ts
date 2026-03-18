@@ -51,6 +51,8 @@ export interface NotificationHistoryResponse {
 export interface UseNotificationHistoryOptions {
   /** Pagination limit per page (default: 20) */
   limit?: number
+  /** Cursor for pagination (null for first page) */
+  cursor?: string | null
   /** Filters to apply to history query */
   filters?: NotificationHistoryFilters
   /** Stale time in milliseconds (default: 5min) */
@@ -102,6 +104,7 @@ export const notificationHistoryQueryKeys = {
 export function useNotificationHistory(options: UseNotificationHistoryOptions = {}) {
   const {
     limit = 20,
+    cursor = null,
     filters = {},
     staleTime = 5 * 60 * 1000, // 5 minutes
     gcTime = 10 * 60 * 1000, // 10 minutes
@@ -110,14 +113,19 @@ export function useNotificationHistory(options: UseNotificationHistoryOptions = 
 
   const queryClient = useQueryClient()
 
-  // Build query key with filters
-  const queryKey = notificationHistoryQueryKeys.list(filters)
+  // Build query key with filters and cursor for proper cache separation
+  const queryKey = notificationHistoryQueryKeys.cursor(filters, cursor)
 
   const query = useQuery<NotificationHistoryResponse, Error>({
     queryKey,
     queryFn: async () => {
       const params = new URLSearchParams()
       params.append('limit', limit.toString())
+
+      // Add cursor for pagination
+      if (cursor) {
+        params.append('cursor', cursor)
+      }
 
       // Add filter parameters
       if (filters.type) {
