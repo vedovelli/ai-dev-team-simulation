@@ -132,7 +132,17 @@ export const taskHandlers = [
    * - Legacy pagination: ?pageIndex=0&pageSize=10
    * - Infinite scroll: ?page=0&limit=20&filters=...
    * - Multi-value filters: ?status=todo&status=in-progress&priority=high
+   * - Single-value filters: ?agent=agent-1&priority=high&status=in-progress
    * - Filter dimensions: status, priority, assignee, sprint, agent, dateRangeStart, dateRangeEnd
+   * - AND logic across dimensions: all provided filters must match
+   *
+   * Example with useTaskFilters hook:
+   *   const { filters } = useTaskFilters()
+   *   const params = new URLSearchParams()
+   *   if (filters.agent) params.append('agent', filters.agent)
+   *   if (filters.priority) params.append('priority', filters.priority)
+   *   if (filters.status) params.append('status', filters.status)
+   *   fetch(`/api/tasks?${params}`)
    */
   http.get('/api/tasks', ({ request }) => {
     const url = new URL(request.url)
