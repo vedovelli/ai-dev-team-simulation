@@ -58,39 +58,23 @@ export function useTaskList(options: UseTaskListOptions = {}) {
       params.append('page', String(pageParam))
       params.append('limit', String(pageSize))
 
+      // Helper to append multi-value filter parameters (OR logic within dimension)
+      const appendMultiValue = (key: string, value?: string | string[] | null) => {
+        if (value) {
+          const values = Array.isArray(value) ? value : [value]
+          values.forEach((v) => params.append(key, v))
+        }
+      }
+
       // Add filter parameters
       if (filters) {
-        // Priority filters (multi-value)
-        if (filters.priority) {
-          const priorities = Array.isArray(filters.priority) ? filters.priority : [filters.priority]
-          priorities.forEach((p) => params.append('priority', p))
-        }
+        appendMultiValue('priority', filters.priority)
+        appendMultiValue('status', filters.status)
+        appendMultiValue('agent', filters.agent)
+        appendMultiValue('sprint', filters.sprint)
+        appendMultiValue('assignee', filters.assignee)
 
-        // Status filters (multi-value)
-        if (filters.status) {
-          const statuses = Array.isArray(filters.status) ? filters.status : [filters.status]
-          statuses.forEach((s) => params.append('status', s))
-        }
-
-        // Agent filters (multi-value)
-        if (filters.agent) {
-          const agents = Array.isArray(filters.agent) ? filters.agent : [filters.agent]
-          agents.forEach((a) => params.append('agent', a))
-        }
-
-        // Sprint filters (multi-value)
-        if (filters.sprint) {
-          const sprints = Array.isArray(filters.sprint) ? filters.sprint : [filters.sprint]
-          sprints.forEach((s) => params.append('sprint', s))
-        }
-
-        // Assignee filters (multi-value)
-        if (filters.assignee) {
-          const assignees = Array.isArray(filters.assignee) ? filters.assignee : [filters.assignee]
-          assignees.forEach((a) => params.append('assignee', a))
-        }
-
-        // Date range filters
+        // Date range filters (single-value)
         if (filters.dateRangeStart) {
           params.append('dateRangeStart', filters.dateRangeStart)
         }

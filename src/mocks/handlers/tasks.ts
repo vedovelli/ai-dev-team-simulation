@@ -193,19 +193,27 @@ export const taskHandlers = [
       }
 
       // Agent filter (OR logic within dimension)
+      // Note: 'agent' filter checks task.assignee (agents are assignees in this domain)
       if (agentFilters.length > 0 && !agentFilters.includes(task.assignee)) {
         return false
       }
 
       // Date range filter (AND logic across start/end)
-      if (dateRangeStart) {
+      // Validate date strings to avoid silent filtering with Invalid Date objects
+      const isValidDateString = (dateStr: string | null): dateStr is string => {
+        if (!dateStr) return false
+        const date = new Date(dateStr)
+        return !Number.isNaN(date.getTime())
+      }
+
+      if (dateRangeStart && isValidDateString(dateRangeStart)) {
         const start = new Date(dateRangeStart)
         const taskDeadline = task.deadline ? new Date(task.deadline) : null
         if (!taskDeadline || taskDeadline < start) {
           return false
         }
       }
-      if (dateRangeEnd) {
+      if (dateRangeEnd && isValidDateString(dateRangeEnd)) {
         const end = new Date(dateRangeEnd)
         const taskDeadline = task.deadline ? new Date(task.deadline) : null
         if (!taskDeadline || taskDeadline > end) {
