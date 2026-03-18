@@ -2,14 +2,15 @@
  * MSW Handlers for Task Management with Advanced Filtering
  *
  * Endpoints:
- * - GET /api/tasks - List tasks with filtering and pagination
+ * - GET /api/tasks - List tasks with filtering and cursor-based pagination
  * - PATCH /api/tasks/:id - Update task with version-based conflict detection
  * - GET /api/tasks/:id - Fetch a single task
  *
  * Filtering Support:
  * - Multiple values per parameter (e.g., status=todo&status=in-progress)
- * - Filter dimensions: status, priority, assignee, sprint
- * - Pagination with total count
+ * - Filter dimensions: status, priority, assignee, sprint, agent, dateRange
+ * - Cursor-based pagination with nextCursor and hasNextPage metadata
+ * - Total count tracking across filter combinations
  *
  * Conflict Simulation:
  * - ~5% chance of returning 409 Conflict when version mismatches
@@ -17,7 +18,7 @@
  */
 
 import { http, HttpResponse } from 'msw'
-import type { Task, TaskStatus, TaskPriority, UpdateTaskInput } from '../../types/task'
+import type { Task, TaskStatus, TaskPriority, UpdateTaskInput, PaginatedTasksResponse } from '../../types/task'
 
 /**
  * In-memory store for task versions
@@ -126,8 +127,12 @@ const mockTasksData: Record<string, Task> = {
 export const taskHandlers = [
   /**
    * GET /api/tasks
-   * List tasks with advanced filtering and pagination
-   * Supports multiple values per filter dimension: ?status=todo&status=in-progress
+   * List tasks with advanced filtering and cursor-based pagination
+   * Supports:
+   * - Legacy pagination: ?pageIndex=0&pageSize=10
+   * - Infinite scroll: ?page=0&limit=20&filters=...
+   * - Multi-value filters: ?status=todo&status=in-progress&priority=high
+   * - Filter dimensions: status, priority, assignee, sprint, agent, dateRangeStart, dateRangeEnd
    */
   http.get('/api/tasks', ({ request }) => {
     const url = new URL(request.url)
@@ -142,10 +147,28 @@ export const taskHandlers = [
     const priorityFilters = parseMultiValue('priority') as TaskPriority[]
     const assigneeFilters = parseMultiValue('assignee')
     const sprintFilters = parseMultiValue('sprint')
+    const agentFilters = parseMultiValue('agent')
     const searchQuery = url.searchParams.get('search')?.toLowerCase() || ''
+    const dateRangeStart = url.searchParams.get('dateRangeStart') || null
+    const dateRangeEnd = url.searchParams.get('dateRangeEnd') || null
 
-    const pageIndex = Math.max(0, parseInt(url.searchParams.get('pageIndex') || '0', 10))
-    const pageSize = Math.max(1, Math.min(100, parseInt(url.searchParams.get('pageSize') || '10', 10)))
+    // Detect pagination type: page/limit (infinite scroll) or pageIndex/pageSize (legacy)
+    const hasLimitParam = url.searchParams.has('limit')
+    const hasPageSizeParam = url.searchParams.has('pageSize')
+
+    let page: number
+    let pageSize: number
+
+    if (hasLimitParam) {
+      // Infinite scroll: page=0&limit=20
+      page = Math.max(0, parseInt(url.searchParams.get('page') || '0', 10))
+      pageSize = Math.max(1, Math.min(100, parseInt(url.searchParams.get('limit') || '20', 10)))
+    } else {
+      // Legacy: pageIndex=0&pageSize=10
+      const pageIndex = Math.max(0, parseInt(url.searchParams.get('pageIndex') || '0', 10))
+      pageSize = Math.max(1, Math.min(100, parseInt(url.searchParams.get('pageSize') || '10', 10)))
+      page = pageIndex
+    }
 
     // Filter tasks with AND logic across dimensions, OR logic within dimensions
     let filtered = Object.values(mockTasksData).filter((task) => {
@@ -169,6 +192,27 @@ export const taskHandlers = [
         return false
       }
 
+      // Agent filter (OR logic within dimension)
+      if (agentFilters.length > 0 && !agentFilters.includes(task.assignee)) {
+        return false
+      }
+
+      // Date range filter (AND logic across start/end)
+      if (dateRangeStart) {
+        const start = new Date(dateRangeStart)
+        const taskDeadline = task.deadline ? new Date(task.deadline) : null
+        if (!taskDeadline || taskDeadline < start) {
+          return false
+        }
+      }
+      if (dateRangeEnd) {
+        const end = new Date(dateRangeEnd)
+        const taskDeadline = task.deadline ? new Date(task.deadline) : null
+        if (!taskDeadline || taskDeadline > end) {
+          return false
+        }
+      }
+
       // Search filter (full-text across title)
       if (searchQuery && !task.title.toLowerCase().includes(searchQuery)) {
         return false
@@ -177,17 +221,32 @@ export const taskHandlers = [
       return true
     })
 
-    // Pagination
+    // Pagination with cursor support
     const total = filtered.length
-    const totalPages = Math.ceil(total / pageSize)
-    const startIdx = pageIndex * pageSize
+    const startIdx = page * pageSize
     const endIdx = startIdx + pageSize
     const paginatedTasks = filtered.slice(startIdx, endIdx)
+    const hasNextPage = endIdx < total
 
+    // Return format depends on pagination type
+    if (hasLimitParam) {
+      // Infinite scroll response format
+      const response: PaginatedTasksResponse = {
+        data: paginatedTasks,
+        totalCount: total,
+        pageSize,
+        nextCursor: hasNextPage ? page + 1 : null,
+        hasNextPage,
+      }
+      return HttpResponse.json(response)
+    }
+
+    // Legacy response format
+    const totalPages = Math.ceil(total / pageSize)
     return HttpResponse.json({
       data: paginatedTasks,
       total,
-      page: pageIndex + 1,
+      page: page + 1,
       pageSize,
       totalPages,
     })
