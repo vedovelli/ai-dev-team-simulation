@@ -24,6 +24,11 @@ interface DependencyMutationsReturn {
   ) => void
   addDependencyAsync: (variables: DependencyVariables) => Promise<Task>
   removeDependencyAsync: (variables: DependencyVariables) => Promise<Task>
+  updateBlockingStatus: (
+    taskId: string,
+    options?: { onError?: (error: Error) => void; onSuccess?: () => void }
+  ) => void
+  updateBlockingStatusAsync: (taskId: string) => Promise<Record<string, unknown>>
   isPending: boolean
 }
 
@@ -91,11 +96,23 @@ export function useDependencyMutations(): DependencyMutationsReturn {
       return response.json() as Promise<Task>
     },
 
-    onSuccess: () => {
-      // Invalidate all dependency queries
+    onSuccess: (updatedTask) => {
+      // Invalidate all dependency queries for this task
       queryClient.invalidateQueries({
-        queryKey: dependencyKeys.all,
+        queryKey: dependencyKeys.detail(updatedTask.id),
       })
+
+      // Also invalidate dependent tasks' dependency queries
+      const allTasksData = queryClient.getQueryData<Task[]>(['tasks'])
+      if (allTasksData) {
+        allTasksData.forEach((task) => {
+          if (task.dependsOn?.includes(updatedTask.id)) {
+            queryClient.invalidateQueries({
+              queryKey: dependencyKeys.detail(task.id),
+            })
+          }
+        })
+      }
     },
   })
 
@@ -117,11 +134,57 @@ export function useDependencyMutations(): DependencyMutationsReturn {
       return response.json() as Promise<Task>
     },
 
-    onSuccess: () => {
-      // Invalidate all dependency queries
+    onSuccess: (updatedTask) => {
+      // Invalidate all dependency queries for this task
       queryClient.invalidateQueries({
-        queryKey: dependencyKeys.all,
+        queryKey: dependencyKeys.detail(updatedTask.id),
       })
+
+      // Also invalidate dependent tasks' dependency queries
+      const allTasksData = queryClient.getQueryData<Task[]>(['tasks'])
+      if (allTasksData) {
+        allTasksData.forEach((task) => {
+          if (task.dependsOn?.includes(updatedTask.id)) {
+            queryClient.invalidateQueries({
+              queryKey: dependencyKeys.detail(task.id),
+            })
+          }
+        })
+      }
+    },
+  })
+
+  const blockingStatusMutation = useMutation<Record<string, unknown>, Error, string>({
+    mutationFn: async (taskId: string) => {
+      const response = await fetch(`/api/tasks/${taskId}/blocking-status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || 'Failed to update blocking status')
+      }
+
+      return response.json() as Promise<Record<string, unknown>>
+    },
+
+    onSuccess: (_, taskId) => {
+      // Invalidate dependency queries for this task and all dependents
+      queryClient.invalidateQueries({
+        queryKey: dependencyKeys.detail(taskId),
+      })
+
+      const allTasksData = queryClient.getQueryData<Task[]>(['tasks'])
+      if (allTasksData) {
+        allTasksData.forEach((task) => {
+          if (task.dependsOn?.includes(taskId)) {
+            queryClient.invalidateQueries({
+              queryKey: dependencyKeys.detail(task.id),
+            })
+          }
+        })
+      }
     },
   })
 
@@ -130,6 +193,11 @@ export function useDependencyMutations(): DependencyMutationsReturn {
     removeDependency: removeDependencyMutation.mutate,
     addDependencyAsync: addDependencyMutation.mutateAsync,
     removeDependencyAsync: removeDependencyMutation.mutateAsync,
-    isPending: addDependencyMutation.isPending || removeDependencyMutation.isPending,
+    updateBlockingStatus: blockingStatusMutation.mutate,
+    updateBlockingStatusAsync: blockingStatusMutation.mutateAsync,
+    isPending:
+      addDependencyMutation.isPending ||
+      removeDependencyMutation.isPending ||
+      blockingStatusMutation.isPending,
   }
 }

@@ -3,6 +3,16 @@ import type { Task } from '../../types/task'
 import { detectCircularDependency } from '../../utils/dependencyValidation'
 
 /**
+ * Response type for blocking status check endpoint
+ */
+interface BlockingStatusResponse {
+  taskId: string
+  isBlocked: boolean
+  blockedDependencies: Array<{ id: string; title: string }>
+  transitivelyBlockedCount: number
+}
+
+/**
  * In-memory storage for task dependencies
  * Maps taskId -> array of dependsOnTaskIds
  */
@@ -130,35 +140,90 @@ function getBlockers(taskId: string): Task[] {
 }
 
 /**
+ * Compute transitive blocking: return all tasks that are blocked
+ * (directly or indirectly) by the given task being incomplete
+ */
+function getTransitiveBlockedTasks(taskId: string): string[] {
+  const blocked = new Set<string>()
+  const queue = [taskId]
+
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const blockedByThis = Array.from(dependenciesStore.entries()).filter(
+      ([_, deps]) => deps.includes(current)
+    )
+
+    for (const [id] of blockedByThis) {
+      const task = tasksMap.get(id)
+      // Only add to blocked set if the blocker task is not done
+      if (task && task.status !== 'done' && !blocked.has(id)) {
+        blocked.add(id)
+        queue.push(id)
+      }
+    }
+  }
+
+  return Array.from(blocked)
+}
+
+/**
+ * Check if a task is blocked (directly or transitively)
+ */
+function isTaskBlocked(taskId: string): boolean {
+  const deps = dependenciesStore.get(taskId) || []
+
+  // Check direct dependencies
+  for (const depId of deps) {
+    const depTask = tasksMap.get(depId)
+    if (depTask && depTask.status !== 'done') {
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
  * MSW handlers for task dependency endpoints
  * - GET /api/tasks/:id/dependencies - Fetch task dependencies and blockers
  * - POST /api/tasks/:id/dependencies - Add a new dependency
  * - DELETE /api/tasks/:id/dependencies/:depId - Remove a dependency
  */
 export const dependencyHandlers = [
-  // Get task dependencies and blockers
+  // Get task dependencies and blockers with blocking status
   http.get('/api/tasks/:id/dependencies', ({ params }) => {
-    const { id } = params
+    const taskId = params.id
 
-    const task = tasksMap.get(id as string)
+    const task = tasksMap.get(taskId)
     if (!task) {
       return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    const dependencies = getDependencies(id as string)
-    const blockers = getBlockers(id as string)
+    const dependencies = getDependencies(taskId)
+    const blockers = getBlockers(taskId)
+    const isBlocked = isTaskBlocked(taskId)
+    const transitivelyBlockedTasks = getTransitiveBlockedTasks(taskId)
 
     return HttpResponse.json({
-      taskId: id,
+      taskId,
       dependencies,
       blockers,
+      isBlocked,
+      blockingStatus: {
+        isBlocked,
+        blockedDependencies: dependencies.map((d) => ({
+          id: d.id,
+          title: d.title,
+          status: d.status,
+        })),
+        transitivelyBlockedCount: transitivelyBlockedTasks.length,
+      },
     })
   }),
 
   // Add a new dependency
   http.post('/api/tasks/:id/dependencies', async ({ request, params }) => {
-    const { id } = params
-    const taskId = id as string
+    const taskId = params.id
 
     const task = tasksMap.get(taskId)
     if (!task) {
@@ -219,9 +284,8 @@ export const dependencyHandlers = [
 
   // Remove a dependency
   http.delete('/api/tasks/:id/dependencies/:depId', ({ params }) => {
-    const { id, depId } = params
-    const taskId = id as string
-    const depTaskId = depId as string
+    const taskId = params.id
+    const depTaskId = params.depId
 
     const task = tasksMap.get(taskId)
     if (!task) {
@@ -242,5 +306,51 @@ export const dependencyHandlers = [
     tasksMap.set(taskId, updatedTask)
 
     return HttpResponse.json(updatedTask)
+  }),
+
+  // Check blocking status and validate constraints
+  http.patch('/api/tasks/:id/blocking-status', async ({ request, params }) => {
+    const taskId = params.id
+
+    const task = tasksMap.get(taskId)
+    if (!task) {
+      return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+
+    try {
+      const body = (await request.json()) as {
+        intendedStatus?: string
+      }
+
+      // Validate that blocked tasks cannot be marked complete
+      if (body.intendedStatus === 'done' && isTaskBlocked(taskId)) {
+        return HttpResponse.json(
+          { error: 'Cannot complete a task that is blocked by incomplete dependencies' },
+          { status: 400 }
+        )
+      }
+
+      // Return current blocking status
+      const blockingResponse: BlockingStatusResponse = {
+        taskId,
+        isBlocked: isTaskBlocked(taskId),
+        blockedDependencies: getDependencies(taskId)
+          .filter((d) => d.status !== 'done')
+          .map((d) => ({ id: d.id, title: d.title })),
+        transitivelyBlockedCount: getTransitiveBlockedTasks(taskId).length,
+      }
+      return HttpResponse.json(blockingResponse)
+    } catch (error) {
+      if (error instanceof SyntaxError) {
+        return HttpResponse.json(
+          { error: 'Invalid JSON in request body' },
+          { status: 400 }
+        )
+      }
+      return HttpResponse.json(
+        { error: 'Failed to check blocking status' },
+        { status: 500 }
+      )
+    }
   }),
 ]
