@@ -849,6 +849,213 @@ export const notificationHandlers = [
       clearedCount,
     })
   }),
+
+  /**
+   * POST /api/notifications/actions/assign
+   * Quick-assign a task from a notification
+   * Body: { notificationId: string, agentId: string }
+   * Response: { success: boolean, notificationId: string, agentId: string, taskId: string, message: string }
+   */
+  http.post('/api/notifications/actions/assign', async ({ request }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 250))
+
+    const body = (await request.json()) as { notificationId: string; agentId: string }
+    const { notificationId, agentId } = body
+
+    const notifIndex = notificationsStore.findIndex((n) => n.id === notificationId)
+    if (notifIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 }
+      )
+    }
+
+    // Mark notification as read after successful assignment
+    notificationsStore[notifIndex] = {
+      ...notificationsStore[notifIndex],
+      read: true,
+    }
+
+    // Extract task ID from notification (simulated)
+    const notification = notificationsStore[notifIndex]
+    const taskId = notification.relatedId || `task-${notificationId}`
+
+    return HttpResponse.json({
+      success: true,
+      notificationId,
+      agentId,
+      taskId,
+      message: `Task assigned to agent ${agentId}`,
+    })
+  }),
+
+  /**
+   * POST /api/notifications/actions/snooze
+   * Snooze a notification for a duration
+   * Body: { notificationId: string, duration: '5m' | '15m' | '30m' | '1h' | '4h' | '1d' }
+   * Response: { success: boolean, notificationId: string, resumeAt: string, message: string }
+   */
+  http.post('/api/notifications/actions/snooze', async ({ request }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 200))
+
+    const body = (await request.json()) as { notificationId: string; duration: string }
+    const { notificationId, duration } = body
+
+    const notifIndex = notificationsStore.findIndex((n) => n.id === notificationId)
+    if (notifIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 }
+      )
+    }
+
+    // Calculate resume time based on duration
+    const durationMap: Record<string, number> = {
+      '5m': 5 * 60 * 1000,
+      '15m': 15 * 60 * 1000,
+      '30m': 30 * 60 * 1000,
+      '1h': 60 * 60 * 1000,
+      '4h': 4 * 60 * 60 * 1000,
+      '1d': 24 * 60 * 60 * 1000,
+    }
+
+    const durationMs = durationMap[duration] || 30 * 60 * 1000 // Default to 30m
+    const resumeAt = new Date(Date.now() + durationMs).toISOString()
+
+    // Remove from current view (will reappear after duration)
+    notificationsStore.splice(notifIndex, 1)
+
+    return HttpResponse.json({
+      success: true,
+      notificationId,
+      resumeAt,
+      message: `Notification snoozed until ${resumeAt}`,
+    })
+  }),
+
+  /**
+   * POST /api/notifications/actions/dismiss
+   * Dismiss a notification (remove without marking read)
+   * Body: { notificationId: string }
+   * Response: { success: boolean, notificationId: string, message: string }
+   */
+  http.post('/api/notifications/actions/dismiss', async ({ request }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 150))
+
+    const body = (await request.json()) as { notificationId: string }
+    const { notificationId } = body
+
+    const notifIndex = notificationsStore.findIndex((n) => n.id === notificationId)
+    if (notifIndex === -1) {
+      return HttpResponse.json(
+        { error: 'Notification not found' },
+        { status: 404 }
+      )
+    }
+
+    // Remove from store
+    notificationsStore.splice(notifIndex, 1)
+
+    return HttpResponse.json({
+      success: true,
+      notificationId,
+      message: 'Notification dismissed',
+    })
+  }),
+
+  /**
+   * POST /api/notifications/actions/batch
+   * Batch notification actions: assign, snooze, dismiss, mark-read
+   * Body: { ids: string[], action: 'assign' | 'snooze' | 'dismiss' | 'mark-read', payload?: { agentId?: string, duration?: string } }
+   * Response: { success: boolean, updated: number, failed: number, results: { id: string, success: boolean, error?: string }[] }
+   */
+  http.post('/api/notifications/actions/batch', async ({ request }) => {
+    // Simulate network delay
+    await new Promise((resolve) => setTimeout(resolve, 300))
+
+    const body = (await request.json()) as {
+      ids: string[]
+      action: 'assign' | 'snooze' | 'dismiss' | 'mark-read'
+      payload?: { agentId?: string; duration?: string }
+    }
+
+    const { ids, action, payload } = body
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return HttpResponse.json(
+        { error: 'Invalid request: ids array is required' },
+        { status: 400 }
+      )
+    }
+
+    const results: { id: string; success: boolean; error?: string }[] = []
+    let updated = 0
+    let failed = 0
+
+    for (const id of ids) {
+      const notifIndex = notificationsStore.findIndex((n) => n.id === id)
+
+      if (notifIndex === -1) {
+        results.push({ id, success: false, error: 'Notification not found' })
+        failed++
+        continue
+      }
+
+      switch (action) {
+        case 'mark-read':
+          notificationsStore[notifIndex] = {
+            ...notificationsStore[notifIndex],
+            read: true,
+          }
+          results.push({ id, success: true })
+          updated++
+          break
+
+        case 'assign':
+          // Assign to agent (requires agentId in payload)
+          if (!payload?.agentId) {
+            results.push({ id, success: false, error: 'agentId is required for assign action' })
+            failed++
+          } else {
+            notificationsStore[notifIndex] = {
+              ...notificationsStore[notifIndex],
+              read: true,
+            }
+            results.push({ id, success: true })
+            updated++
+          }
+          break
+
+        case 'snooze':
+          // Remove from view (snooze)
+          notificationsStore.splice(notifIndex, 1)
+          results.push({ id, success: true })
+          updated++
+          break
+
+        case 'dismiss':
+          // Remove from view (dismiss)
+          notificationsStore.splice(notifIndex, 1)
+          results.push({ id, success: true })
+          updated++
+          break
+
+        default:
+          results.push({ id, success: false, error: `Unknown action: ${action}` })
+          failed++
+      }
+    }
+
+    return HttpResponse.json({
+      success: failed === 0,
+      updated,
+      failed,
+      results,
+    })
+  }),
 ]
 
 /**
