@@ -72,17 +72,8 @@ export const errorsHandlers = [
     // Simulate different error scenarios
     switch (errorCode) {
       case 'NETWORK_ERROR':
-        return HttpResponse.json<ErrorResponse>(
-          {
-            error: {
-              code: 'NETWORK_ERROR',
-              message: message || 'Network connection failed',
-              context,
-              timestamp,
-            },
-          },
-          { status: 0 } // Simulates network failure
-        )
+        // Use HttpResponse.networkError() to properly simulate network failures
+        return HttpResponse.networkError('Network connection failed')
 
       case 'TIMEOUT':
         return HttpResponse.json<ErrorResponse>(

@@ -1,4 +1,4 @@
-import { useCallback, useContext, useRef, useState } from 'react'
+import { useCallback, useContext, useRef, useState, useReducer } from 'react'
 import { useToast } from './useToast'
 import { ErrorContext } from '../context/ErrorProvider'
 
@@ -19,13 +19,22 @@ export interface UseQueryErrorOptions {
 }
 
 /**
- * Error metadata for tracking
+ * Error state for tracking
  */
-interface ErrorMetadata {
+interface ErrorState {
   error: Error | null
   retryCount: number
   timestamp: number
 }
+
+/**
+ * Actions for error state reducer
+ */
+type ErrorAction =
+  | { type: 'SET_ERROR'; payload: { error: Error; timestamp: number } }
+  | { type: 'UPDATE_RETRY_COUNT'; payload: { error: Error; retryCount: number; timestamp: number } }
+  | { type: 'CLEAR_ERROR' }
+  | { type: 'RESET_RETRY_COUNT' }
 
 /**
  * Return type for useQueryError hook
@@ -81,7 +90,23 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
     context,
   } = options
 
-  const [errorMetadata, setErrorMetadata] = useState<ErrorMetadata>({
+  // Reducer to manage error state and avoid circular dependencies
+  const errorReducer = (state: ErrorState, action: ErrorAction): ErrorState => {
+    switch (action.type) {
+      case 'SET_ERROR':
+        return { error: action.payload.error, retryCount: 0, timestamp: action.payload.timestamp }
+      case 'UPDATE_RETRY_COUNT':
+        return { error: action.payload.error, retryCount: action.payload.retryCount, timestamp: action.payload.timestamp }
+      case 'RESET_RETRY_COUNT':
+        return { error: state.error, retryCount: 0, timestamp: state.timestamp }
+      case 'CLEAR_ERROR':
+        return { error: null, retryCount: 0, timestamp: 0 }
+      default:
+        return state
+    }
+  }
+
+  const [errorState, dispatchError] = useReducer(errorReducer, {
     error: null,
     retryCount: 0,
     timestamp: 0,
@@ -91,6 +116,7 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
 
   // Store retry function to allow manual retries
   const retryFnRef = useRef<(() => Promise<void>) | null>(null)
+  const retryCountRef = useRef<number>(0)
 
   const toast = useToast()
   const errorContext = useContext(ErrorContext)
@@ -104,13 +130,16 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
 
   /**
    * Handle retry logic with exponential backoff
+   * Note: This is a recursive function reference to avoid circular dependencies
    */
-  const handleRetry = useCallback(async () => {
+  const handleRetryRef = useRef<() => Promise<void>>(() => Promise.resolve())
+
+  const performRetry = useCallback(async () => {
     if (!retryFnRef.current) {
       return
     }
 
-    const nextRetryCount = errorMetadata.retryCount + 1
+    const nextRetryCount = retryCountRef.current + 1
     if (nextRetryCount > maxRetries) {
       return
     }
@@ -120,7 +149,7 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
     // Notify provider if available
     if (errorContext) {
       errorContext.registerError({
-        error: errorMetadata.error,
+        error: errorState.error,
         context,
         timestamp: Date.now(),
         isRetrying: true,
@@ -143,11 +172,8 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
       await retryFnRef.current()
 
       // Success - clear error
-      setErrorMetadata({
-        error: null,
-        retryCount: 0,
-        timestamp: 0,
-      })
+      dispatchError({ type: 'CLEAR_ERROR' })
+      retryCountRef.current = 0
 
       // Notify context of successful retry
       if (errorContext) {
@@ -161,11 +187,11 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
       // Update error and retry count
       const err = error instanceof Error ? error : new Error(String(error))
 
-      setErrorMetadata((prev) => ({
-        error: err,
-        retryCount: nextRetryCount,
-        timestamp: Date.now(),
-      }))
+      retryCountRef.current = nextRetryCount
+      dispatchError({
+        type: 'UPDATE_RETRY_COUNT',
+        payload: { error: err, retryCount: nextRetryCount, timestamp: Date.now() },
+      })
 
       // If we've exhausted retries, show final error
       if (nextRetryCount >= maxRetries) {
@@ -175,7 +201,7 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
             {
               action: {
                 label: 'Retry',
-                onClick: () => handleRetry(),
+                onClick: () => handleRetryRef.current(),
               },
             }
           )
@@ -196,8 +222,6 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
       setIsRetrying(false)
     }
   }, [
-    errorMetadata.error,
-    errorMetadata.retryCount,
     maxRetries,
     showNotification,
     showRetryNotification,
@@ -208,13 +232,17 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
     errorMessage,
   ])
 
+  // Store performRetry reference for recursion
+  handleRetryRef.current = performRetry
+
   /**
-   * Main error handler
+   * Main error handler - no longer depends on errorMetadata to avoid circular deps
    */
   const handleError = useCallback(
     async (error: Error | null, retryFn?: () => Promise<void>) => {
       if (!error) {
-        clearError()
+        dispatchError({ type: 'CLEAR_ERROR' })
+        retryFnRef.current = null
         return
       }
 
@@ -223,12 +251,9 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
         retryFnRef.current = retryFn
       }
 
-      // Update error state
-      setErrorMetadata({
-        error,
-        retryCount: 0,
-        timestamp: Date.now(),
-      })
+      // Update error state and reset retry count
+      retryCountRef.current = 0
+      dispatchError({ type: 'SET_ERROR', payload: { error, timestamp: Date.now() } })
 
       // Notify context
       if (errorContext) {
@@ -242,13 +267,13 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
 
       // Show initial error notification
       if (showNotification) {
-        const canRetry = retryFn !== undefined && errorMetadata.retryCount < maxRetries
+        const canRetry = retryFn !== undefined
 
         toast.error(errorMessage || error.message, {
           action: canRetry
             ? {
                 label: 'Retry',
-                onClick: () => handleRetry(),
+                onClick: () => handleRetryRef.current(),
               }
             : undefined,
         })
@@ -256,33 +281,20 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
 
       // Auto-retry if retry function is provided
       if (retryFn) {
-        // Use setImmediate to allow state to settle before retrying
+        // Use setTimeout to allow state to settle before retrying
         await new Promise((resolve) => setTimeout(resolve, 0))
-        await handleRetry()
+        await handleRetryRef.current()
       }
     },
-    [
-      errorMetadata.retryCount,
-      maxRetries,
-      showNotification,
-      handleRetry,
-      toast,
-      errorContext,
-      context,
-      errorMessage,
-    ]
+    [maxRetries, showNotification, toast, errorContext, context, errorMessage]
   )
 
   /**
    * Clear current error
    */
   const clearError = useCallback(() => {
-    setErrorMetadata({
-      error: null,
-      retryCount: 0,
-      timestamp: 0,
-    })
-
+    dispatchError({ type: 'CLEAR_ERROR' })
+    retryCountRef.current = 0
     retryFnRef.current = null
 
     if (errorContext) {
@@ -294,16 +306,14 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
    * Public retry method
    */
   const retry = useCallback(() => {
-    handleRetry()
-  }, [handleRetry])
+    handleRetryRef.current()
+  }, [])
 
   return {
-    error: errorMetadata.error,
+    error: errorState.error,
     isRetrying,
     retry,
     handleError,
     clearError,
   }
 }
-
-export type UseQueryErrorReturn_Type = ReturnType<typeof useQueryError>
