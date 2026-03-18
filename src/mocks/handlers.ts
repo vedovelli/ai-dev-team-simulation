@@ -48,6 +48,7 @@ import { eventsHandlers } from './handlers/events'
 import { retroHandlers } from './handlers/retro'
 import { sprintRetrospectiveHandlers } from './handlers/sprint-retrospective'
 import { realtimeHandlers } from './handlers/realtime'
+import { settingsHandlers } from './handlers/settings'
 import { websocketHandlers } from './handlers/websocket'
 import { errorsHandlers } from './handlers/errors'
 import { agentSchedulingHandlers } from './handlers/agent-scheduling'
@@ -2626,4 +2627,5 @@ export const paginatedHandlers = [
   ...websocketHandlers,
   ...errorsHandlers,
   ...agentSchedulingHandlers,
+  ...settingsHandlers,
 ]
