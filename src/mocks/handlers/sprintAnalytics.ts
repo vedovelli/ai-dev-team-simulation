@@ -47,6 +47,7 @@ function generateBurndownData(totalTasks: number, completedTasks: number, daysIn
 
 /**
  * Generate mock sprint health metrics with realistic data variance
+ * For historical sprint IDs, generates data with ±15% variance from base metrics
  */
 function generateSprintMetrics(sprintId: string): SprintHealthData {
   const sprintMap: Record<string, { name: string; totalTasks: number; completedTasks: number; inProgressTasks: number; daysIntoSprint: number }> = {
@@ -55,7 +56,18 @@ function generateSprintMetrics(sprintId: string): SprintHealthData {
     'sprint-3': { name: 'Sprint 3 - UI Polish & Performance', totalTasks: 3, completedTasks: 0, inProgressTasks: 1, daysIntoSprint: 0 },
   }
 
-  const sprintConfig = sprintMap[sprintId] || { name: 'Unknown Sprint', totalTasks: 10, completedTasks: 5, inProgressTasks: 2, daysIntoSprint: 5 }
+  let sprintConfig = sprintMap[sprintId] || { name: 'Unknown Sprint', totalTasks: 10, completedTasks: 5, inProgressTasks: 2, daysIntoSprint: 5 }
+
+  // For historical sprint IDs (e.g., comparing sprint-2 to sprint-1), apply ±15% variance
+  if (sprintId && !sprintMap[sprintId]) {
+    // Extract sprint number and apply variance based on it for deterministic but varied results
+    const variance = 0.85 + ((Math.abs(sprintId.charCodeAt(sprintId.length - 1)) % 30) / 100)
+    sprintConfig = {
+      ...sprintConfig,
+      completedTasks: Math.round(sprintConfig.completedTasks * variance),
+      totalTasks: Math.round(sprintConfig.totalTasks * (0.95 + (Math.abs(sprintId.charCodeAt(0)) % 10) / 100)),
+    }
+  }
 
   const startDate = new Date(2026, 1, 1 + (parseInt(sprintId.split('-')[1]) - 1) * 14)
   const endDate = new Date(startDate)
