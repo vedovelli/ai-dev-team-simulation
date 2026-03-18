@@ -11,6 +11,8 @@
 import { http, HttpResponse } from 'msw'
 import type { SprintHealthData } from '../../types/sprint'
 import type { WorkloadData } from '../../hooks/useAgentWorkload'
+import type { AgentTasksResponse } from '../../hooks/useAgentTasks'
+import type { Task } from '../../types/task'
 
 /**
  * Generate mock burndown data points for visualization
@@ -123,6 +125,97 @@ function generateSprintMetrics(sprintId: string): SprintHealthData {
 }
 
 /**
+ * Generate mock tasks for a specific agent
+ */
+function generateAgentTasks(agentId: string): Task[] {
+  const taskMap: Record<string, Task[]> = {
+    alice: [
+      {
+        id: 'task-1',
+        title: 'Implement authentication system',
+        assignee: 'alice',
+        team: 'Backend',
+        status: 'in-progress',
+        priority: 'high',
+        storyPoints: 8,
+        sprint: 'sprint-2',
+        order: 1,
+        estimatedHours: 16,
+        createdAt: '2026-03-01T10:00:00Z',
+        updatedAt: '2026-03-13T14:30:00Z',
+        version: 2,
+      },
+      {
+        id: 'task-2',
+        title: 'Write unit tests for auth module',
+        assignee: 'alice',
+        team: 'Backend',
+        status: 'done',
+        priority: 'medium',
+        storyPoints: 5,
+        sprint: 'sprint-2',
+        order: 2,
+        estimatedHours: 8,
+        createdAt: '2026-03-02T09:00:00Z',
+        updatedAt: '2026-03-12T16:45:00Z',
+        version: 1,
+      },
+      {
+        id: 'task-3',
+        title: 'Code review for database migration',
+        assignee: 'alice',
+        team: 'Backend',
+        status: 'backlog',
+        priority: 'high',
+        storyPoints: 3,
+        sprint: 'sprint-3',
+        order: 3,
+        estimatedHours: 4,
+        createdAt: '2026-03-10T11:00:00Z',
+        updatedAt: '2026-03-13T09:00:00Z',
+        version: 1,
+      },
+    ],
+    bob: [
+      {
+        id: 'task-4',
+        title: 'Build user profile page',
+        assignee: 'bob',
+        team: 'Frontend',
+        status: 'in-progress',
+        priority: 'high',
+        storyPoints: 8,
+        sprint: 'sprint-2',
+        order: 1,
+        estimatedHours: 12,
+        createdAt: '2026-03-03T10:00:00Z',
+        updatedAt: '2026-03-13T13:20:00Z',
+        version: 3,
+      },
+    ],
+    carol: [
+      {
+        id: 'task-5',
+        title: 'Fix critical performance issue',
+        assignee: 'carol',
+        team: 'Backend',
+        status: 'in-progress',
+        priority: 'high',
+        storyPoints: 13,
+        sprint: 'sprint-2',
+        order: 1,
+        estimatedHours: 20,
+        createdAt: '2026-03-05T08:30:00Z',
+        updatedAt: '2026-03-13T15:10:00Z',
+        version: 2,
+      },
+    ],
+  }
+
+  return taskMap[agentId] || []
+}
+
+/**
  * Generate mock agent workload data
  */
 function generateAgentWorkload(): WorkloadData[] {
@@ -182,8 +275,9 @@ export const sprintAnalyticsHandlers = [
   /**
    * GET /api/sprints/:id/metrics
    * Returns sprint health metrics and task completion data
+   * Includes 500-1000ms artificial latency simulating network delay
    */
-  http.get('/api/sprints/:id/metrics', ({ params }) => {
+  http.get('/api/sprints/:id/metrics', async ({ params }) => {
     const { id } = params
 
     if (!id) {
@@ -192,6 +286,9 @@ export const sprintAnalyticsHandlers = [
         { status: 400 }
       )
     }
+
+    // Simulate network latency (500-1000ms)
+    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500))
 
     return HttpResponse.json<SprintHealthData>(
       generateSprintMetrics(id as string),
@@ -241,5 +338,34 @@ export const sprintAnalyticsHandlers = [
     }
 
     return HttpResponse.json<WorkloadData>(agentWorkload, { status: 200 })
+  }),
+
+  /**
+   * GET /api/agents/:id/tasks
+   * Returns tasks assigned to a specific agent with real-time polling support
+   * Includes 500-1000ms artificial latency simulating network delay
+   */
+  http.get('/api/agents/:id/tasks', async ({ params }) => {
+    const { id } = params
+
+    if (!id) {
+      return HttpResponse.json(
+        { error: 'Agent ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Simulate network latency (500-1000ms)
+    await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 500))
+
+    const tasks = generateAgentTasks(id as string)
+
+    return HttpResponse.json<AgentTasksResponse>(
+      {
+        data: tasks,
+        totalCount: tasks.length,
+      },
+      { status: 200 }
+    )
   }),
 ]
