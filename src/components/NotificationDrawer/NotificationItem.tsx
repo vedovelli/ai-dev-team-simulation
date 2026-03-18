@@ -103,12 +103,10 @@ function getEventColor(type: Notification['type']): string {
  * Returns null if navigation is not available for this notification type
  */
 function getNavigationRoute(notification: Notification): { to: string } | null {
-  // Task-related notifications navigate to task
+  // Specific task navigation for task changes and deadlines
   if (
-    notification.type === 'task_assigned' ||
     notification.type === 'task_reassigned' ||
-    notification.eventType === 'task_reassigned' ||
-    notification.eventType === 'deadline_approaching'
+    notification.type === 'deadline_approaching'
   ) {
     const taskId = notification.metadata?.entityId || notification.relatedId
     if (taskId) {
@@ -119,8 +117,7 @@ function getNavigationRoute(notification: Notification): { to: string } | null {
   // Sprint-related notifications navigate to sprint
   if (
     notification.type === 'sprint_started' ||
-    notification.type === 'sprint_completed' ||
-    notification.eventType === 'sprint_updated'
+    notification.type === 'sprint_completed'
   ) {
     const sprintId = notification.metadata?.entityId || notification.relatedId
     if (sprintId) {
@@ -131,8 +128,7 @@ function getNavigationRoute(notification: Notification): { to: string } | null {
   // Assignment-related notifications navigate to kanban board
   if (
     notification.type === 'task_assigned' ||
-    notification.type === 'task_unassigned' ||
-    notification.eventType === 'assignment_changed'
+    notification.type === 'task_unassigned'
   ) {
     return { to: '/kanban' }
   }
