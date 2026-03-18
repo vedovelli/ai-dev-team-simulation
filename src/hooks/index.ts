@@ -202,3 +202,6 @@ export type { SprintComparisonResult, UseSprintComparisonOptions, UseSprintCompa
 export { useSettings, useUpdateSettings, useInvalidateSettings } from './queries/useSettings'
 export type { UseSettingsOptions, UseSettingsReturn } from './queries/useSettings'
 export type { SettingsSection } from '../types/settings'
+export { useOnboarding, onboardingQueryKeys } from './useOnboarding'
+export type { UseOnboardingOptions, UseOnboardingReturn } from './useOnboarding'
+export type { OnboardingStepId, OnboardingProgress, OnboardingStep } from '../types/onboarding'
