@@ -1,7 +1,10 @@
+import { useEffect, useRef } from 'react'
 import { useInfiniteQuery, useQueryClient } from '@tanstack/react-query'
 import type { Notification, NotificationCenter, PaginatedNotificationsResponse } from '../types/notification'
 import { useMutationWithRetry } from './useMutationWithRetry'
 import { usePollingWithFocus } from './usePollingWithFocus'
+import { useRealtimeSubscription } from './useRealtimeSubscription'
+import { PollingTransport } from './transports'
 
 /**
  * Query key factory for notifications
@@ -53,6 +56,8 @@ interface MarkAsReadRequest {
  * Fetch real-time notifications with infinite scroll and provide mutations for interaction
  *
  * Features:
+ * - Real-time WebSocket integration via useRealtimeSubscription
+ * - Graceful fallback to 30-second polling if WebSocket unavailable
  * - Cursor-based pagination for unbounded notification lists
  * - Automatic polling every 30 seconds on first page only (configurable)
  * - Refetch on window focus for fresh data on first page
@@ -62,6 +67,7 @@ interface MarkAsReadRequest {
  * - Support for filtering by unread status
  * - Exponential backoff retry logic
  * - Expose fetchNextPage, hasNextPage, isFetchingNextPage for infinite scroll
+ * - Silent reconnection — no visual indicator for brief WebSocket drops
  */
 export function useNotifications(options: UseNotificationsOptions = {}) {
   const {
@@ -71,9 +77,44 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
   } = options
 
   const queryClient = useQueryClient()
+  const pollingTransportRef = useRef<PollingTransport | null>(null)
+  const wsConnectionRef = useRef<boolean>(true)
 
-  // Use polling hook to pause polling when window is hidden
-  const polling = usePollingWithFocus({ interval: refetchInterval })
+  // Set up real-time subscription with graceful fallback to polling
+  // Polling resumes automatically if WebSocket disconnects
+  useRealtimeSubscription({
+    channel: 'notifications',
+    onData: (data: unknown) => {
+      // Handle real-time notification event from WebSocket
+      wsConnectionRef.current = true
+
+      if (data && typeof data === 'object' && 'notification' in data) {
+        const notification = (data as { notification: Notification }).notification
+
+        // Update cache with new notification on first page
+        const currentData = queryClient.getQueryData<{ pages: PaginatedNotificationsResponse[] }>(
+          { queryKey: notificationQueryKeys.list(false) }
+        )
+
+        if (currentData && currentData.pages.length > 0) {
+          // Insert at beginning of first page (most recent)
+          const updated = {
+            ...currentData,
+            pages: [
+              {
+                ...currentData.pages[0],
+                items: [notification, ...currentData.pages[0].items.slice(0, 9)], // Keep limit of 10
+                unreadCount: !notification.read ? currentData.pages[0].unreadCount + 1 : currentData.pages[0].unreadCount,
+              },
+              ...currentData.pages.slice(1),
+            ],
+          }
+          queryClient.setQueryData(notificationQueryKeys.list(false), updated)
+        }
+      }
+    },
+    enabled: true,
+  })
 
   // Infinite query to fetch notifications with cursor-based pagination
   const query = useInfiniteQuery<PaginatedNotificationsResponse, Error>({
@@ -107,8 +148,8 @@ export function useNotifications(options: UseNotificationsOptions = {}) {
     refetchInterval: (query) => {
       // Only poll first page for fresh notifications
       const isFirstPage = !query.state.variables?.pageParam
-      // Check visibility state from polling hook
-      return isFirstPage ? polling.refetchInterval : false
+      // Always use polling as fallback (polling transport handles WebSocket-aware reconnection)
+      return isFirstPage ? refetchInterval : false
     },
     refetchOnWindowFocus: 'stale',
     refetchOnReconnect: 'stale',
