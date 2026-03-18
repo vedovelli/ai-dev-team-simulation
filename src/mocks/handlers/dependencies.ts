@@ -130,28 +130,93 @@ function getBlockers(taskId: string): Task[] {
 }
 
 /**
+ * Compute transitive blocking: return all tasks that are blocked
+ * (directly or indirectly) by the given task being incomplete
+ */
+function getTransitiveBlockedTasks(taskId: string): string[] {
+  const blocked = new Set<string>()
+  const queue = [taskId]
+
+  while (queue.length > 0) {
+    const current = queue.shift()!
+    const blockedByThis = Array.from(dependenciesStore.entries()).filter(
+      ([_, deps]) => deps.includes(current)
+    )
+
+    for (const [id] of blockedByThis) {
+      const task = tasksMap.get(id)
+      // Only add to blocked set if the blocker task is not done
+      if (task && task.status !== 'done' && !blocked.has(id)) {
+        blocked.add(id)
+        queue.push(id)
+      }
+    }
+  }
+
+  return Array.from(blocked)
+}
+
+/**
+ * Check if a task is blocked (directly or transitively)
+ */
+function isTaskBlocked(taskId: string): boolean {
+  const deps = dependenciesStore.get(taskId) || []
+
+  // Check direct dependencies
+  for (const depId of deps) {
+    const depTask = tasksMap.get(depId)
+    if (depTask && depTask.status !== 'done') {
+      return true
+    }
+  }
+
+  // Check transitive blocking (if any dependency blocks others and those blockers are incomplete)
+  for (const depId of deps) {
+    const depTask = tasksMap.get(depId)
+    if (depTask && depTask.status !== 'done') {
+      // This dependency blocks us
+      return true
+    }
+  }
+
+  return false
+}
+
+/**
  * MSW handlers for task dependency endpoints
  * - GET /api/tasks/:id/dependencies - Fetch task dependencies and blockers
  * - POST /api/tasks/:id/dependencies - Add a new dependency
  * - DELETE /api/tasks/:id/dependencies/:depId - Remove a dependency
  */
 export const dependencyHandlers = [
-  // Get task dependencies and blockers
+  // Get task dependencies and blockers with blocking status
   http.get('/api/tasks/:id/dependencies', ({ params }) => {
-    const { id } = params
+    const { id } = params as { id: string }
 
-    const task = tasksMap.get(id as string)
+    const task = tasksMap.get(id)
     if (!task) {
       return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
     }
 
-    const dependencies = getDependencies(id as string)
-    const blockers = getBlockers(id as string)
+    const dependencies = getDependencies(id)
+    const blockers = getBlockers(id)
+    const isBlocked = isTaskBlocked(id)
+    const transitivelyBlockedTasks = getTransitiveBlockedTasks(id)
 
     return HttpResponse.json({
       taskId: id,
       dependencies,
       blockers,
+      isBlocked,
+      blockingStatus: {
+        isBlocked,
+        blockedDependencies: dependencies.map((d) => ({
+          id: d.id,
+          title: d.title,
+          status: d.status,
+        })),
+        transitivelyBlockedCount: transitivelyBlockedTasks.length,
+      },
     })
   }),
 
@@ -242,5 +307,45 @@ export const dependencyHandlers = [
     tasksMap.set(taskId, updatedTask)
 
     return HttpResponse.json(updatedTask)
+  }),
+
+  // Update blocking relationship status
+  http.patch('/api/tasks/:id/blocking-status', async ({ request, params }) => {
+    const { id } = params as { id: string }
+
+    const task = tasksMap.get(id)
+    if (!task) {
+      return HttpResponse.json({ error: 'Task not found' }, { status: 404 })
+    }
+
+    try {
+      const body = (await request.json()) as {
+        status?: 'blocked' | 'unblocked'
+        action?: 'unblock' | 'block'
+      }
+
+      // Validate that blocked tasks cannot be marked complete
+      if (isTaskBlocked(id) && task.status === 'done') {
+        return HttpResponse.json(
+          { error: 'Cannot complete a task that is blocked by incomplete dependencies' },
+          { status: 400 }
+        )
+      }
+
+      // Return current blocking status
+      return HttpResponse.json({
+        taskId: id,
+        isBlocked: isTaskBlocked(id),
+        blockedDependencies: getDependencies(id)
+          .filter((d) => d.status !== 'done')
+          .map((d) => ({ id: d.id, title: d.title })),
+        transitivelyBlockedCount: getTransitiveBlockedTasks(id).length,
+      })
+    } catch (error) {
+      return HttpResponse.json(
+        { error: 'Failed to update blocking status' },
+        { status: 500 }
+      )
+    }
   }),
 ]
