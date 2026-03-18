@@ -1,4 +1,9 @@
-import { TaskSearchResultCard } from './TaskSearchResultCard'
+import {
+  useReactTable,
+  getCoreRowModel,
+  ColumnDef,
+  flexRender,
+} from '@tanstack/react-table'
 import type { SearchTask } from '../../types/task-search'
 
 interface TaskSearchResultsProps {
@@ -7,10 +12,74 @@ interface TaskSearchResultsProps {
   isError: boolean
   error: Error | null
   onRetry?: () => void
-  onSelectTask?: (taskId: string) => void
-  totalResults?: number
-  currentPage?: number
+  currentPage: number
+  totalPages: number
+  totalResults: number
+  onPageChange: (page: number) => void
 }
+
+const defaultColumns: ColumnDef<SearchTask>[] = [
+  {
+    accessorKey: 'title',
+    header: 'Task',
+    cell: (info) => (
+      <div className="font-medium text-white">{info.getValue() as string}</div>
+    ),
+  },
+  {
+    accessorKey: 'sprint',
+    header: 'Sprint',
+    cell: (info) => (
+      <span className="text-slate-300 text-sm">{info.getValue() as string}</span>
+    ),
+  },
+  {
+    accessorKey: 'assignee',
+    header: 'Agent',
+    cell: (info) => (
+      <span className="text-slate-300 text-sm">{info.getValue() as string}</span>
+    ),
+  },
+  {
+    accessorKey: 'status',
+    header: 'Status',
+    cell: (info) => {
+      const status = info.getValue() as string
+      const statusColors: Record<string, string> = {
+        'in-progress': 'bg-yellow-900/30 text-yellow-200',
+        done: 'bg-green-900/30 text-green-200',
+        'in-review': 'bg-blue-900/30 text-blue-200',
+        backlog: 'bg-slate-700 text-slate-300',
+      }
+      return (
+        <span
+          className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+            statusColors[status] || 'bg-slate-700 text-slate-300'
+          }`}
+        >
+          {status}
+        </span>
+      )
+    },
+  },
+  {
+    accessorKey: 'priority',
+    header: 'Priority',
+    cell: (info) => {
+      const priority = info.getValue() as string
+      const priorityColors: Record<string, string> = {
+        high: 'text-red-400',
+        medium: 'text-yellow-400',
+        low: 'text-blue-400',
+      }
+      return (
+        <span className={`text-sm font-medium ${priorityColors[priority] || ''}`}>
+          {priority}
+        </span>
+      )
+    },
+  },
+]
 
 export function TaskSearchResults({
   results,
@@ -18,10 +87,18 @@ export function TaskSearchResults({
   isError,
   error,
   onRetry,
-  onSelectTask,
-  totalResults = 0,
-  currentPage = 1,
+  currentPage,
+  totalPages,
+  totalResults,
+  onPageChange,
 }: TaskSearchResultsProps) {
+  const table = useReactTable({
+    data: results,
+    columns: defaultColumns,
+    getCoreRowModel: getCoreRowModel(),
+    manualPagination: true,
+  })
+
   // Loading state with skeleton
   if (isLoading) {
     return (
@@ -105,26 +182,94 @@ export function TaskSearchResults({
     )
   }
 
-  // Results list
+  // Results table
   return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between px-1 mb-3">
+    <div className="space-y-4">
+      {/* Result count */}
+      <div className="flex items-center justify-between">
         <p className="text-sm text-slate-400">
-          {results.length === 1
-            ? '1 result'
-            : `${results.length} of ${totalResults} results`}
+          <strong>{totalResults}</strong> result{totalResults !== 1 ? 's' : ''} found
+        </p>
+        <p className="text-sm text-slate-500">
+          Page {currentPage} of {totalPages}
         </p>
       </div>
 
-      <div className="space-y-2 max-h-[calc(100vh-500px)] overflow-y-auto">
-        {results.map((task) => (
-          <TaskSearchResultCard
-            key={task.id}
-            task={task}
-            onSelect={onSelectTask}
-          />
-        ))}
+      {/* Table */}
+      <div className="overflow-x-auto rounded-lg border border-slate-700">
+        <table className="w-full text-sm">
+          <thead className="bg-slate-800 border-b border-slate-700">
+            {table.getHeaderGroups().map((headerGroup) => (
+              <tr key={headerGroup.id}>
+                {headerGroup.headers.map((header) => (
+                  <th
+                    key={header.id}
+                    className="px-6 py-3 text-left font-semibold text-slate-300"
+                  >
+                    {flexRender(
+                      header.column.columnDef.header,
+                      header.getContext()
+                    )}
+                  </th>
+                ))}
+              </tr>
+            ))}
+          </thead>
+          <tbody className="divide-y divide-slate-700">
+            {table.getRowModel().rows.map((row) => (
+              <tr
+                key={row.id}
+                className="hover:bg-slate-800/50 transition-colors"
+              >
+                {row.getVisibleCells().map((cell) => (
+                  <td key={cell.id} className="px-6 py-4">
+                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-center gap-2">
+          <button
+            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+            disabled={currentPage === 1}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Previous page"
+          >
+            Previous
+          </button>
+
+          {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+            <button
+              key={page}
+              onClick={() => onPageChange(page)}
+              className={`px-3 py-2 rounded text-sm transition-colors ${
+                page === currentPage
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-slate-800 border border-slate-700 text-white hover:bg-slate-700'
+              }`}
+              aria-label={`Go to page ${page}`}
+              aria-current={page === currentPage ? 'page' : undefined}
+            >
+              {page}
+            </button>
+          ))}
+
+          <button
+            onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))}
+            disabled={currentPage === totalPages}
+            className="px-3 py-2 bg-slate-800 border border-slate-700 rounded text-sm text-white hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            aria-label="Next page"
+          >
+            Next
+          </button>
+        </div>
+      )}
     </div>
   )
 }
