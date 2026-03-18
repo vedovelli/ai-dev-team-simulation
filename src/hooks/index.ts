@@ -195,3 +195,4 @@ export type {
   GlobalSearchEntityType,
   MatchedField,
 } from '../types/search'
+export type { SprintComparisonResult, UseSprintComparisonOptions, UseSprintComparisonReturn, TrendDirection, MetricDelta, SprintComparisonDeltas } from '../types/sprint-comparison'
