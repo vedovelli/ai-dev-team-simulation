@@ -32,6 +32,7 @@ import { agentPresenceHandlers } from './handlers/agentPresence'
 import { workloadHandlers } from './handlers/workload'
 import { activityHandlers } from './handlers/activity'
 import { agentAnalyticsHandlers } from './handlers/agentAnalytics'
+import { agentHealthAnalyticsHandlers } from './handlers/agent-health-analytics'
 import { agentPerformanceHandlers } from './handlers/agent-performance'
 import { templateHandlers } from './handlers/templates'
 import { analyticsHandlers } from './handlers/analytics'
@@ -2597,6 +2598,7 @@ export const paginatedHandlers = [
   ...workloadHandlers,
   ...activityHandlers,
   ...agentAnalyticsHandlers,
+  ...agentHealthAnalyticsHandlers,
   ...agentPerformanceHandlers,
   ...templateHandlers,
   ...analyticsHandlers,
