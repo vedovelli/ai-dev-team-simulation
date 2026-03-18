@@ -122,3 +122,13 @@ export type { UseSprintReorderReturn, ReorderPayload, ReorderResponse } from './
 export { useTaskList, taskListQueryKeys } from './useTaskList'
 export type { UseTaskListOptions, UseTaskListReturn } from './useTaskList'
 export type { TaskListFilters, PaginatedTasksResponse } from '../types/task'
+export { useAgentHealthAnalytics } from './useAgentHealthAnalytics'
+export type {
+  AgentAnalytics,
+  TeamAnalytics,
+  AgentAnalyticsResponse,
+  PerformanceTrendPoint,
+  AgentWorkload,
+  AgentPerformanceMetrics,
+  TeamWorkloadDistribution,
+} from '../types/agent-analytics'
