@@ -79,6 +79,10 @@ export type {
 } from './useTaskAssignment'
 export { useWorkloadAnalytics, useAgentWorkloadAnalytics } from './useWorkloadAnalytics'
 export type { WorkloadAnalytics, WorkloadAnalyticsFilters } from './useWorkloadAnalytics'
+export { useSprintMetrics } from './useSprintMetrics'
+export type { UseSprintMetricsOptions } from './useSprintMetrics'
+export { useAgentTasks } from './useAgentTasks'
+export type { UseAgentTasksOptions, AgentTasksResponse } from './useAgentTasks'
 export { useReassignTask } from './mutations/useReassignTask'
 export { useAdvancedTaskFilters } from './useAdvancedTaskFilters'
 export type {
