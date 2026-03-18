@@ -184,3 +184,12 @@ export { useAgentScheduling } from './useAgentScheduling'
 export type { UseAgentSchedulingReturn } from './useAgentScheduling'
 export { useSprintReport, useCompletionRateTrend, useVelocityTrend, useAgentPerformanceMetrics, useBurndownData } from './useSprintReport'
 export type { UseSprintReportResult } from './useSprintReport'
+export { useGlobalSearch, globalSearchQueryKeys } from './useGlobalSearch'
+export type { UseGlobalSearchReturn, UseGlobalSearchOptions } from '../types/search'
+export type {
+  GlobalSearchResult,
+  GlobalSearchResponse,
+  GlobalSearchFilters,
+  GlobalSearchEntityType,
+  MatchedField,
+} from '../types/search'
