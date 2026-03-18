@@ -76,6 +76,8 @@ function calculateMetrics(data: SprintHealthData): SprintMetricsCalculated {
  * - Handles missing/incomplete data gracefully
  * - Includes error handling and retry logic
  */
+export type SyncStatus = 'idle' | 'syncing' | 'stale'
+
 export interface UseSprintMetricsOptions {
   /** Refetch interval in milliseconds (default: 30000 = 30s) */
   refetchInterval?: number
@@ -113,8 +115,7 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
 
   const calculated = query.data ? calculateMetrics(query.data) : null
 
-  // Compute sync status from isFetching and isStale
-  type SyncStatus = 'idle' | 'syncing' | 'stale'
+  // Compute sync status from query state
   const syncStatus: SyncStatus = query.isFetching
     ? 'syncing'
     : query.isStale
@@ -124,8 +125,6 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
   return {
     ...query,
     metrics: calculated,
-    isFetching: query.isFetching,
-    isStale: query.isStale,
     syncStatus,
   }
 }

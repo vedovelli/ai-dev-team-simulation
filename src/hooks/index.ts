@@ -123,6 +123,8 @@ export { useNotificationListener, useNotificationListenerMultiple } from './useN
 export type { NotificationListenerCallback } from './useNotificationListener'
 export { usePollingWithFocus } from './usePollingWithFocus'
 export type { UsePollingWithFocusOptions, UsePollingWithFocusReturn } from './usePollingWithFocus'
+export { useSprintMetrics } from './useSprintMetrics'
+export type { SprintMetricsCalculated, UseSprintMetricsOptions, SyncStatus } from './useSprintMetrics'
 export { useSprintAnalytics } from './useSprintAnalytics'
 export type { UseSprintAnalyticsOptions, UseSprintAnalyticsReturn } from './useSprintAnalytics'
 export { useSprintLifecycle, parseTransitionError } from './mutations/useSprintLifecycle'
