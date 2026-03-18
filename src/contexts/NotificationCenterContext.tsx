@@ -196,14 +196,19 @@ export function NotificationCenterProvider({ children }: NotificationCenterProvi
  *
  * Must be used within NotificationCenterProvider
  */
-export function useNotificationCenter(): NotificationCenterContextValue {
+export function useNotificationCenterContext(): NotificationCenterContextValue {
   const context = useContext(NotificationCenterContext)
 
   if (!context) {
     throw new Error(
-      'useNotificationCenter must be used within NotificationCenterProvider'
+      'useNotificationCenterContext must be used within NotificationCenterProvider'
     )
   }
 
   return context
 }
+
+/**
+ * @deprecated Use useNotificationCenterContext instead
+ */
+export const useNotificationCenter = useNotificationCenterContext
