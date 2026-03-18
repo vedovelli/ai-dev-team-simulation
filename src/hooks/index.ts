@@ -39,10 +39,27 @@ export { useNotificationCenterDisplay } from './useNotificationCenterDisplay'
 export type { UseNotificationCenterDisplayOptions, UseNotificationCenterDisplayReturn } from './useNotificationCenterDisplay'
 export { useNotificationPreferences } from './useNotificationPreferences'
 export type { UseNotificationPreferencesOptions, UseNotificationPreferencesReturn } from './useNotificationPreferences'
+export { useNotificationActionMutations } from './useNotificationActionMutations'
+export type { UseNotificationActionMutationsReturn } from './useNotificationActionMutations'
 export { useNotificationCacheManager } from './useNotificationCacheManager'
 export { useAgentPerformance } from './useAgentPerformance'
 export type { UseAgentPerformanceOptions, UseAgentPerformanceReturn } from './useAgentPerformance'
-export type { Notification, NotificationCenter, NotificationEventType, NotificationFilter } from '../types/notification'
+export type {
+  Notification,
+  NotificationCenter,
+  NotificationEventType,
+  NotificationFilter,
+  SnoozeDuration,
+  NotificationActionType,
+  AssignFromNotificationRequest,
+  AssignFromNotificationResponse,
+  SnoozeNotificationRequest,
+  SnoozeNotificationResponse,
+  DismissNotificationActionRequest,
+  DismissNotificationActionResponse,
+  BatchNotificationActionsRequest,
+  BatchNotificationActionsResponse,
+} from '../types/notification'
 export type { NotificationPreferences, NotificationFrequency, NotificationChannel } from '../types/notification-preferences'
 export type { AgentPerformance } from '../types/agent-performance'
 export { useNotification } from './useNotification'

@@ -94,3 +94,92 @@ export interface NotificationCenter {
  * Filter options for NotificationCenter
  */
 export type NotificationFilter = 'all' | 'unread' | NotificationType
+
+/**
+ * Snooze duration options for notifications
+ */
+export type SnoozeDuration = '5m' | '15m' | '30m' | '1h' | '4h' | '1d'
+
+/**
+ * Notification action types for batch operations
+ */
+export type NotificationActionType = 'assign' | 'snooze' | 'dismiss' | 'mark-read'
+
+/**
+ * Request body for assign from notification
+ */
+export interface AssignFromNotificationRequest {
+  notificationId: string
+  agentId: string
+}
+
+/**
+ * Response for assign from notification
+ */
+export interface AssignFromNotificationResponse {
+  success: boolean
+  notificationId: string
+  agentId: string
+  taskId: string
+  message: string
+}
+
+/**
+ * Request body for snooze notification
+ */
+export interface SnoozeNotificationRequest {
+  notificationId: string
+  duration: SnoozeDuration
+}
+
+/**
+ * Response for snooze notification
+ */
+export interface SnoozeNotificationResponse {
+  success: boolean
+  notificationId: string
+  resumeAt: string
+  message: string
+}
+
+/**
+ * Request body for dismiss notification
+ */
+export interface DismissNotificationActionRequest {
+  notificationId: string
+}
+
+/**
+ * Response for dismiss notification
+ */
+export interface DismissNotificationActionResponse {
+  success: boolean
+  notificationId: string
+  message: string
+}
+
+/**
+ * Request body for batch notification actions
+ */
+export interface BatchNotificationActionsRequest {
+  ids: string[]
+  action: NotificationActionType
+  payload?: {
+    agentId?: string
+    duration?: SnoozeDuration
+  }
+}
+
+/**
+ * Response for batch notification actions
+ */
+export interface BatchNotificationActionsResponse {
+  success: boolean
+  updated: number
+  failed: number
+  results: {
+    id: string
+    success: boolean
+    error?: string
+  }[]
+}
