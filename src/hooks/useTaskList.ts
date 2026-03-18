@@ -36,13 +36,24 @@ export interface UseTaskListOptions {
  * - Stale time: 30s, gc time: 5min
  * - Full TypeScript type safety
  *
+ * IMPORTANT: Since filters are included in the query key as an object reference,
+ * parent components MUST memoize the filters object to avoid unnecessary refetches.
+ * If you create a new filter object on every render, TanStack Query will treat it
+ * as a different filter set and trigger a refetch.
+ *
  * @param options - Hook configuration
+ * @param options.pageSize - Items per page (default: 20)
+ * @param options.filters - **MUST BE MEMOIZED** with useMemo() to prevent refetch loops
  * @returns Infinite query object with flattened tasks and computed values
  *
  * @example
+ * const filters = useMemo(
+ *   () => ({ status: 'in-progress', priority: 'high' }),
+ *   [] // memoize the object
+ * )
  * const { data, fetchNextPage, hasNextPage, isFetchingNextPage } = useTaskList({
  *   pageSize: 20,
- *   filters: { status: 'in-progress', priority: 'high' }
+ *   filters
  * })
  *
  * @see docs/guides/tanstack-query.md for detailed infinite query patterns
@@ -102,8 +113,18 @@ export function useTaskList(options: UseTaskListOptions = {}) {
   })
 
   /**
-   * Manually invalidate the task list cache
-   * Useful when filter changes need immediate refresh
+   * Manually invalidate the task list cache for the CURRENT filter set
+   *
+   * This invalidates only the cache associated with the filters passed to this hook instance.
+   * Other filter combinations remain untouched and won't trigger refetches. This prevents
+   * unnecessary data fetches for queries the user isn't viewing.
+   *
+   * Useful when:
+   * - A mutation completes and you want immediate UI refresh without waiting for stale time
+   * - You need to force a refetch after user action that should show fresh data
+   *
+   * @note Only affects the current filter set. Switching filters automatically resets pagination
+   * via the query key change, so manual invalidation is usually not needed on filter changes.
    */
   const invalidateTaskList = () => {
     queryClient.invalidateQueries({
