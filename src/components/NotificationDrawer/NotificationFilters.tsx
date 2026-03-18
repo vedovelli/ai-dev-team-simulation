@@ -1,29 +1,40 @@
-import type { NotificationEventType } from '../../types/notification'
+import type { Notification, NotificationType } from '../../types/notification'
+import { NOTIFICATION_TYPE_LABELS } from '../../hooks/useNotificationCenter'
 
-export type NotificationDrawerFilter = 'all' | NotificationEventType
+export type NotificationDrawerFilter = 'all' | NotificationType
 
 interface NotificationDrawerFiltersProps {
   selectedFilter: NotificationDrawerFilter
   onFilterChange: (filter: NotificationDrawerFilter) => void
+  groupedByType: Map<string, Notification[]>
 }
 
 /**
  * Simplified filter controls for NotificationDrawer
  *
  * Features:
- * - Filter by notification type
+ * - Filter by notification type (dynamically derived from available notifications)
  * - Responsive design with horizontal scroll on mobile
  */
 export function NotificationDrawerFilters({
   selectedFilter,
   onFilterChange,
+  groupedByType,
 }: NotificationDrawerFiltersProps) {
-  const filterOptions: { label: string; value: NotificationDrawerFilter }[] = [
-    { label: 'All', value: 'all' },
-    { label: 'Assignments', value: 'assignment_changed' },
-    { label: 'Sprints', value: 'sprint_updated' },
-    { label: 'Tasks', value: 'task_reassigned' },
-    { label: 'Deadlines', value: 'deadline_approaching' },
+  // Dynamically build filter options from available notification groups
+  const filterOptions = [
+    { label: 'All', value: 'all' as const },
+    ...Array.from(groupedByType.keys()).map((label) => {
+      // Find the notification type that maps to this label
+      const type = Object.entries(NOTIFICATION_TYPE_LABELS).find(
+        ([, mappedLabel]) => mappedLabel === label
+      )?.[0] as NotificationType | undefined
+
+      return {
+        label,
+        value: type || label,
+      }
+    }),
   ]
 
   return (
