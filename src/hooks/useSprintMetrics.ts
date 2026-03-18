@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { SprintHealthData } from '../types/sprint'
 import { usePollingWithFocus } from './usePollingWithFocus'
 
@@ -85,7 +85,13 @@ export interface UseSprintMetricsOptions {
   refetchOnWindowFocus?: boolean
 }
 
-export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOptions = {}) {
+export interface UseSprintMetricsReturn extends Omit<UseQueryResult<SprintHealthData, Error>, 'data'> {
+  data: SprintHealthData | null
+  metrics: SprintMetricsCalculated | null
+  syncStatus: SyncStatus
+}
+
+export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOptions = {}): UseSprintMetricsReturn {
   const {
     refetchInterval = 30 * 1000, // 30 seconds
     refetchOnWindowFocus = true,

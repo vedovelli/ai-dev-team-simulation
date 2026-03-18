@@ -11,8 +11,8 @@ interface SyncStatusBadgeProps {
  */
 export function SyncStatusBadge({ status }: SyncStatusBadgeProps) {
   if (status === 'idle') {
-    // Invisible placeholder to prevent layout shift
-    return <div className="h-6 w-24" aria-hidden="true" />
+    // Use visibility: hidden to preserve space while preventing layout shift
+    return <div className="h-6 invisible" aria-hidden="true" />
   }
 
   if (status === 'syncing') {
