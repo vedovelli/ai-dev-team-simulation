@@ -14,6 +14,8 @@ export interface UseQueryErrorOptions {
   showNotification?: boolean
   /** Whether to show toast on retry attempts (default: true) */
   showRetryNotification?: boolean
+  /** Whether to auto-retry when retryFn is provided to handleError (default: false) */
+  autoRetry?: boolean
   /** Context identifier for tracking errors (e.g., 'notifications', 'taskAssignment') */
   context?: string
 }
@@ -87,6 +89,7 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
     errorMessage,
     showNotification = true,
     showRetryNotification = true,
+    autoRetry = false,
     context,
   } = options
 
@@ -199,10 +202,12 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
           toast.error(
             errorMessage || `Operation failed after ${maxRetries} retry attempts`,
             {
-              action: {
-                label: 'Retry',
-                onClick: () => handleRetryRef.current(),
-              },
+              action: retryFnRef.current
+                ? {
+                    label: 'Retry',
+                    onClick: () => handleRetryRef.current(),
+                  }
+                : undefined,
             }
           )
         }
@@ -265,8 +270,9 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
         })
       }
 
-      // Show initial error notification
-      if (showNotification) {
+      // Only show error notification if we're not auto-retrying
+      // When autoRetry is true, we'll show a retry notification instead
+      if (showNotification && !autoRetry) {
         const canRetry = retryFn !== undefined
 
         toast.error(errorMessage || error.message, {
@@ -279,14 +285,14 @@ export function useQueryError(options: UseQueryErrorOptions = {}): UseQueryError
         })
       }
 
-      // Auto-retry if retry function is provided
-      if (retryFn) {
+      // Auto-retry if retry function is provided and autoRetry is enabled
+      if (retryFn && autoRetry) {
         // Use setTimeout to allow state to settle before retrying
         await new Promise((resolve) => setTimeout(resolve, 0))
         await handleRetryRef.current()
       }
     },
-    [maxRetries, showNotification, toast, errorContext, context, errorMessage]
+    [maxRetries, showNotification, autoRetry, toast, errorContext, context, errorMessage]
   )
 
   /**
