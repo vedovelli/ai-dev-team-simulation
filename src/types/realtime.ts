@@ -126,7 +126,7 @@ export type RealtimeEvent =
  * Maps event types to query keys that should be invalidated
  */
 export interface EventRouterConfig {
-  [key in RealtimeEvent['type']]?: (string | number)[]
+  [key in RealtimeEvent['type']]?: (string | number | Record<string, any>)[]
 }
 
 /**

@@ -96,9 +96,10 @@ export function useRealtimeConnection(
 
   const queryClient = useQueryClient()
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const heartbeatTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pollingIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const heartbeatTimeoutRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const abortControllerRef = useRef<AbortController | null>(null)
   const reconnectAttemptsRef = useRef(0)
   const reconnectDelayRef = useRef(initialReconnectDelay)
 
@@ -154,6 +155,14 @@ export function useRealtimeConnection(
       }
     }
   }, [log])
+
+  // Handle WebSocket message event
+  const handleMessageEvent = useCallback(
+    (event: MessageEvent) => {
+      handleMessage(event.data)
+    },
+    [handleMessage]
+  )
 
   // Setup heartbeat interval
   const setupHeartbeat = useCallback(() => {
@@ -248,7 +257,7 @@ export function useRealtimeConnection(
       const ws = new WebSocket(url)
 
       ws.addEventListener('open', handleOpen)
-      ws.addEventListener('message', (e) => handleMessage(e.data))
+      ws.addEventListener('message', handleMessageEvent)
       ws.addEventListener('error', handleError)
       ws.addEventListener('close', handleClose)
 
@@ -257,7 +266,7 @@ export function useRealtimeConnection(
       const error = err instanceof Error ? err : new Error('Failed to connect')
       handleError(error)
     }
-  }, [wsUrl, handleOpen, handleMessage, handleError, handleClose, log, onStateChange])
+  }, [wsUrl, handleOpen, handleMessageEvent, handleError, handleClose, log, onStateChange])
 
   // Polling fallback implementation
   const startPollingFallback = useCallback(() => {
@@ -265,10 +274,16 @@ export function useRealtimeConnection(
       clearInterval(pollingIntervalRef.current)
     }
 
+    // Abort previous polling requests if any
+    abortControllerRef.current?.abort()
+
     pollingIntervalRef.current = setInterval(async () => {
       try {
         const url = wsUrl || `${window.location.protocol}//${window.location.host}/api/realtime/events`
-        const response = await fetch(url)
+        const abortController = new AbortController()
+        abortControllerRef.current = abortController
+
+        const response = await fetch(url, { signal: abortController.signal })
 
         if (!response.ok) {
           throw new Error(`Failed to fetch events: ${response.statusText}`)
@@ -278,7 +293,10 @@ export function useRealtimeConnection(
         events.forEach((event) => routeEvent(event))
         log(`Polled and processed ${events.length} events`)
       } catch (err) {
-        console.error('[RealtimeConnection] Polling error:', err)
+        // Ignore abort errors (expected when unmounting)
+        if (err instanceof Error && err.name !== 'AbortError') {
+          console.error('[RealtimeConnection] Polling error:', err)
+        }
       }
     }, pollingInterval)
 
@@ -303,10 +321,14 @@ export function useRealtimeConnection(
       clearTimeout(heartbeatTimeoutRef.current)
     }
 
+    // Abort any in-flight polling requests
+    abortControllerRef.current?.abort()
+
     if (wsRef.current) {
       wsRef.current.removeEventListener('open', handleOpen)
       wsRef.current.removeEventListener('error', handleError)
       wsRef.current.removeEventListener('close', handleClose)
+      wsRef.current.removeEventListener('message', handleMessageEvent)
 
       if (wsRef.current.readyState === WebSocket.OPEN) {
         wsRef.current.close()
@@ -315,7 +337,7 @@ export function useRealtimeConnection(
     }
 
     setIsPollingFallback(false)
-  }, [log, handleOpen, handleError, handleClose, onStateChange])
+  }, [log, handleOpen, handleError, handleClose, handleMessageEvent, onStateChange])
 
   // Reconnect: disconnect and connect again
   const reconnect = useCallback(() => {
