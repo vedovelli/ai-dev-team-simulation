@@ -133,7 +133,7 @@ export type { NotificationEvent, UseNotificationEventsReturn } from './useNotifi
 export { useBulkNotificationOps } from './mutations/useBulkNotificationOps'
 export type { UseBulkNotificationOpsReturn } from './mutations/useBulkNotificationOps'
 export { useTaskFilters } from './useTaskFilters'
-export type { TaskFilters } from './useTaskFilters'
+export type { TaskFilters, UseTaskFiltersReturn } from './useTaskFilters'
 export { useSprintReorder } from './useSprintReorder'
 export type { UseSprintReorderReturn, ReorderPayload, ReorderResponse } from './useSprintReorder'
 export { useTaskList, taskListQueryKeys } from './useTaskList'
