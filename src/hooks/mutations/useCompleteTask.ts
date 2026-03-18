@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { Task } from '../../types/task'
 import { useMutationWithRetry } from '../useMutationWithRetry'
+import { agentActivityQueryKeys } from '../useAgentActivity'
 
 export function useCompleteTask() {
   const queryClient = useQueryClient()
@@ -56,6 +57,7 @@ export function useCompleteTask() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
       queryClient.invalidateQueries({ queryKey: ['sprints'] })
+      queryClient.invalidateQueries({ queryKey: agentActivityQueryKeys.all })
     },
   })
 }

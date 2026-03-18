@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import type { Task } from '../../types/task'
 import { useMutationWithRetry } from '../useMutationWithRetry'
+import { agentActivityQueryKeys } from '../useAgentActivity'
 
 interface ReassignTaskPayload {
   taskId: string
@@ -113,6 +114,7 @@ export function useReassignTask() {
       // Invalidate queries to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['agents', 'workload'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: agentActivityQueryKeys.all })
     },
   })
 }

@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Task } from '../../types/task'
 import type { TaskAssignmentInput } from '../../types/forms/taskAssignment'
 import { useMutationWithRetry } from '../useMutationWithRetry'
+import { agentActivityQueryKeys } from '../useAgentActivity'
 
 interface AssignTaskPayload {
   taskId: string
@@ -81,6 +82,7 @@ export function useAssignTask() {
       // Invalidate sprint tasks query to ensure consistency
       queryClient.invalidateQueries({ queryKey: ['sprints'] })
       queryClient.invalidateQueries({ queryKey: ['tasks'] })
+      queryClient.invalidateQueries({ queryKey: agentActivityQueryKeys.all })
     },
   })
 }
