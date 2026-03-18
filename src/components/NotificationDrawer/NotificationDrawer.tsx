@@ -1,6 +1,8 @@
-import { useRef, useEffect } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { useNotificationCenter } from '../../hooks/useNotificationCenter'
 import { NotificationGroup } from './NotificationGroup'
+import { NotificationDrawerFilters, type NotificationDrawerFilter } from './NotificationFilters'
+import type { NotificationEventType } from '../../types/notification'
 
 export interface NotificationDrawerProps {
   isOpen: boolean
@@ -25,6 +27,7 @@ export interface NotificationDrawerProps {
 export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps) {
   const drawerRef = useRef<HTMLDivElement>(null)
   const closeButtonRef = useRef<HTMLButtonElement>(null)
+  const [activeFilter, setActiveFilter] = useState<NotificationDrawerFilter>('all')
 
   const {
     notifications,
@@ -35,6 +38,32 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
     markAsRead,
     markAllAsRead,
   } = useNotificationCenter()
+
+  /**
+   * Filter notifications by selected type
+   */
+  const filteredGroupedByType = useMemo(() => {
+    if (activeFilter === 'all') {
+      return groupedByType
+    }
+
+    const filtered = new Map<string, typeof notifications>()
+    const typeLabels: Record<string, string> = {
+      assignment_changed: 'Assignments',
+      sprint_updated: 'Sprints',
+      task_reassigned: 'Task Changes',
+      deadline_approaching: 'Deadlines',
+    }
+
+    const label = typeLabels[activeFilter] || activeFilter
+    const group = groupedByType.get(label)
+
+    if (group) {
+      filtered.set(label, group)
+    }
+
+    return filtered
+  }, [groupedByType, activeFilter])
 
   // Handle keyboard navigation and focus trap
   useEffect(() => {
@@ -160,6 +189,14 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
           </button>
         </div>
 
+        {/* Filter Bar */}
+        {notifications.length > 0 && (
+          <NotificationDrawerFilters
+            selectedFilter={activeFilter}
+            onFilterChange={setActiveFilter}
+          />
+        )}
+
         {/* Action Bar */}
         {notifications.length > 0 && unreadCount > 0 && (
           <div className="border-b border-gray-200 px-4 py-3">
@@ -244,7 +281,7 @@ export function NotificationDrawer({ isOpen, onClose }: NotificationDrawerProps)
           {/* Grouped Notifications */}
           {!isLoading && !error && notifications.length > 0 && (
             <div>
-              {Array.from(groupedByType.entries()).map(([groupTitle, groupNotifications]) => (
+              {Array.from(filteredGroupedByType.entries()).map(([groupTitle, groupNotifications]) => (
                 <NotificationGroup
                   key={groupTitle}
                   title={groupTitle}

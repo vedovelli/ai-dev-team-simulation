@@ -1,5 +1,6 @@
 import type { Notification } from '../../types/notification'
 import { getRelativeTime } from '../../lib/utils'
+import { useNavigate } from '@tanstack/react-router'
 
 interface NotificationItemProps {
   notification: Notification
@@ -97,28 +98,87 @@ function getEventColor(type: Notification['type']): string {
   }
 }
 
+/**
+ * Get navigation route based on notification type and metadata
+ * Returns null if navigation is not available for this notification type
+ */
+function getNavigationRoute(notification: Notification): { to: string } | null {
+  // Task-related notifications navigate to task
+  if (
+    notification.type === 'task_assigned' ||
+    notification.type === 'task_reassigned' ||
+    notification.eventType === 'task_reassigned' ||
+    notification.eventType === 'deadline_approaching'
+  ) {
+    const taskId = notification.metadata?.entityId || notification.relatedId
+    if (taskId) {
+      return { to: `/tasks/${taskId}` }
+    }
+  }
+
+  // Sprint-related notifications navigate to sprint
+  if (
+    notification.type === 'sprint_started' ||
+    notification.type === 'sprint_completed' ||
+    notification.eventType === 'sprint_updated'
+  ) {
+    const sprintId = notification.metadata?.entityId || notification.relatedId
+    if (sprintId) {
+      return { to: `/dashboard/sprints/${sprintId}` }
+    }
+  }
+
+  // Assignment-related notifications navigate to kanban board
+  if (
+    notification.type === 'task_assigned' ||
+    notification.type === 'task_unassigned' ||
+    notification.eventType === 'assignment_changed'
+  ) {
+    return { to: '/kanban' }
+  }
+
+  return null
+}
+
 export function NotificationItem({
   notification,
   onMarkAsRead,
 }: NotificationItemProps) {
+  const navigate = useNavigate()
+
   const handleMarkAsRead = () => {
     if (!notification.read) {
       onMarkAsRead(notification.id)
     }
   }
 
+  const handleNavigate = () => {
+    handleMarkAsRead()
+    const route = getNavigationRoute(notification)
+    if (route) {
+      navigate(route)
+    }
+  }
+
+  const route = getNavigationRoute(notification)
+  const isNavigable = route !== null
+
   return (
     <div
-      className={`px-4 py-3 hover:bg-gray-50 transition-colors cursor-pointer border-b border-gray-100 last:border-b-0 ${
+      className={`px-4 py-3 hover:bg-gray-50 transition-colors ${isNavigable ? 'cursor-pointer' : ''} border-b border-gray-100 last:border-b-0 ${
         !notification.read ? 'bg-blue-50' : ''
       }`}
       role="menuitem"
-      tabIndex={0}
-      onClick={handleMarkAsRead}
+      tabIndex={isNavigable ? 0 : -1}
+      onClick={isNavigable ? handleNavigate : handleMarkAsRead}
       onKeyDown={(e) => {
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault()
-          handleMarkAsRead()
+          if (isNavigable) {
+            handleNavigate()
+          } else {
+            handleMarkAsRead()
+          }
         }
       }}
     >
