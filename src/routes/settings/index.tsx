@@ -1,6 +1,14 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { SettingsPage } from '../../pages/settings/SettingsPage'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { SettingsLayout } from '../../components/SettingsLayout/SettingsLayout'
 
 export const Route = createFileRoute('/settings/')({
-  component: SettingsPage,
+  component: SettingsLayoutRoute,
 })
+
+function SettingsLayoutRoute() {
+  return (
+    <SettingsLayout>
+      <Outlet />
+    </SettingsLayout>
+  )
+}
