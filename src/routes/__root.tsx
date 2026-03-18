@@ -8,6 +8,7 @@ import { AppNotificationCenter } from '../components/AppNotificationCenter'
 import { Sidebar } from '../components/Sidebar'
 import { RouteErrorBoundary, NotFoundError } from '../components/RouteErrorBoundary'
 import { PermissionProvider } from '../contexts/PermissionContext'
+import { TaskSearchBar } from '../components/TaskSearch'
 
 interface RouterContext {
   queryClient: QueryClient
@@ -92,6 +93,7 @@ function NavbarContent() {
               >
                 Settings
               </Link>
+              <TaskSearchBar />
             </div>
           </div>
           <div className="flex items-center gap-4">
