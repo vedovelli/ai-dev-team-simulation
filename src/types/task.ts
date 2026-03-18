@@ -53,3 +53,28 @@ export interface TaskComment {
   createdAt: string
   updatedAt: string
 }
+
+/**
+ * Filter parameters for infinite scroll task list
+ * All parameters are optional and combined with AND logic across dimensions, OR within dimensions
+ */
+export interface TaskListFilters {
+  priority?: TaskPriority | TaskPriority[] | null
+  status?: TaskStatus | TaskStatus[] | null
+  agent?: string | string[] | null
+  sprint?: string | string[] | null
+  assignee?: string | string[] | null
+  dateRangeStart?: string | null
+  dateRangeEnd?: string | null
+}
+
+/**
+ * Response format for infinite scroll pagination with cursor support
+ */
+export interface PaginatedTasksResponse {
+  data: Task[]
+  totalCount: number
+  nextCursor?: number | null
+  hasNextPage: boolean
+  pageSize: number
+}
