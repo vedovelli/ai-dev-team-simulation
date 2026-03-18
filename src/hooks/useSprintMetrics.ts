@@ -113,8 +113,19 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
 
   const calculated = query.data ? calculateMetrics(query.data) : null
 
+  // Compute sync status from isFetching and isStale
+  type SyncStatus = 'idle' | 'syncing' | 'stale'
+  const syncStatus: SyncStatus = query.isFetching
+    ? 'syncing'
+    : query.isStale
+      ? 'stale'
+      : 'idle'
+
   return {
     ...query,
     metrics: calculated,
+    isFetching: query.isFetching,
+    isStale: query.isStale,
+    syncStatus,
   }
 }
