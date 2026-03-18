@@ -42,6 +42,8 @@ export type { UseNotificationPreferencesOptions, UseNotificationPreferencesRetur
 export { useNotificationActionMutations } from './useNotificationActionMutations'
 export type { UseNotificationActionMutationsReturn } from './useNotificationActionMutations'
 export { useNotificationCacheManager } from './useNotificationCacheManager'
+export { useGroupedNotifications } from './useGroupedNotifications'
+export type { UseGroupedNotificationsReturn } from './useGroupedNotifications'
 export { useAgentPerformance } from './useAgentPerformance'
 export type { UseAgentPerformanceOptions, UseAgentPerformanceReturn } from './useAgentPerformance'
 export type {
