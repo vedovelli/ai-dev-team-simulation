@@ -1,4 +1,4 @@
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, type UseQueryResult } from '@tanstack/react-query'
 import type { SprintHealthData } from '../types/sprint'
 import { usePollingWithFocus } from './usePollingWithFocus'
 
@@ -76,6 +76,8 @@ function calculateMetrics(data: SprintHealthData): SprintMetricsCalculated {
  * - Handles missing/incomplete data gracefully
  * - Includes error handling and retry logic
  */
+export type SyncStatus = 'idle' | 'syncing' | 'stale'
+
 export interface UseSprintMetricsOptions {
   /** Refetch interval in milliseconds (default: 30000 = 30s) */
   refetchInterval?: number
@@ -83,7 +85,13 @@ export interface UseSprintMetricsOptions {
   refetchOnWindowFocus?: boolean
 }
 
-export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOptions = {}) {
+export interface UseSprintMetricsReturn extends Omit<UseQueryResult<SprintHealthData, Error>, 'data'> {
+  data: SprintHealthData | null
+  metrics: SprintMetricsCalculated | null
+  syncStatus: SyncStatus
+}
+
+export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOptions = {}): UseSprintMetricsReturn {
   const {
     refetchInterval = 30 * 1000, // 30 seconds
     refetchOnWindowFocus = true,
@@ -113,8 +121,7 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
 
   const calculated = query.data ? calculateMetrics(query.data) : null
 
-  // Compute sync status from isFetching and isStale
-  type SyncStatus = 'idle' | 'syncing' | 'stale'
+  // Compute sync status from query state
   const syncStatus: SyncStatus = query.isFetching
     ? 'syncing'
     : query.isStale
@@ -124,8 +131,6 @@ export function useSprintMetrics(sprintId: string, options: UseSprintMetricsOpti
   return {
     ...query,
     metrics: calculated,
-    isFetching: query.isFetching,
-    isStale: query.isStale,
     syncStatus,
   }
 }

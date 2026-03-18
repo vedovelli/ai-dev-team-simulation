@@ -12,6 +12,7 @@ import { SprintMetricsPanel } from './SprintMetricsPanel'
 import { AgentWorkloadChart } from './AgentWorkloadChart'
 import { SprintProgressBar } from '../StatusIndicators'
 import { AgentCardList } from '../AgentPerformanceCard'
+import { SyncStatusBadge } from '../SyncStatusBadge'
 
 interface SprintDashboardProps {
   sprintId?: string
@@ -31,7 +32,7 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
   const [retryCapacity, setRetryCapacity] = useState(false)
 
   const { data, isLoading, error } = useSprint(selectedSprintId || '')
-  const { data: metricsData, isLoading: metricsLoading, error: metricsError } = useSprintMetrics(selectedSprintId || '')
+  const { data: metricsData, isLoading: metricsLoading, error: metricsError, syncStatus } = useSprintMetrics(selectedSprintId || '')
   const { data: workloadList, isLoading: workloadLoading, error: workloadError } = useAgentWorkloadList(
     metricsData?.agentWorkload?.map((w) => w.agent) || []
   )
@@ -129,7 +130,10 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-3xl font-bold mb-2">Sprint Dashboard</h1>
+        <div className="flex items-center justify-between mb-2">
+          <h1 className="text-3xl font-bold">Sprint Dashboard</h1>
+          {selectedSprintId && <SyncStatusBadge status={syncStatus} />}
+        </div>
         <p className="text-slate-400">Manage and monitor sprint progress in real-time</p>
       </div>
 
