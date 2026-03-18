@@ -3,6 +3,9 @@ import type { Task } from '../../types/task'
 import { TaskEditForm } from './TaskEditForm'
 import { TaskHistoryTimeline } from './TaskHistoryTimeline'
 import { TaskCommentThread } from './TaskCommentThread'
+import { BlockingStatusBadge } from '../BlockingStatusBadge/BlockingStatusBadge'
+import { TaskDependencyList } from '../TaskDependencyList/TaskDependencyList'
+import { useTaskDependencies } from '../../hooks/useTaskDependencies'
 
 interface TaskDetailModalProps {
   task: Task | null
@@ -11,7 +14,8 @@ interface TaskDetailModalProps {
 }
 
 export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps) {
-  const [activeTab, setActiveTab] = useState<'edit' | 'history' | 'comments'>('edit')
+  const [activeTab, setActiveTab] = useState<'edit' | 'history' | 'comments' | 'dependencies'>('edit')
+  const { data: dependenciesData } = useTaskDependencies(task?.id || '')
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false)
 
   if (!isOpen || !task) return null
@@ -51,11 +55,17 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
       <div className="bg-white rounded-lg shadow-lg max-w-2xl w-full mx-4 max-h-[90vh] flex flex-col">
         {/* Header */}
         <div className="border-b px-6 py-4 flex items-center justify-between">
-          <div>
-            <h2 id="task-detail-title" className="text-xl font-semibold text-gray-900">
-              {task.title}
-            </h2>
-            <p className="text-sm text-gray-500 mt-1">ID: {task.id}</p>
+          <div className="flex-1">
+            <div className="flex items-center gap-3 mb-1">
+              <h2 id="task-detail-title" className="text-xl font-semibold text-gray-900">
+                {task.title}
+              </h2>
+              <BlockingStatusBadge
+                isBlocked={(task.dependsOn || []).length > 0}
+                blockingCount={(task.blockedBy || []).length}
+              />
+            </div>
+            <p className="text-sm text-gray-500">ID: {task.id}</p>
           </div>
           <button
             onClick={handleClose}
@@ -70,7 +80,7 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
 
         {/* Tabs */}
         <div className="border-b flex gap-8 px-6 bg-gray-50">
-          {(['edit', 'history', 'comments'] as const).map((tab) => (
+          {(['edit', 'dependencies', 'history', 'comments'] as const).map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -97,6 +107,7 @@ export function TaskDetailModal({ task, isOpen, onClose }: TaskDetailModalProps)
               onUnsavedChangesChange={setHasUnsavedChanges}
             />
           )}
+          {activeTab === 'dependencies' && <TaskDependencyList taskId={task.id} />}
           {activeTab === 'history' && <TaskHistoryTimeline taskId={task.id} />}
           {activeTab === 'comments' && <TaskCommentThread taskId={task.id} />}
         </div>
