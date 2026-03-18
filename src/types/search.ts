@@ -1,50 +1,144 @@
 /**
- * Types for advanced search functionality
+ * Types for global task search with filter persistence
  *
- * Defines filter types, search state, and API response schemas.
+ * Supports full-text search, multi-filter support, pagination, and saved filter sets.
  */
 
-import type { Task } from './task'
+import type { TaskStatus, TaskPriority } from './task'
 
 /**
- * Advanced search filter options
+ * Search filter options for task search
  *
- * Supports multi-field filtering across task properties.
- * All fields are optional and combined with AND logic.
+ * All fields are optional. Multiple values are combined with AND logic.
  */
-export interface AdvancedSearchFilters {
-  search?: string  // Text search (searches task title and ID)
-  status?: string  // Task status filter (backlog, in-progress, in-review, done)
-  agent?: string   // Agent/Assignee filter (person name)
+export interface SearchFilters {
+  query?: string
+  status?: TaskStatus[]
+  agentId?: string[]
+  sprintId?: string[]
+  priority?: TaskPriority[]
+  dateRange?: {
+    from?: string  // ISO 8601 date
+    to?: string    // ISO 8601 date
+  }
 }
 
 /**
- * Search API response format
- *
- * Contains paginated search results and metadata.
+ * Individual task result from search
+ */
+export interface SearchResult {
+  id: string
+  title: string
+  description: string
+  assignee: string
+  agentId: string
+  status: TaskStatus
+  priority: TaskPriority
+  sprint: string
+  sprintId: string
+  deadline?: string
+  createdAt: string
+}
+
+/**
+ * Paginated search response
  */
 export interface SearchResponse {
-  data: Task[]
-  meta: SearchMetadata
+  items: SearchResult[]
+  pagination: {
+    page: number
+    pageSize: number
+    total: number
+    totalPages: number
+  }
 }
 
 /**
- * Metadata about search results
+ * Named filter set persisted via API
  */
-export interface SearchMetadata {
-  total: number        // Total number of matching results
-  page: number         // Current page number (1-indexed)
-  limit: number        // Results per page
-  totalPages: number   // Total number of pages
+export interface SavedFilter {
+  id: string
+  name: string
+  description?: string
+  filters: SearchFilters
+  createdAt: string
+  updatedAt: string
 }
 
 /**
- * Search request parameters (as passed to API)
+ * Request to save a filter set
  */
-export interface SearchRequest {
-  search?: string
-  status?: string
-  agent?: string
-  page?: number
-  limit?: number
+export interface SaveFilterRequest {
+  name: string
+  description?: string
+  filters: SearchFilters
+}
+
+/**
+ * Options for useTaskSearch hook
+ */
+export interface UseTaskSearchOptions {
+  /** Debounce delay in milliseconds (default: 300) */
+  debounceMs?: number
+  /** Results per page (default: 20) */
+  pageSize?: number
+  /** Cache stale time in milliseconds (default: 30000 = 30s) */
+  staleTime?: number
+}
+
+/**
+ * Return type for useTaskSearch hook
+ */
+export interface UseTaskSearchReturn {
+  // Query state
+  results: SearchResult[]
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+
+  // Pagination
+  page: number
+  pageSize: number
+  total: number
+  totalPages: number
+
+  // Filter state
+  filters: SearchFilters
+  debouncedQuery: string
+
+  // Actions
+  setQuery: (query: string) => void
+  setFilters: (filters: SearchFilters) => void
+  setPage: (page: number) => void
+  reset: () => void
+}
+
+/**
+ * Options for useSavedFilters hook
+ */
+export interface UseSavedFiltersOptions {
+  /** Enable automatic refetch on window focus (default: true) */
+  refetchOnWindowFocus?: boolean
+}
+
+/**
+ * Return type for useSavedFilters hook
+ */
+export interface UseSavedFiltersReturn {
+  // Query state
+  savedFilters: SavedFilter[]
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+
+  // Mutation states
+  isSaving: boolean
+  isDeleting: boolean
+  isResetting: boolean
+
+  // Actions
+  saveFilter: (request: SaveFilterRequest) => Promise<SavedFilter>
+  deleteFilter: (id: string) => Promise<void>
+  updateFilter: (id: string, request: SaveFilterRequest) => Promise<SavedFilter>
+  resetAll: () => Promise<void>
 }
