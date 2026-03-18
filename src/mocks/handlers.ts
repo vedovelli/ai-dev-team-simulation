@@ -19,6 +19,7 @@ import { agentAvailabilityStatusHandlers } from './handlers/agent-availability'
 import { taskQueueHandlers } from './handlers/taskQueue'
 import { taskHandlers } from './handlers/tasks'
 import { sprintHandlers } from './handlers/sprints'
+import { sprintMetricsHandlers } from './handlers/sprint-metrics'
 import { sprintReorderHandlers } from './handlers/sprint-reorder'
 import { agentTaskQueueHandlers } from './handlers/agentTaskQueue'
 import { sprintAnalyticsHandlers } from './handlers/sprintAnalytics'
@@ -2591,6 +2592,7 @@ export const paginatedHandlers = [
   ...taskQueueHandlers,
   ...taskHandlers,
   ...sprintHandlers,
+  ...sprintMetricsHandlers,
   ...sprintReorderHandlers,
   ...agentTaskQueueHandlers,
   ...sprintAnalyticsHandlers,
