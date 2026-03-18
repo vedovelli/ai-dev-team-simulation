@@ -2,6 +2,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import type { Sprint } from '../../types/sprint'
 import { sprintKeys } from '../queries/sprints'
 import { useMutationWithRetry } from '../useMutationWithRetry'
+import { useToast } from '../useToast'
 
 /**
  * Input type for creating a new sprint
@@ -22,9 +23,11 @@ interface CreateSprintInput {
  * - Optimistic update: immediately reflects new sprint in list
  * - Automatic retry on failure with exponential backoff
  * - Invalidates sprints list on success for consistency
+ * - Shows toast notifications on success and error
  */
 export const useCreateSprint = () => {
   const queryClient = useQueryClient()
+  const toast = useToast()
 
   return useMutationWithRetry({
     mutationFn: async (data: CreateSprintInput): Promise<Sprint> => {
@@ -75,13 +78,16 @@ export const useCreateSprint = () => {
 
       return { previousSprints, optimisticSprint }
     },
-    onError: (_, __, context) => {
+    onError: (error, _, context) => {
       // Revert on error
       if (context?.previousSprints) {
         context.previousSprints.forEach(([key, data]) => {
           queryClient.setQueryData(key, data)
         })
       }
+      // Show error toast
+      const errorMessage = error instanceof Error ? error.message : 'Failed to create sprint'
+      toast.error(errorMessage)
     },
     onSuccess: (newSprint, _, context) => {
       // Replace optimistic with real sprint
@@ -94,6 +100,8 @@ export const useCreateSprint = () => {
       }
       // Invalidate to ensure consistency
       queryClient.invalidateQueries({ queryKey: sprintKeys.lists() })
+      // Show success toast
+      toast.success(`Sprint "${newSprint.name}" created successfully!`)
     },
   })
 }

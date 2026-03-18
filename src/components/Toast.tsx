@@ -1,15 +1,29 @@
 import { createContext, useContext, useState, useRef, useEffect } from 'react'
 import React from 'react'
 
+interface ToastAction {
+  label: string
+  onClick: () => void
+}
+
 interface ToastMessage {
   id: string
   message: string
   type: 'success' | 'error' | 'warning' | 'info'
+  action?: ToastAction
+  duration?: number
+}
+
+interface ToastOptions {
+  type?: 'success' | 'error' | 'warning' | 'info'
+  duration?: number
+  action?: ToastAction
 }
 
 interface ToastContextType {
   toasts: ToastMessage[]
   showToast: (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void
+  toast: (message: string, options?: ToastOptions) => void
   removeToast: (id: string) => void
 }
 
@@ -53,16 +67,26 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   const timeoutRefs = React.useRef<Map<string, NodeJS.Timeout>>(new Map())
 
   const showToast = (message: string, type: 'success' | 'error' | 'warning' | 'info' = 'success') => {
-    const id = `toast-${Date.now()}`
-    setToasts((prev) => [...prev, { id, message, type }])
+    toast(message, { type })
+  }
+
+  const toast = (message: string, options?: ToastOptions) => {
+    const {
+      type = 'success',
+      duration = 4000,
+      action,
+    } = options || {}
+
+    const id = `toast-${Date.now()}-${Math.random()}`
+    setToasts((prev) => [...prev, { id, message, type, action, duration }])
     setExitingToasts((prev) => new Set(prev))
 
-    // Auto-remove after 5 seconds
+    // Auto-remove after specified duration
     const timeoutId = setTimeout(() => {
       setExitingToasts((prev) => new Set(prev).add(id))
       const removeTimeoutId = setTimeout(() => removeToast(id), 300)
       timeoutRefs.current.set(id, removeTimeoutId)
-    }, 5000)
+    }, duration)
     timeoutRefs.current.set(id, timeoutId)
   }
 
@@ -101,11 +125,11 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
   }, [toasts])
 
   return (
-    <ToastContext.Provider value={{ toasts, showToast, removeToast }}>
+    <ToastContext.Provider value={{ toasts, showToast, toast, removeToast }}>
       {children}
       <style>{toastAnimationStyles}</style>
-      <div className="fixed bottom-4 right-4 space-y-2 z-50" role="status" aria-live="polite" aria-atomic="true">
-        {toasts.map((toast) => {
+      <div className="fixed bottom-4 right-4 space-y-2 z-50" role="region" aria-live="polite" aria-atomic="false" aria-label="Notifications">
+        {toasts.map((toastItem) => {
           const colorClasses = {
             success: 'bg-emerald-500',
             error: 'bg-red-500',
@@ -115,24 +139,41 @@ export const ToastProvider = ({ children }: { children: React.ReactNode }) => {
 
           return (
             <div
-              key={toast.id}
+              key={toastItem.id}
               className={`px-4 py-3 rounded-lg text-white font-medium ${
-                colorClasses[toast.type]
+                colorClasses[toastItem.type]
               } ${
-                exitingToasts.has(toast.id) ? 'toast-exit' : 'toast-enter'
-              } transition-all duration-300 cursor-pointer hover:shadow-lg`}
+                exitingToasts.has(toastItem.id) ? 'toast-exit' : 'toast-enter'
+              } transition-all duration-300 hover:shadow-lg`}
               role="alert"
-              onClick={() => removeToast(toast.id)}
               tabIndex={0}
               onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  removeToast(toast.id)
+                if (e.key === 'Escape') {
+                  removeToast(toastItem.id)
                 }
               }}
             >
               <div className="flex items-center justify-between gap-2">
-                <span>{toast.message}</span>
-                <span className="text-xs opacity-60">Press Escape to dismiss all</span>
+                <span>{toastItem.message}</span>
+                <div className="flex items-center gap-2">
+                  {toastItem.action && (
+                    <button
+                      onClick={toastItem.action.onClick}
+                      className="text-xs px-2 py-1 rounded bg-white/20 hover:bg-white/30 transition-colors"
+                      type="button"
+                    >
+                      {toastItem.action.label}
+                    </button>
+                  )}
+                  <button
+                    onClick={() => removeToast(toastItem.id)}
+                    className="text-lg leading-none hover:opacity-70 transition-opacity cursor-pointer"
+                    type="button"
+                    aria-label="Dismiss notification"
+                  >
+                    ×
+                  </button>
+                </div>
               </div>
             </div>
           )
@@ -147,5 +188,15 @@ export const useToast = () => {
   if (!context) {
     throw new Error('useToast must be used within ToastProvider')
   }
-  return context
+  return {
+    success: (message: string, action?: ToastAction) =>
+      context.toast(message, { type: 'success', action }),
+    error: (message: string, action?: ToastAction) =>
+      context.toast(message, { type: 'error', action }),
+    warning: (message: string, action?: ToastAction) =>
+      context.toast(message, { type: 'warning', action }),
+    info: (message: string, action?: ToastAction) =>
+      context.toast(message, { type: 'info', action }),
+    toast: context.toast,
+  }
 }
