@@ -1020,10 +1020,8 @@ export const notificationHandlers = [
             results.push({ id, success: false, error: 'agentId is required for assign action' })
             failed++
           } else {
-            notificationsStore[notifIndex] = {
-              ...notificationsStore[notifIndex],
-              read: true,
-            }
+            // Remove from view (assignment handled)
+            notificationsStore.splice(notifIndex, 1)
             results.push({ id, success: true })
             updated++
           }

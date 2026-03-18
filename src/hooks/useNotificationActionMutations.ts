@@ -12,6 +12,8 @@ import {
   type BatchNotificationActionsResponse,
   type Notification,
   type PaginatedNotificationsResponse,
+  type SnoozeDuration,
+  type NotificationActionType,
 } from '../types/notification'
 
 /**
@@ -22,6 +24,26 @@ export const assignmentQueryKeys = {
   all: ['assignments'] as const,
   list: () => [...assignmentQueryKeys.all, 'list'] as const,
   detail: (agentId: string) => [...assignmentQueryKeys.all, { agentId }] as const,
+}
+
+/**
+ * Helper function to update unreadOnly notifications query
+ * Reduces code duplication across snooze, dismiss, and batch operations
+ *
+ * @param queryClient Query client instance
+ * @param callback Function to transform the pages (filters notifications)
+ */
+function updateUnreadOnlyQuery(
+  queryClient: ReturnType<typeof useQueryClient>,
+  callback: (page: PaginatedNotificationsResponse) => PaginatedNotificationsResponse
+) {
+  queryClient.setQueryData(notificationQueryKeys.list(true), (old?: { pages: PaginatedNotificationsResponse[] }) => {
+    if (!old?.pages) return old
+    return {
+      ...old,
+      pages: old.pages.map(callback),
+    }
+  })
 }
 
 /**
@@ -135,30 +157,18 @@ export function useNotificationActionMutations() {
       if (previousData) {
         const updated = {
           ...previousData,
-          pages: previousData.pages.map((page) => {
-            const itemIndex = page.items.findIndex((n) => n.id === notificationId)
-            if (itemIndex !== -1) {
-              return {
-                ...page,
-                items: page.items.filter((n) => n.id !== notificationId),
-              }
-            }
-            return page
-          }),
+          pages: previousData.pages.map((page) => ({
+            ...page,
+            items: page.items.filter((n) => n.id !== notificationId),
+          })),
         }
         queryClient.setQueryData(notificationQueryKeys.list(false), updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(notificationQueryKeys.list(true), (old?: any) => {
-          if (!old?.pages) return old
-          return {
-            ...old,
-            pages: old.pages.map((page: PaginatedNotificationsResponse) => ({
-              ...page,
-              items: page.items.filter((n: Notification) => n.id !== notificationId),
-            })),
-          }
-        })
+        updateUnreadOnlyQuery(queryClient, (page) => ({
+          ...page,
+          items: page.items.filter((n) => n.id !== notificationId),
+        }))
       }
 
       return { previousData }
@@ -220,16 +230,10 @@ export function useNotificationActionMutations() {
         queryClient.setQueryData(notificationQueryKeys.list(false), updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(notificationQueryKeys.list(true), (old?: any) => {
-          if (!old?.pages) return old
-          return {
-            ...old,
-            pages: old.pages.map((page: PaginatedNotificationsResponse) => ({
-              ...page,
-              items: page.items.filter((n: Notification) => n.id !== notificationId),
-            })),
-          }
-        })
+        updateUnreadOnlyQuery(queryClient, (page) => ({
+          ...page,
+          items: page.items.filter((n) => n.id !== notificationId),
+        }))
       }
 
       return { previousData }
@@ -283,54 +287,38 @@ export function useNotificationActionMutations() {
       if (previousData) {
         const updated = {
           ...previousData,
-          pages: previousData.pages.map((page) => ({
-            ...page,
-            items: page.items.map((notif) => {
-              if (ids.includes(notif.id)) {
-                switch (action) {
-                  case 'mark-read':
-                    return { ...notif, read: true }
-                  case 'assign':
-                  case 'snooze':
-                  case 'dismiss':
-                    // These actions remove/hide the notification
-                    return notif
-                  default:
-                    return notif
-                }
+          pages: previousData.pages.map((page) => {
+            // For mark-read: update read status; for others: remove from view
+            if (action === 'mark-read') {
+              return {
+                ...page,
+                items: page.items.map((notif) =>
+                  ids.includes(notif.id) ? { ...notif, read: true } : notif
+                ),
               }
-              return notif
-            }).filter((notif) => {
-              // Remove dismissed/snoozed notifications from view
-              if ((action === 'dismiss' || action === 'snooze') && ids.includes(notif.id)) {
-                return false
-              }
-              return true
-            }),
-          })),
+            }
+            // For assign, snooze, dismiss: remove from view
+            return {
+              ...page,
+              items: page.items.filter((notif) => !ids.includes(notif.id)),
+            }
+          }),
         }
         queryClient.setQueryData(notificationQueryKeys.list(false), updated)
 
         // Also update unreadOnly query if it's being used
-        queryClient.setQueryData(notificationQueryKeys.list(true), (old?: any) => {
-          if (!old?.pages) return old
+        updateUnreadOnlyQuery(queryClient, (page) => {
+          if (action === 'mark-read') {
+            // Mark-read removes from unread view
+            return {
+              ...page,
+              items: page.items.filter((n) => !ids.includes(n.id)),
+            }
+          }
+          // Other actions also remove from view
           return {
-            ...old,
-            pages: old.pages.map((page: PaginatedNotificationsResponse) => {
-              if (action === 'mark-read') {
-                return {
-                  ...page,
-                  items: page.items.filter((n: Notification) => !ids.includes(n.id)),
-                }
-              }
-              if (action === 'dismiss' || action === 'snooze') {
-                return {
-                  ...page,
-                  items: page.items.filter((n: Notification) => !ids.includes(n.id)),
-                }
-              }
-              return page
-            }),
+            ...page,
+            items: page.items.filter((n) => !ids.includes(n.id)),
           }
         })
       }
@@ -364,10 +352,10 @@ export function useNotificationActionMutations() {
     assignFromNotificationError: assignFromNotificationMutation.error,
 
     // Snooze notification
-    snoozeNotification: (notificationId: string, duration) => {
+    snoozeNotification: (notificationId: string, duration: SnoozeDuration) => {
       snoozeNotificationMutation.mutate({ notificationId, duration })
     },
-    snoozeNotificationAsync: (notificationId: string, duration) => {
+    snoozeNotificationAsync: (notificationId: string, duration: SnoozeDuration) => {
       return snoozeNotificationMutation.mutateAsync({ notificationId, duration })
     },
     snoozeNotificationLoading: snoozeNotificationMutation.isLoading,
@@ -384,11 +372,11 @@ export function useNotificationActionMutations() {
     dismissNotificationError: dismissNotificationMutation.error,
 
     // Batch actions
-    batchNotificationActions: (ids: string[], action: string, payload?: any) => {
-      batchNotificationActionsMutation.mutate({ ids, action: action as any, payload })
+    batchNotificationActions: (ids: string[], action: NotificationActionType, payload?: { agentId?: string; duration?: SnoozeDuration }) => {
+      batchNotificationActionsMutation.mutate({ ids, action, payload })
     },
-    batchNotificationActionsAsync: (ids: string[], action: string, payload?: any) => {
-      return batchNotificationActionsMutation.mutateAsync({ ids, action: action as any, payload })
+    batchNotificationActionsAsync: (ids: string[], action: NotificationActionType, payload?: { agentId?: string; duration?: SnoozeDuration }) => {
+      return batchNotificationActionsMutation.mutateAsync({ ids, action, payload })
     },
     batchNotificationActionsLoading: batchNotificationActionsMutation.isLoading,
     batchNotificationActionsError: batchNotificationActionsMutation.error,
