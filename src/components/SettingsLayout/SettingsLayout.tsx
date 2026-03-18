@@ -21,11 +21,13 @@ export function SettingsLayout({ children }: SettingsLayoutProps) {
     { id: 'display', label: 'Display', icon: '⚙️', href: '/settings/display' },
   ]
 
-  const getActiveTab = (): SettingsTab | null => {
+  const getActiveTab = (): SettingsTab => {
     const pathname = location.pathname
-    if (pathname.includes('notifications')) return 'notifications'
-    if (pathname.includes('profile')) return 'profile'
-    if (pathname.includes('display')) return 'display'
+    const segment = pathname.split('/').filter(Boolean)[1] // Extract /settings/<segment>
+
+    if (segment === 'notifications') return 'notifications'
+    if (segment === 'profile') return 'profile'
+    if (segment === 'display') return 'display'
     return 'notifications'
   }
 

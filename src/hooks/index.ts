@@ -198,3 +198,4 @@ export type {
 export type { SprintComparisonResult, UseSprintComparisonOptions, UseSprintComparisonReturn, TrendDirection, MetricDelta, SprintComparisonDeltas } from '../types/sprint-comparison'
 export { useSettings, useUpdateSettings, useInvalidateSettings } from './queries/useSettings'
 export type { UseSettingsOptions, UseSettingsReturn } from './queries/useSettings'
+export type { SettingsSection } from '../types/settings'
