@@ -1,29 +1,35 @@
-import { useState } from 'react'
-import { NotificationPreferencesForm } from '../NotificationPreferencesForm/NotificationPreferencesForm'
+import { ReactNode } from 'react'
+import { Link, useLocation } from '@tanstack/react-router'
 
-type SettingsTab = 'notifications' | 'account' | 'profile'
+type SettingsTab = 'notifications' | 'profile' | 'display'
 
 interface SettingsLayoutProps {
-  onTabChange?: (tab: SettingsTab) => void
+  children?: ReactNode
 }
 
-export function SettingsLayout({ onTabChange }: SettingsLayoutProps) {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('notifications')
-
-  const handleTabChange = (tab: SettingsTab) => {
-    setActiveTab(tab)
-    onTabChange?.(tab)
-  }
+export function SettingsLayout({ children }: SettingsLayoutProps) {
+  const location = useLocation()
 
   const tabs: Array<{
     id: SettingsTab
     label: string
     icon: string
+    href: string
   }> = [
-    { id: 'notifications', label: 'Notifications', icon: '🔔' },
-    { id: 'account', label: 'Account', icon: '👤' },
-    { id: 'profile', label: 'Profile', icon: '⚙️' },
+    { id: 'notifications', label: 'Notifications', icon: '🔔', href: '/settings/notifications' },
+    { id: 'profile', label: 'Profile', icon: '👤', href: '/settings/profile' },
+    { id: 'display', label: 'Display', icon: '⚙️', href: '/settings/display' },
   ]
+
+  const getActiveTab = (): SettingsTab | null => {
+    const pathname = location.pathname
+    if (pathname.includes('notifications')) return 'notifications'
+    if (pathname.includes('profile')) return 'profile'
+    if (pathname.includes('display')) return 'display'
+    return 'notifications'
+  }
+
+  const activeTab = getActiveTab()
 
   return (
     <div className="min-h-screen bg-slate-950">
@@ -38,9 +44,9 @@ export function SettingsLayout({ onTabChange }: SettingsLayoutProps) {
         <div className="border-b border-slate-700 mb-6">
           <div className="flex gap-0 -mb-px">
             {tabs.map((tab) => (
-              <button
+              <Link
                 key={tab.id}
-                onClick={() => handleTabChange(tab.id)}
+                to={tab.href}
                 className={`px-4 py-3 font-medium text-sm border-b-2 transition-colors ${
                   activeTab === tab.id
                     ? 'border-blue-500 text-blue-400'
@@ -49,37 +55,14 @@ export function SettingsLayout({ onTabChange }: SettingsLayoutProps) {
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
-              </button>
+              </Link>
             ))}
           </div>
         </div>
 
         {/* Tab Content */}
         <div className="bg-slate-900 rounded-lg p-6 border border-slate-800">
-          {activeTab === 'notifications' && (
-            <div>
-              <h2 className="text-xl font-semibold text-white mb-6">Notification Preferences</h2>
-              <NotificationPreferencesForm />
-            </div>
-          )}
-
-          {activeTab === 'account' && (
-            <div>
-              <h2 className="text-xl font-semibold text-white mb-6">Account Settings</h2>
-              <div className="text-slate-400">
-                <p>Account settings coming soon...</p>
-              </div>
-            </div>
-          )}
-
-          {activeTab === 'profile' && (
-            <div>
-              <h2 className="text-xl font-semibold text-white mb-6">Profile Settings</h2>
-              <div className="text-slate-400">
-                <p>Profile settings coming soon...</p>
-              </div>
-            </div>
-          )}
+          {children}
         </div>
       </div>
     </div>
