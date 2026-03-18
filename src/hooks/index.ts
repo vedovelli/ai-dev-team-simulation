@@ -39,6 +39,15 @@ export { useNotificationCenterDisplay } from './useNotificationCenterDisplay'
 export type { UseNotificationCenterDisplayOptions, UseNotificationCenterDisplayReturn } from './useNotificationCenterDisplay'
 export { useNotificationPreferences } from './useNotificationPreferences'
 export type { UseNotificationPreferencesOptions, UseNotificationPreferencesReturn } from './useNotificationPreferences'
+export { useNotificationHistory, notificationHistoryQueryKeys } from './useNotificationHistory'
+export type {
+  UseNotificationHistoryOptions,
+  UseNotificationHistoryReturn,
+  NotificationHistoryEntry,
+  NotificationHistoryFilters,
+  NotificationHistoryResponse,
+  NotificationHistoryPaginationMeta,
+} from './useNotificationHistory'
 export { useNotificationActionMutations } from './useNotificationActionMutations'
 export type { UseNotificationActionMutationsReturn } from './useNotificationActionMutations'
 export { useNotificationCacheManager } from './useNotificationCacheManager'
