@@ -54,6 +54,7 @@ import { settingsHandlers } from './handlers/settings'
 import { websocketHandlers } from './handlers/websocket'
 import { errorsHandlers } from './handlers/errors'
 import { agentSchedulingHandlers } from './handlers/agent-scheduling'
+import { onboardingHandlers } from './handlers/onboarding'
 
 interface Team {
   id: string
@@ -1813,6 +1814,9 @@ export const handlers = [
 
   // Form submission handlers
   ...formSubmissionHandlers,
+
+  // Onboarding handlers
+  ...onboardingHandlers,
 ]
 
 export const allHandlers = [...handlers, ...paginatedHandlers]
