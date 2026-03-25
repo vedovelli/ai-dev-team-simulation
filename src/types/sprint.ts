@@ -186,3 +186,33 @@ export interface SprintAnalyticsData {
     recommendedVelocity: number // for planning next sprint
   }
 }
+
+/**
+ * Raw sprint velocity data point from API
+ */
+export interface SprintVelocityRaw {
+  sprintId: string
+  sprintName: string
+  plannedPoints: number
+  completedPoints: number
+  startDate: string // ISO 8601
+  endDate: string // ISO 8601
+}
+
+/**
+ * Transformed velocity data point for chart consumption
+ */
+export interface VelocityDataPoint {
+  name: string // sprint name
+  planned: number
+  completed: number
+  completionRate: number // percentage 0-100
+}
+
+/**
+ * Sprint velocity response with rolling average
+ */
+export interface SprintVelocityResponse {
+  data: VelocityDataPoint[]
+  rollingAverage: number // average of last 3 sprints
+}

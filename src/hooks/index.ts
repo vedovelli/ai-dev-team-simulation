@@ -92,6 +92,8 @@ export { useWorkloadAnalytics, useAgentWorkloadAnalytics } from './useWorkloadAn
 export type { WorkloadAnalytics, WorkloadAnalyticsFilters } from './useWorkloadAnalytics'
 export { useSprintMetrics } from './useSprintMetrics'
 export type { UseSprintMetricsOptions } from './useSprintMetrics'
+export { useSprintVelocity } from './useSprintVelocity'
+export type { UseSprintVelocityOptions, UseSprintVelocityReturn } from './useSprintVelocity'
 export { useAgentTasks } from './useAgentTasks'
 export type { UseAgentTasksOptions, AgentTasksResponse } from './useAgentTasks'
 export { useReassignTask } from './mutations/useReassignTask'
