@@ -13,6 +13,7 @@ import { AgentWorkloadChart } from './AgentWorkloadChart'
 import { SprintProgressBar } from '../StatusIndicators'
 import { AgentCardList } from '../AgentPerformanceCard'
 import { SyncStatusBadge } from '../SyncStatusBadge'
+import { SprintVelocityPanel } from '../VelocityTrendChart'
 
 interface SprintDashboardProps {
   sprintId?: string
@@ -196,6 +197,9 @@ export function SprintDashboard({ sprintId: initialSprintId, sprints = [] }: Spr
           <SprintMetricsPanel sprintId={selectedSprintId} refetchInterval={30 * 1000} />
         </>
       )}
+
+      {/* Velocity Trend Chart - Secondary section */}
+      <SprintVelocityPanel timeRange="30d" />
 
       {/* Agent Performance Cards with Task Assignment */}
       <AgentCardList />
