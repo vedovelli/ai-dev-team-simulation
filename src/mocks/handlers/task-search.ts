@@ -2,7 +2,8 @@
  * MSW Handler for Task Search & Advanced Filtering
  *
  * Implements:
- * - GET /api/tasks/search — legacy endpoint with faceted filtering
+ * - GET /api/tasks/search — simple global full-text search with q and filter params (FAB-193)
+ * - GET /api/tasks/search (legacy) — legacy endpoint with faceted filtering
  * - POST /api/tasks/search — new global search with structured filters
  * - GET /api/search/saved-filters — retrieve saved filter sets
  * - POST /api/search/saved-filters — save a new filter set
@@ -16,12 +17,22 @@ import type { TaskStatus, TaskPriority } from '../../types/task'
 import type { TaskSearchResponse, SearchTask } from '../../types/task-search'
 import type { SearchFilters, SearchResult, SearchResponse, SavedFilter, SaveFilterRequest } from '../../types/search'
 
-// Generate mock tasks with descriptions for search
-function generateSearchMockTasks(): SearchTask[] {
+/**
+ * Task search result with comments for FAB-193
+ */
+interface TaskSearchWithComments extends SearchTask {
+  comments: string[]
+  deadline?: string
+  assignee: string
+}
+
+// Generate mock tasks with descriptions and comments for search
+function generateSearchMockTasks(): TaskSearchWithComments[] {
   const statuses: TaskStatus[] = ['backlog', 'in-progress', 'in-review', 'done']
   const priorities: TaskPriority[] = ['low', 'medium', 'high']
   const agents = ['John Doe', 'Jane Smith', 'Bob Johnson', 'Alice Williams', 'Charlie Brown', 'Diana Prince']
   const sprints = ['sprint-1', 'sprint-2', 'sprint-3', 'sprint-4']
+  const currentAgent = 'John Doe'
 
   const taskTitles = [
     'Implement authentication system',
@@ -69,16 +80,43 @@ function generateSearchMockTasks(): SearchTask[] {
     'Create admin panel for user management, logs, and system configuration',
   ]
 
-  const tasks: SearchTask[] = []
+  const sampleComments = [
+    'Started work on this task',
+    'Need to refactor database schema',
+    'Implementation complete, awaiting review',
+    'Critical issue found in production',
+    'Customer feedback received on feature',
+    'Ready for deployment',
+    'Blocked by task-25',
+    'Performance optimization needed',
+  ]
+
+  const tasks: TaskSearchWithComments[] = []
   for (let i = 1; i <= 100; i++) {
+    // Create some tasks with past deadlines assigned to current agent
+    const now = new Date()
+    let deadline: string | undefined
+    const isAssignedToCurrent = i % 6 === 0 // Some tasks assigned to current agent
+    if (isAssignedToCurrent && i % 3 === 0) {
+      // Make some of these overdue
+      deadline = new Date(now.getTime() - (i % 10) * 24 * 60 * 60 * 1000).toISOString()
+    } else if (i % 7 === 0) {
+      deadline = new Date(now.getTime() + (i % 30) * 24 * 60 * 60 * 1000).toISOString()
+    }
+
     tasks.push({
       id: `task-${i}`,
       title: `${taskTitles[i % taskTitles.length]} #${i}`,
       description: descriptions[i % descriptions.length],
-      assignee: agents[i % agents.length],
+      assignee: isAssignedToCurrent ? currentAgent : agents[i % agents.length],
       status: statuses[i % statuses.length],
       priority: priorities[i % priorities.length],
       sprint: sprints[i % sprints.length],
+      deadline,
+      comments: [
+        sampleComments[i % sampleComments.length],
+        sampleComments[(i + 1) % sampleComments.length],
+      ],
       matchedFields: [],
     })
   }
@@ -90,6 +128,47 @@ function generateSearchMockTasks(): SearchTask[] {
 const savedFiltersStore = new Map<string, SavedFilter>()
 
 const mockTasks = generateSearchMockTasks()
+
+/**
+ * Simple global task search with full-text matching across title, description, and comments
+ * Supports filter presets like 'my_overdue'
+ */
+function simpleTaskSearch(query: string, filter: 'my_overdue' | 'all' = 'all') {
+  const currentAgent = 'John Doe'
+  let results = [...mockTasks]
+
+  // Apply filter preset first
+  if (filter === 'my_overdue') {
+    const now = new Date()
+    results = results.filter((task) => {
+      // Only include tasks assigned to current agent with past deadlines
+      if (task.assignee !== currentAgent) return false
+      if (!task.deadline) return false
+      return new Date(task.deadline).getTime() < now.getTime()
+    })
+  }
+
+  // Apply full-text search across title, description, and comments
+  if (query && query.trim()) {
+    const searchLower = query.toLowerCase()
+    results = results.filter((task) => {
+      const titleMatch = task.title.toLowerCase().includes(searchLower)
+      const descMatch = task.description.toLowerCase().includes(searchLower)
+      const commentMatch = task.comments.some((comment) => comment.toLowerCase().includes(searchLower))
+      return titleMatch || descMatch || commentMatch
+    })
+  }
+
+  // Return paginated results (limit 20)
+  const limit = 20
+  const total = results.length
+  const items = results.slice(0, limit)
+
+  return {
+    items,
+    total,
+  }
+}
 
 interface SearchParams {
   q?: string
@@ -307,10 +386,28 @@ function generateId() {
 }
 
 export const taskSearchHandlers = [
-  // Legacy GET endpoint for backward compatibility
-  http.get('/api/tasks/search', ({ request }) => {
+  // GET /api/tasks/search — handles both simple search (FAB-193) and legacy filtering
+  http.get('/api/tasks/search', async ({ request }) => {
     const url = new URL(request.url)
 
+    // FAB-193: Simple search API using q and filter params
+    // Distinguishable from legacy by having 'q' or 'filter' (without other legacy params)
+    if (url.searchParams.has('q') || url.searchParams.has('filter')) {
+      // Simulate realistic latency (200-400ms)
+      await new Promise((resolve) => setTimeout(resolve, 200 + Math.random() * 200))
+
+      const query = url.searchParams.get('q') || ''
+      const filter = (url.searchParams.get('filter') || 'all') as 'my_overdue' | 'all'
+
+      const result = simpleTaskSearch(query, filter)
+
+      return HttpResponse.json({
+        items: result.items,
+        total: result.total,
+      })
+    }
+
+    // Legacy endpoint for backward compatibility
     // Parse multi-select parameters (comma-separated or multiple params)
     const parsePriorities = () => {
       const val = url.searchParams.get('priority')

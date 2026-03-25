@@ -1,27 +1,56 @@
 import { useEffect, useState, useCallback } from 'react'
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import type { SearchFilters, SearchResult, UseTaskSearchOptions, UseTaskSearchReturn } from '../types/search'
+import { useQuery } from '@tanstack/react-query'
+import type { SearchTask, SearchFacets, TaskSearchPagination } from '../types/task-search'
 
 /**
- * Query key factory for task search
+ * Query key factory for task search (FAB-193)
  */
 export const taskSearchQueryKeys = {
   all: ['tasks', 'search'] as const,
-  search: (filters: SearchFilters, page: number) =>
-    [...taskSearchQueryKeys.all, { filters, page }] as const,
+  search: (debouncedQuery: string, filter: 'my_overdue' | 'all') =>
+    [...taskSearchQueryKeys.all, debouncedQuery, filter] as const,
 }
 
 /**
- * Global task search hook with debounced query and filter state management
+ * Response from simple task search endpoint
+ */
+interface TaskSearchResponse {
+  items: SearchTask[]
+  total: number
+}
+
+/**
+ * Return type for useTaskSearch hook
+ */
+export interface UseTaskSearchReturn {
+  results: SearchTask[]
+  total: number
+  isLoading: boolean
+  isError: boolean
+  error: Error | null
+  debouncedQuery: string
+  filter: 'my_overdue' | 'all'
+  setQuery: (query: string) => void
+  setFilter: (filter: 'my_overdue' | 'all') => void
+}
+
+/**
+ * Configuration options for useTaskSearch hook
+ */
+export interface UseTaskSearchOptions {
+  debounceMs?: number
+}
+
+/**
+ * Global task search hook with debounced query and filter support
  *
  * Features:
- * - Full-text search across task titles and descriptions
- * - Multi-filter support (status, priority, agent, sprint, date range)
+ * - Full-text search across task titles, descriptions, and comments
+ * - Filter presets: 'my_overdue' (tasks past deadline assigned to current user) or 'all'
  * - Debounced query input (default 300ms) to avoid excessive requests
- * - Pagination with computed totalPages
  * - Stale-while-revalidate strategy (30s stale, 2min gc)
  * - Exponential backoff retry (3 attempts)
- * - keepPreviousData to prevent UI flashing
+ * - Skips query when query is empty
  *
  * @param options Configuration for search behavior
  * @returns Search state and actions
@@ -33,85 +62,54 @@ export const taskSearchQueryKeys = {
  * // Update search query (debounced)
  * search.setQuery('authentication')
  *
- * // Update filters
- * search.setFilters({
- *   status: ['in-progress', 'in-review'],
- *   priority: ['high'],
- * })
- *
- * // Navigate pages
- * search.setPage(2)
+ * // Filter to only overdue tasks assigned to you
+ * search.setFilter('my_overdue')
  *
  * // Get results
- * const { results, isLoading, total } = search
+ * const { results, total, isLoading } = search
  * ```
  */
 export function useTaskSearch(options: UseTaskSearchOptions = {}): UseTaskSearchReturn {
-  const {
-    debounceMs = 300,
-    pageSize = 20,
-    staleTime = 30 * 1000, // 30s
-  } = options
-
-  const queryClient = useQueryClient()
+  const { debounceMs = 300 } = options
 
   // Internal state for debouncing
   const [query, setQueryState] = useState('')
   const [debouncedQuery, setDebouncedQuery] = useState('')
-  const [filters, setFiltersState] = useState<SearchFilters>({})
-  const [page, setPageState] = useState(1)
+  const [filter, setFilterState] = useState<'my_overdue' | 'all'>('all')
 
   // Debounce query input
   useEffect(() => {
     const timer = setTimeout(() => {
       setDebouncedQuery(query)
-      // Reset to page 1 when query changes
-      setPageState(1)
     }, debounceMs)
 
     return () => clearTimeout(timer)
   }, [query, debounceMs])
 
-  // Reset page when filters change
-  useEffect(() => {
-    setPageState(1)
-  }, [filters])
-
   // Perform search query
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: taskSearchQueryKeys.search(
-      {
-        ...filters,
-        query: debouncedQuery,
-      },
-      page
-    ),
+    queryKey: taskSearchQueryKeys.search(debouncedQuery, filter),
     queryFn: async () => {
-      const response = await fetch('/api/tasks/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          filters: {
-            ...filters,
-            query: debouncedQuery,
-          },
-          page,
-          pageSize,
-        }),
+      const params = new URLSearchParams()
+      if (debouncedQuery) {
+        params.append('q', debouncedQuery)
+      }
+      params.append('filter', filter)
+
+      const response = await fetch(`/api/tasks/search?${params}`, {
+        headers: { 'Content-Type': 'application/json' },
       })
 
       if (!response.ok) {
         throw new Error(`Search failed: ${response.statusText}`)
       }
 
-      return response.json()
+      return response.json() as Promise<TaskSearchResponse>
     },
-    staleTime,
+    staleTime: 30 * 1000, // 30 seconds
     gcTime: 2 * 60 * 1000, // 2 minutes
-    keepPreviousData: true,
     refetchOnWindowFocus: false,
+    enabled: debouncedQuery.length > 0, // Skip query when empty
     retry: 3,
     retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 30000),
   })
@@ -121,46 +119,20 @@ export function useTaskSearch(options: UseTaskSearchOptions = {}): UseTaskSearch
     setQueryState(newQuery)
   }, [])
 
-  const setFilters = useCallback((newFilters: SearchFilters) => {
-    setFiltersState(newFilters)
+  const setFilter = useCallback((newFilter: 'my_overdue' | 'all') => {
+    setFilterState(newFilter)
   }, [])
-
-  const setPage = useCallback((newPage: number) => {
-    setPageState(Math.max(1, newPage))
-  }, [])
-
-  const reset = useCallback(() => {
-    setQueryState('')
-    setDebouncedQuery('')
-    setFiltersState({})
-    setPageState(1)
-    queryClient.removeQueries({
-      queryKey: taskSearchQueryKeys.all,
-    })
-  }, [queryClient])
 
   return {
-    // Query state
     results: data?.items ?? [],
+    total: data?.total ?? 0,
     isLoading,
     isError,
     error: error instanceof Error ? error : null,
-
-    // Pagination
-    page,
-    pageSize,
-    total: data?.pagination.total ?? 0,
-    totalPages: data?.pagination.totalPages ?? 0,
-
-    // Filter state
-    filters,
     debouncedQuery,
-
-    // Actions
+    filter,
     setQuery,
-    setFilters,
-    setPage,
-    reset,
+    setFilter,
   }
 }
 
